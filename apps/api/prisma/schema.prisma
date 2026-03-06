@@ -1,0 +1,446 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ ENUMS ============
+
+enum UserRole {
+  CIVILIAN
+  VETERAN_UNVERIFIED
+  VETERAN_VERIFIED
+  VETERAN_PAID
+  MODERATOR
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  BANNED
+  PENDING_DELETION
+  DELETED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  NON_BINARY
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum MilitaryBranch {
+  // UK Branches
+  BRITISH_ARMY
+  ROYAL_NAVY
+  ROYAL_AIR_FORCE
+  ROYAL_MARINES
+  RESERVE_FORCES
+  TERRITORIAL_ARMY
+  // US Branches (for compatibility)
+  ARMY
+  NAVY
+  AIR_FORCE
+  MARINE_CORPS
+  COAST_GUARD
+  SPACE_FORCE
+  NATIONAL_GUARD
+  OTHER
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum MatchType {
+  DATING
+  BROTHERS
+}
+
+enum MatchStatus {
+  PENDING
+  ACTIVE
+  CANCELLED
+  EXPIRED
+}
+
+enum ReportReason {
+  FAKE_PROFILE
+  HARASSMENT
+  INAPPROPRIATE_CONTENT
+  SPAM
+  SCAM
+  IMPERSONATION
+  UNDERAGE
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  DISMISSED
+  RESOLVED
+  ESCALATED
+  ACTION_TAKEN
+}
+
+enum SubscriptionTier {
+  FREE
+  // Dating tiers
+  DATING_PREMIUM
+  DATING_PREMIUM_PLUS
+  // BIA tiers (veterans only)
+  BIA_BASIC
+  BIA_PLUS
+  // Bundle tiers
+  BUNDLE_PREMIUM_BIA
+  BUNDLE_ULTIMATE
+  // Legacy tiers (for backward compatibility)
+  PREMIUM_MONTHLY
+  PREMIUM_ANNUAL
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  EXPIRED
+}
+
+// ============ MODELS ============
+
+model User {
+  id                      String    @id @default(uuid())
+  email                   String    @unique
+  passwordHash            String    @map("password_hash")
+  role                    UserRole  @default(CIVILIAN)
+  status                  UserStatus @default(PENDING)
+  emailVerified           Boolean   @default(false) @map("email_verified")
+  emailVerificationToken  String?   @map("email_verification_token")
+  emailVerificationExpires DateTime? @map("email_verification_expires")
+  passwordResetToken      String?   @map("password_reset_token")
+  passwordResetExpires    DateTime? @map("password_reset_expires")
+  refreshTokenHash        String?   @map("refresh_token_hash")
+  refreshTokenExpiresAt   DateTime? @map("refresh_token_expires_at")
+  lastLoginAt             DateTime? @map("last_login_at")
+  lastActiveAt            DateTime  @default(now()) @map("last_active_at")
+  isOnline                Boolean   @default(false) @map("is_online")
+  banReason               String?   @map("ban_reason")
+  banExpiresAt            DateTime? @map("ban_expires_at")
+  deletionRequestedAt     DateTime? @map("deletion_requested_at")
+  scheduledDeletionAt     DateTime? @map("scheduled_deletion_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+  deletedAt               DateTime? @map("deleted_at")
+
+  // Relations
+  profile              Profile?
+  veteranDetails       VeteranDetails?
+  verificationRequests VerificationRequest[]
+  matchesAsUser1       Match[]              @relation("MatchUser1")
+  matchesAsUser2       Match[]              @relation("MatchUser2")
+  sentMessages         Message[]            @relation("MessageSender")
+  receivedMessages     Message[]            @relation("MessageReceiver")
+  likes                Like[]               @relation("Liker")
+  likedBy              Like[]               @relation("Liked")
+  blocks               Block[]              @relation("Blocker")
+  blockedBy            Block[]              @relation("Blocked")
+  reportsMade          Report[]             @relation("Reporter")
+  reportsReceived      Report[]             @relation("Reported")
+  reportsResolved      Report[]             @relation("Resolver")
+  auditLogs            AuditLog[]
+  subscription         Subscription?
+  dailySwipes          DailySwipes?
+
+  @@index([email])
+  @@index([status])
+  @@index([role])
+  @@index([createdAt])
+  @@index([lastActiveAt])
+  @@map("users")
+}
+
+model Profile {
+  id              String    @id @default(uuid())
+  userId          String    @unique @map("user_id")
+  displayName     String?   @map("display_name")
+  bio             String?
+  gender          Gender?
+  dateOfBirth     DateTime? @map("date_of_birth")
+  location        String?
+  latitude        Float?
+  longitude       Float?
+  profileImageUrl String?   @map("profile_image_url")
+  lookingFor      Gender[]  @default([]) @map("looking_for")
+  interests       String[]  @default([])
+  isVisible       Boolean   @default(true) @map("is_visible")
+  lastActiveAt    DateTime? @map("last_active_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  photos Photo[]
+
+  @@index([location])
+  @@index([isVisible])
+  @@map("profiles")
+}
+
+model Photo {
+  id          String   @id @default(uuid())
+  profileId   String   @map("profile_id")
+  url         String
+  publicId    String   @map("public_id") // Cloudinary public ID for deletion
+  order       Int      @default(0) // For ordering photos
+  isPrimary   Boolean  @default(false) @map("is_primary")
+  width       Int?
+  height      Int?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([isPrimary])
+  @@map("photos")
+}
+
+model VeteranDetails {
+  id           String          @id @default(uuid())
+  userId       String          @unique @map("user_id")
+  branch       MilitaryBranch?
+  rank         String?
+  mos          String?
+  dutyStations String[]        @default([]) @map("duty_stations")
+  deployments  String[]        @default([])
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  servicePeriods ServicePeriod[]
+
+  @@map("veteran_details")
+}
+
+model ServicePeriod {
+  id               String          @id @default(uuid())
+  veteranDetailsId String          @map("veteran_details_id")
+  branch           MilitaryBranch
+  startDate        DateTime        @map("start_date")
+  endDate          DateTime?       @map("end_date")
+  unit             String?
+  dutyStation      String?         @map("duty_station")
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  // Relations
+  veteranDetails VeteranDetails @relation(fields: [veteranDetailsId], references: [id], onDelete: Cascade)
+
+  @@index([branch])
+  @@index([startDate, endDate])
+  @@map("service_periods")
+}
+
+model VerificationRequest {
+  id               String             @id @default(uuid())
+  userId           String             @map("user_id")
+  status           VerificationStatus @default(PENDING)
+  evidenceUrls     String[]           @default([]) @map("evidence_urls")
+  evidenceDeletedAt DateTime?         @map("evidence_deleted_at")
+  notes            String?
+  rejectionReason  String?            @map("rejection_reason")
+  reviewerId       String?            @map("reviewer_id")
+  reviewedAt       DateTime?          @map("reviewed_at")
+  expiresAt        DateTime?          @map("expires_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("verification_requests")
+}
+
+model Match {
+  id            String      @id @default(uuid())
+  user1Id       String      @map("user1_id")
+  user2Id       String      @map("user2_id")
+  matchType     MatchType   @map("match_type")
+  status        MatchStatus @default(PENDING)
+  overlapScore  Float?      @map("overlap_score")
+  lastMessageAt DateTime?   @map("last_message_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  user1    User      @relation("MatchUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2    User      @relation("MatchUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([user1Id, user2Id, matchType])
+  @@index([status])
+  @@index([matchType])
+  @@index([lastMessageAt])
+  @@map("matches")
+}
+
+model Message {
+  id               String    @id @default(uuid())
+  matchId          String    @map("match_id")
+  senderId         String    @map("sender_id")
+  receiverId       String    @map("receiver_id")
+  encryptedContent String    @map("encrypted_content")
+  iv               String
+  authTag          String    @map("auth_tag")
+  readAt           DateTime? @map("read_at")
+  editedAt         DateTime? @map("edited_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  // Relations
+  match    Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sender   User  @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User  @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, createdAt])
+  @@index([senderId])
+  @@index([receiverId])
+  @@map("messages")
+}
+
+model Like {
+  id          String   @id @default(uuid())
+  likerId     String   @map("liker_id")
+  likedId     String   @map("liked_id")
+  isSuperLike Boolean  @default(false) @map("is_super_like")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  liker User @relation("Liker", fields: [likerId], references: [id], onDelete: Cascade)
+  liked User @relation("Liked", fields: [likedId], references: [id], onDelete: Cascade)
+
+  @@unique([likerId, likedId])
+  @@index([likedId])
+  @@map("likes")
+}
+
+model Block {
+  id        String    @id @default(uuid())
+  blockerId String    @map("blocker_id")
+  blockedId String    @map("blocked_id")
+  reason    String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@map("blocks")
+}
+
+model Report {
+  id             String       @id @default(uuid())
+  reporterId     String       @map("reporter_id")
+  reportedUserId String       @map("reported_user_id")
+  reason         ReportReason
+  description    String?
+  evidenceUrls   String[]     @default([]) @map("evidence_urls")
+  status         ReportStatus @default(PENDING)
+  resolution     String?
+  resolverId     String?      @map("resolver_id")
+  resolvedAt     DateTime?    @map("resolved_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  reporter     User  @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser User  @relation("Reported", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  resolver     User? @relation("Resolver", fields: [resolverId], references: [id])
+
+  @@index([status])
+  @@index([reportedUserId])
+  @@index([createdAt])
+  @@map("reports")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  action     String
+  resource   String
+  resourceId String?  @map("resource_id")
+  metadata   Json?
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Subscription {
+  id                     String             @id @default(uuid())
+  userId                 String             @unique @map("user_id")
+  tier                   SubscriptionTier   @default(FREE)
+  status                 SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId       String?            @unique @map("stripe_customer_id")
+  stripeSubscriptionId   String?            @unique @map("stripe_subscription_id")
+  stripePriceId          String?            @map("stripe_price_id")
+  currentPeriodStart     DateTime?          @map("current_period_start")
+  currentPeriodEnd       DateTime?          @map("current_period_end")
+  cancelAtPeriodEnd      Boolean            @default(false) @map("cancel_at_period_end")
+  
+  // Feature limits based on tier
+  dailyLikesRemaining    Int                @default(10) @map("daily_likes_remaining")
+  dailyLikesResetAt      DateTime?          @map("daily_likes_reset_at")
+  superLikesRemaining    Int                @default(0) @map("super_likes_remaining")
+  superLikesResetAt      DateTime?          @map("super_likes_reset_at")
+  
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tier])
+  @@index([status])
+  @@index([stripeCustomerId])
+  @@map("subscriptions")
+}
+
+model DailySwipes {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  date            DateTime @db.Date
+  likesUsed       Int      @default(0) @map("likes_used")
+  superLikesUsed  Int      @default(0) @map("super_likes_used")
+  lastSwipeAt     DateTime @default(now()) @map("last_swipe_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+  @@map("daily_swipes")
+}

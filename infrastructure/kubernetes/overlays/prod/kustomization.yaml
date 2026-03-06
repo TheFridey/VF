@@ -1,0 +1,78 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: veteranfinder
+
+resources:
+  - ../../base
+
+patches:
+  # Production replicas
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+    target:
+      kind: Deployment
+      name: api
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+    target:
+      kind: Deployment
+      name: web
+  # Production resources
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "200m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "512Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "1000m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "1Gi"
+    target:
+      kind: Deployment
+  # Production HPA
+  - patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 20
+    target:
+      kind: HorizontalPodAutoscaler
+  # Production PDB
+  - patch: |-
+      - op: replace
+        path: /spec/minAvailable
+        value: 2
+    target:
+      kind: PodDisruptionBudget
+
+configMapGenerator:
+  - name: api-config
+    behavior: merge
+    literals:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - CORS_ORIGIN=https://veteranfinder.com
+  - name: web-config
+    behavior: merge
+    literals:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=https://api.veteranfinder.com
+      - NEXT_PUBLIC_SITE_URL=https://veteranfinder.com
+      - NEXT_PUBLIC_ENABLE_PREMIUM=true
+
+images:
+  - name: veteranfinder-api
+    newTag: latest
+  - name: veteranfinder-web
+    newTag: latest

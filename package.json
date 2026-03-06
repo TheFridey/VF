@@ -1,0 +1,14 @@
+{
+  "name": "veteranfinder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VeteranFinder - Veteran reconnection and community platform",
+  "scripts": {
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
