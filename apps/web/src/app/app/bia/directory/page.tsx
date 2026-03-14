@@ -34,7 +34,7 @@ export default function BusinessDirectoryPage() {
     queryFn: () => api.getSubscription(),
   });
 
-  const isBiaPlus = ['BIA_PLUS', 'BUNDLE_PREMIUM_BIA'].includes(subData?.tier);
+  const isBiaPlus = ['BIA_PLUS'].includes(subData?.tier);
 
   const { data, isLoading } = useQuery({
     queryKey: ['business-directory', selectedCategory],

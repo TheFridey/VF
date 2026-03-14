@@ -75,7 +75,7 @@ export default function DPIAPage() {
             <ul className="list-disc pl-6 space-y-2">
               <li>Verify veteran status</li>
               <li>Enable profile creation</li>
-              <li>Match users for reconnection purposes</li>
+              <li>Connect veterans with shared service history</li>
               <li>Facilitate private messaging</li>
               <li>Provide optional paid feature enhancements</li>
             </ul>
@@ -170,7 +170,7 @@ export default function DPIAPage() {
             <ul className="list-disc pl-6 space-y-2">
               <li>Without service history data, BIA reconnection is not possible</li>
               <li>Without messaging, reconnection and community support cannot occur</li>
-              <li>Without limited inference, meaningful matching cannot function</li>
+              <li>Without service history data, meaningful reconnection cannot function</li>
             </ul>
             <p>All processing is proportionate, optional where possible, and user-controlled.</p>
           </section>

@@ -92,7 +92,7 @@ export default function CareerResourcesPage() {
   const [selectedCategory, setSelectedCategory] = useState('All');
 
   const { data: subData } = useQuery({ queryKey: ['subscription'], queryFn: () => api.getSubscription() });
-  const isBiaPlus = ['BIA_PLUS', 'BUNDLE_PREMIUM_BIA'].includes(subData?.tier);
+  const isBiaPlus = ['BIA_PLUS'].includes(subData?.tier);
 
   const { data, isLoading } = useQuery({
     queryKey: ['career-resources', selectedCategory],

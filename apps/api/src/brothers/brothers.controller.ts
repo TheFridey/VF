@@ -22,7 +22,7 @@ export class BrothersController {
   constructor(private brothersService: BrothersService) {}
 
   @Get('search')
-  @Roles('VETERAN_VERIFIED', 'VETERAN_PAID', 'MODERATOR', 'ADMIN')
+  @Roles('VETERAN_VERIFIED', 'VETERAN_MEMBER', 'MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Search for potential Brothers in Arms connections' })
   async searchBrothers(
     @CurrentUser('id') userId: string,
@@ -32,14 +32,14 @@ export class BrothersController {
   }
 
   @Get('requests')
-  @Roles('VETERAN_VERIFIED', 'VETERAN_PAID', 'MODERATOR', 'ADMIN')
+  @Roles('VETERAN_VERIFIED', 'VETERAN_MEMBER', 'MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Get pending connection requests' })
   async getRequests(@CurrentUser('id') userId: string) {
     return this.brothersService.getConnectionRequests(userId);
   }
 
   @Post('requests/:requestId/respond')
-  @Roles('VETERAN_VERIFIED', 'VETERAN_PAID', 'MODERATOR', 'ADMIN')
+  @Roles('VETERAN_VERIFIED', 'VETERAN_MEMBER', 'MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Respond to a connection request' })
   async respondToRequest(
     @CurrentUser('id') userId: string,
@@ -50,7 +50,7 @@ export class BrothersController {
   }
 
   @Post(':userId/connect')
-  @Roles('VETERAN_VERIFIED', 'VETERAN_PAID', 'MODERATOR', 'ADMIN')
+  @Roles('VETERAN_VERIFIED', 'VETERAN_MEMBER', 'MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Send connection request to another veteran' })
   async sendConnectionRequest(
     @CurrentUser('id') userId: string,
@@ -61,7 +61,7 @@ export class BrothersController {
   }
 
   @Post('connect')
-  @Roles('VETERAN_VERIFIED', 'VETERAN_PAID', 'MODERATOR', 'ADMIN')
+  @Roles('VETERAN_VERIFIED', 'VETERAN_MEMBER', 'MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Connect with another veteran (legacy)' })
   async connectWithBrother(
     @CurrentUser('id') userId: string,
@@ -71,7 +71,7 @@ export class BrothersController {
   }
 
   @Get('connections')
-  @Roles('VETERAN_VERIFIED', 'VETERAN_PAID', 'MODERATOR', 'ADMIN')
+  @Roles('VETERAN_VERIFIED', 'VETERAN_MEMBER', 'MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Get my brother connections' })
   async getConnections(@CurrentUser('id') userId: string) {
     return this.brothersService.getBrotherConnections(userId);

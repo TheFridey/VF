@@ -30,7 +30,7 @@ export default function MentorshipPage() {
   const [mentorForm, setMentorForm] = useState({ specialisms: [] as string[], bio: '', availability: '' });
 
   const { data: subData } = useQuery({ queryKey: ['subscription'], queryFn: () => api.getSubscription() });
-  const isBiaPlus = ['BIA_PLUS', 'BUNDLE_PREMIUM_BIA'].includes(subData?.tier);
+  const isBiaPlus = ['BIA_PLUS'].includes(subData?.tier);
 
   const { data: mentorsData, isLoading: mentorsLoading } = useQuery({
     queryKey: ['mentors'],

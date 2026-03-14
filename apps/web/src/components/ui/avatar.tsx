@@ -8,6 +8,7 @@ interface AvatarProps {
   src?: string | null;
   alt?: string;
   name?: string;
+  fallback?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
 }
@@ -19,10 +20,10 @@ const sizeClasses = {
   xl: 'h-24 w-24 text-2xl',
 };
 
-export function Avatar({ src, alt, name, size = 'md', className }: AvatarProps) {
+export function Avatar({ src, alt, name, fallback, size = 'md', className }: AvatarProps) {
   const [imageError, setImageError] = React.useState(false);
 
-  const initials = name ? getInitials(name) : '?';
+  const initials = fallback || (name ? getInitials(name) : '?');
 
   if (src && !imageError) {
     return (

@@ -40,48 +40,48 @@ export class MessagingController {
   @ApiOperation({ summary: 'Send a message' })
   async sendMessagePost(
     @CurrentUser('id') userId: string,
-    @Body() body: { matchId: string; content: string },
+    @Body() body: { connectionId: string; content: string },
     @Req() req: Request,
   ) {
     const ipAddress = req.ip || req.socket.remoteAddress;
-    return this.messagingService.sendMessage(body.matchId, userId, body.content, ipAddress);
+    return this.messagingService.sendMessage(body.connectionId, userId, body.content, ipAddress);
   }
 
-  @Post(':matchId')
-  @ApiOperation({ summary: 'Send a message to a match' })
+  @Post(':connectionId')
+  @ApiOperation({ summary: 'Send a message to a connection' })
   async sendMessage(
     @CurrentUser('id') userId: string,
-    @Param('matchId') matchId: string,
+    @Param('connectionId') connectionId: string,
     @Body() dto: SendMessageDto,
     @Req() req: Request,
   ) {
     const ipAddress = req.ip || req.socket.remoteAddress;
-    return this.messagingService.sendMessage(matchId, userId, dto.content, ipAddress);
+    return this.messagingService.sendMessage(connectionId, userId, dto.content, ipAddress);
   }
 
-  @Get(':matchId')
-  @ApiOperation({ summary: 'Get messages for a match' })
+  @Get(':connectionId')
+  @ApiOperation({ summary: 'Get messages for a connection' })
   async getMessages(
     @CurrentUser('id') userId: string,
-    @Param('matchId') matchId: string,
+    @Param('connectionId') connectionId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.messagingService.getMessages(
-      matchId, 
-      userId, 
-      page ? parseInt(page) : 1, 
-      limit ? parseInt(limit) : 50
+      connectionId,
+      userId,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 50,
     );
   }
 
-  @Post(':matchId/read')
-  @ApiOperation({ summary: 'Mark all messages in match as read' })
+  @Post(':connectionId/read')
+  @ApiOperation({ summary: 'Mark all messages in connection as read' })
   async markAsRead(
     @CurrentUser('id') userId: string,
-    @Param('matchId') matchId: string,
+    @Param('connectionId') connectionId: string,
   ) {
-    return this.messagingService.markAsRead(matchId, userId);
+    return this.messagingService.markAsRead(connectionId, userId);
   }
 
   @Patch('messages/:messageId')

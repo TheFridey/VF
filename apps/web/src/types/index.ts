@@ -1,8 +1,7 @@
 export type UserRole =
-  | 'CIVILIAN'
   | 'VETERAN_UNVERIFIED'
   | 'VETERAN_VERIFIED'
-  | 'VETERAN_PAID'
+  | 'VETERAN_MEMBER'
   | 'MODERATOR'
   | 'ADMIN';
 
@@ -17,6 +16,12 @@ export type UserStatus =
 export type Gender = 'MALE' | 'FEMALE' | 'NON_BINARY' | 'OTHER' | 'PREFER_NOT_TO_SAY';
 
 export type MilitaryBranch =
+  | 'BRITISH_ARMY'
+  | 'ROYAL_NAVY'
+  | 'ROYAL_AIR_FORCE'
+  | 'ROYAL_MARINES'
+  | 'RESERVE_FORCES'
+  | 'TERRITORIAL_ARMY'
   | 'ARMY'
   | 'NAVY'
   | 'AIR_FORCE'
@@ -25,8 +30,9 @@ export type MilitaryBranch =
   | 'SPACE_FORCE'
   | 'NATIONAL_GUARD';
 
-export type MatchType = 'BROTHERS';
-export type MatchStatus = 'PENDING' | 'ACTIVE' | 'CANCELLED' | 'EXPIRED';
+export type ConnectionType   = 'BROTHERS_IN_ARMS' | 'COMMUNITY';
+export type ConnectionStatus = 'PENDING' | 'ACTIVE' | 'CANCELLED' | 'EXPIRED';
+
 
 export interface User {
   id: string;
@@ -35,6 +41,7 @@ export interface User {
   status: UserStatus;
   emailVerified: boolean;
   createdAt: string;
+  profile?: Profile;
 }
 
 export interface Profile {
@@ -46,7 +53,6 @@ export interface Profile {
   dateOfBirth?: string;
   location?: string;
   profileImageUrl?: string;
-  lookingFor: Gender[];
   interests: string[];
   isVisible: boolean;
 }
@@ -70,10 +76,10 @@ export interface ServicePeriod {
   dutyStation?: string;
 }
 
-export interface Match {
+export interface Connection {
   id: string;
-  matchType: MatchType;
-  status: MatchStatus;
+  connectionType: ConnectionType;
+  status: ConnectionStatus;
   overlapScore?: number;
   lastMessageAt?: string;
   createdAt: string;
@@ -84,9 +90,10 @@ export interface Match {
   };
 }
 
+
 export interface Message {
   id: string;
-  matchId: string;
+  connectionId: string;
   senderId: string;
   receiverId: string;
   content: string;
@@ -97,8 +104,8 @@ export interface Message {
 }
 
 export interface Conversation {
-  matchId: string;
-  matchType: MatchType;
+  connectionId: string;
+  connectionType: ConnectionType;
   otherUser: {
     id: string;
     displayName: string;
@@ -113,24 +120,20 @@ export interface Conversation {
   createdAt: string;
 }
 
-export interface DiscoveryCandidate {
+export interface BrothersCandidate {
   id: string;
   displayName: string;
   bio?: string;
-  age: number;
   location?: string;
   profileImageUrl?: string;
   interests: string[];
-  isVeteran: boolean;
+  overlapScore: number;
   veteranInfo?: {
     branch: MilitaryBranch;
     rank?: string;
     isVerified: boolean;
   };
-}
-
-export interface BrothersCandidate extends DiscoveryCandidate {
-  overlapScore: number;
+  overlapReasons?: string[];
   overlappingPeriods: {
     branch: MilitaryBranch;
     dateRange: string;

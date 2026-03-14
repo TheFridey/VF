@@ -45,7 +45,7 @@ const roleOptions = [
   { value: 'CIVILIAN', label: 'Civilian' },
   { value: 'VETERAN_UNVERIFIED', label: 'Veteran (Unverified)' },
   { value: 'VETERAN_VERIFIED', label: 'Veteran (Verified)' },
-  { value: 'VETERAN_PAID', label: 'Premium Veteran' },
+  { value: 'VETERAN_MEMBER', label: 'BIA Member' },
   { value: 'MODERATOR', label: 'Moderator' },
   { value: 'ADMIN', label: 'Admin' },
 ];
@@ -223,8 +223,8 @@ export default function AdminUserDetailPage() {
             <div className="flex gap-4">
               <div className="text-center p-4 bg-muted rounded-lg">
                 <Heart className="h-5 w-5 mx-auto mb-1 text-pink-500" />
-                <p className="text-2xl font-bold">{user._count?.matches || 0}</p>
-                <p className="text-xs text-muted-foreground">Matches</p>
+                <p className="text-2xl font-bold">{user._count?.connections || 0}</p>
+                <p className="text-xs text-muted-foreground">Connections</p>
               </div>
               <div className="text-center p-4 bg-muted rounded-lg">
                 <MessageSquare className="h-5 w-5 mx-auto mb-1 text-blue-500" />
@@ -534,7 +534,7 @@ export default function AdminUserDetailPage() {
           <div className="p-4 bg-destructive/10 rounded-lg">
             <p className="text-sm text-destructive font-medium">Warning: This action cannot be undone!</p>
             <p className="text-sm text-muted-foreground mt-1">
-              All user data including profile, matches, messages, and verification documents will be permanently deleted.
+              All user data including profile, connections, messages, and verification documents will be permanently deleted.
             </p>
           </div>
           <div className="flex gap-3">

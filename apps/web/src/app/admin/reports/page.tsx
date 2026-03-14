@@ -2,413 +2,246 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  Flag,
-  AlertTriangle,
-  Eye,
-  ChevronLeft,
-  ChevronRight,
-  Check,
-  Ban,
-  MessageSquare,
-} from 'lucide-react';
+import { Flag, Eye, Check, ChevronLeft, ChevronRight, AlertTriangle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Avatar } from '@/components/ui/avatar';
-import { Modal } from '@/components/ui/modal';
-import { Textarea } from '@/components/ui/textarea';
-import { Spinner } from '@/components/ui/spinner';
 import { adminApi } from '@/lib/admin-api';
-import { formatRelativeTime, cn } from '@/lib/utils';
 
-const statusOptions = [
-  { value: '', label: 'All' },
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'RESOLVED', label: 'Resolved' },
-];
+const S = {
+  card: { background: '#0d1524', border: '1px solid #1a2636', borderRadius: 8 },
+  label: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#3a5068', letterSpacing: 2, textTransform: 'uppercase' as const },
+  h1: { fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 26, color: '#dce8f5', letterSpacing: 0.5 },
+  select: { background: '#060c17', border: '1px solid #1a2636', borderRadius: 6, padding: '8px 12px', color: '#c8d6e5', fontSize: 12, fontFamily: "'JetBrains Mono', monospace", outline: 'none', cursor: 'pointer' },
+  input: { background: '#060c17', border: '1px solid #1a2636', borderRadius: 6, padding: '8px 12px', color: '#c8d6e5', fontSize: 13, fontFamily: "'Barlow', sans-serif", outline: 'none', width: '100%' },
+  th: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#2d4055', letterSpacing: 2, padding: '10px 16px', textAlign: 'left' as const, borderBottom: '1px solid #141f2e', fontWeight: 500 },
+  td: { padding: '13px 16px', borderBottom: '1px solid #0d1524', fontSize: 13, color: '#7a9bb5', verticalAlign: 'middle' as const },
+  btn: (color: string) => ({ background: `${color}14`, border: `1px solid ${color}30`, color, borderRadius: 5, padding: '5px 10px', fontSize: 11, cursor: 'pointer', fontFamily: "'Barlow', sans-serif", fontWeight: 500 }),
+  badge: (color: string) => ({ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: 1.5, padding: '3px 8px', borderRadius: 3, background: `${color}18`, color, border: `1px solid ${color}30` }),
+};
 
-const reasonOptions = [
-  { value: '', label: 'All Reasons' },
-  { value: 'FAKE_PROFILE', label: 'Fake Profile' },
-  { value: 'HARASSMENT', label: 'Harassment' },
-  { value: 'INAPPROPRIATE_CONTENT', label: 'Inappropriate Content' },
-  { value: 'SPAM', label: 'Spam' },
-  { value: 'SCAM', label: 'Scam' },
-  { value: 'IMPERSONATION', label: 'Impersonation' },
-  { value: 'UNDERAGE', label: 'Underage' },
-  { value: 'OTHER', label: 'Other' },
-];
+type ResolutionOption = {
+  label: string;
+  status: 'DISMISSED' | 'ACTION_TAKEN';
+  userAction?: 'WARNING' | 'SUSPEND_7_DAYS' | 'SUSPEND_30_DAYS' | 'PERMANENT_BAN';
+};
 
-const actionOptions = [
-  { value: 'DISMISSED', label: 'Dismiss - No Action' },
-  { value: 'WARNING', label: 'Issue Warning' },
-  { value: 'SUSPEND_7_DAYS', label: 'Suspend 7 Days' },
-  { value: 'SUSPEND_30_DAYS', label: 'Suspend 30 Days' },
-  { value: 'PERMANENT_BAN', label: 'Permanent Ban' },
-];
+const reasonColor: Record<string, string> = {
+  HARASSMENT: '#f87171',
+  FAKE_PROFILE: '#fbbf24',
+  SPAM: '#f97316',
+  INAPPROPRIATE_CONTENT: '#fb7185',
+  SCAM: '#f87171',
+  IMPERSONATION: '#fbbf24',
+  UNDERAGE: '#f87171',
+  OTHER: '#7a9bb5',
+};
+
+const statusColor: Record<string, string> = {
+  PENDING: '#fbbf24',
+  DISMISSED: '#7a9bb5',
+  ACTION_TAKEN: '#a78bfa',
+};
+
+const resolutionOptions: Record<string, ResolutionOption> = {
+  DISMISSED: { label: 'Dismissed - no action', status: 'DISMISSED' },
+  WARNING: { label: 'Warning issued', status: 'ACTION_TAKEN', userAction: 'WARNING' },
+  SUSPEND_7_DAYS: { label: 'Suspend for 7 days', status: 'ACTION_TAKEN', userAction: 'SUSPEND_7_DAYS' },
+  SUSPEND_30_DAYS: { label: 'Suspend for 30 days', status: 'ACTION_TAKEN', userAction: 'SUSPEND_30_DAYS' },
+  PERMANENT_BAN: { label: 'Permanent ban', status: 'ACTION_TAKEN', userAction: 'PERMANENT_BAN' },
+};
 
 export default function AdminReportsPage() {
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('PENDING');
-  const [reasonFilter, setReasonFilter] = useState('');
-  const [selectedReport, setSelectedReport] = useState<any>(null);
-  const [showResolveModal, setShowResolveModal] = useState(false);
-  const [action, setAction] = useState('DISMISSED');
-  const [notes, setNotes] = useState('');
+  const [selected, setSelected] = useState<any>(null);
+  const [resolution, setResolution] = useState('');
+  const [resolutionChoice, setResolutionChoice] = useState<keyof typeof resolutionOptions>('DISMISSED');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-reports', page, statusFilter, reasonFilter],
-    queryFn: () =>
-      adminApi.getReports({
-        page,
-        limit: 20,
-        status: statusFilter || undefined,
-        reason: reasonFilter || undefined,
-      }),
+    queryKey: ['admin-reports', page, statusFilter],
+    queryFn: () => adminApi.getReports({ page, limit: 20, status: statusFilter || undefined }),
   });
 
   const resolveMutation = useMutation({
-    mutationFn: ({ reportId, action, notes }: { reportId: string; action: string; notes?: string }) =>
-      adminApi.resolveReport(reportId, { action: action as any, notes }),
+    mutationFn: ({ id, notes, choiceKey }: { id: string; notes: string; choiceKey: keyof typeof resolutionOptions }) => {
+      const choice = resolutionOptions[choiceKey];
+      return adminApi.resolveReport(id, {
+        status: choice.status,
+        resolution: notes,
+        userAction: choice.userAction,
+      });
+    },
     onSuccess: () => {
       toast.success('Report resolved');
-      queryClient.invalidateQueries({ queryKey: ['admin-reports'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
-      setShowResolveModal(false);
-      setSelectedReport(null);
-      setAction('DISMISSED');
-      setNotes('');
+      qc.invalidateQueries({ queryKey: ['admin-reports'] });
+      qc.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      setSelected(null);
+      setResolution('');
+      setResolutionChoice('DISMISSED');
     },
     onError: () => toast.error('Failed to resolve report'),
   });
 
-  const reports = data?.data || [];
-  const totalPages = data?.meta?.totalPages || 1;
-  const pendingCount = data?.meta?.pendingCount || 0;
-
-  const getReasonBadge = (reason: string) => {
-    const colors: Record<string, string> = {
-      HARASSMENT: 'bg-red-100 text-red-700',
-      FAKE_PROFILE: 'bg-yellow-100 text-yellow-700',
-      SPAM: 'bg-blue-100 text-blue-700',
-      SCAM: 'bg-orange-100 text-orange-700',
-      UNDERAGE: 'bg-purple-100 text-purple-700',
-      INAPPROPRIATE_CONTENT: 'bg-pink-100 text-pink-700',
-    };
-    return (
-      <span className={cn('px-2 py-1 rounded-full text-xs font-medium', colors[reason] || 'bg-gray-100 text-gray-700')}>
-        {reason.replace(/_/g, ' ')}
-      </span>
-    );
-  };
+  const reports = data?.reports || [];
+  const total = data?.total || 0;
+  const pages = data?.pages || 1;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 className="text-2xl font-bold">Reports</h1>
-          <p className="text-muted-foreground">Review and resolve user reports</p>
+          <h1 style={S.h1}>Reports</h1>
+          <p style={{ ...S.label, marginTop: 4 }}>User-submitted conduct reports</p>
         </div>
-        {pendingCount > 0 && (
-          <Badge variant="destructive" className="text-base px-3 py-1">
-            {pendingCount} Pending
-          </Badge>
-        )}
-      </div>
-
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <Select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPage(1);
-              }}
-              options={statusOptions}
-              className="w-full md:w-48"
-            />
-            <Select
-              value={reasonFilter}
-              onChange={(e) => {
-                setReasonFilter(e.target.value);
-                setPage(1);
-              }}
-              options={reasonOptions}
-              className="w-full md:w-48"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Reports List */}
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Spinner size="lg" />
-        </div>
-      ) : reports.length === 0 ? (
-        <Card className="text-center py-12">
-          <CardContent>
-            <Flag className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium">No reports</h3>
-            <p className="text-muted-foreground">
-              {statusFilter === 'PENDING'
-                ? 'All caught up! No pending reports.'
-                : 'No reports match your filter.'}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {reports.map((report: any) => (
-            <Card key={report.id}>
-              <CardContent className="p-4">
-                <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                  {/* Reporter -> Reported */}
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="flex items-center gap-2">
-                      <Avatar
-                        src={report.reporter?.profile?.profileImageUrl}
-                        name={report.reporter?.profile?.displayName}
-                        size="sm"
-                      />
-                      <div className="text-sm">
-                        <p className="font-medium">{report.reporter?.profile?.displayName || 'Unknown'}</p>
-                        <p className="text-muted-foreground text-xs">Reporter</p>
-                      </div>
-                    </div>
-
-                    <span className="text-muted-foreground">→</span>
-
-                    <div className="flex items-center gap-2">
-                      <Avatar
-                        src={report.reported?.profile?.profileImageUrl}
-                        name={report.reported?.profile?.displayName}
-                        size="sm"
-                      />
-                      <div className="text-sm">
-                        <p className="font-medium">{report.reported?.profile?.displayName || 'Unknown'}</p>
-                        <p className="text-muted-foreground text-xs">Reported User</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Reason & Time */}
-                  <div className="flex items-center gap-4">
-                    {getReasonBadge(report.reason)}
-                    <span className="text-sm text-muted-foreground">
-                      {formatRelativeTime(report.createdAt)}
-                    </span>
-
-                    <Badge variant={report.status === 'PENDING' ? 'warning' : 'outline'}>
-                      {report.status}
-                    </Badge>
-
-                    {report.status === 'PENDING' ? (
-                      <Button
-                        onClick={() => {
-                          setSelectedReport(report);
-                          setShowResolveModal(true);
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        Review
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setSelectedReport(report);
-                          setShowResolveModal(true);
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Description */}
-                {report.description && (
-                  <div className="mt-3 p-3 bg-muted rounded-lg">
-                    <div className="flex items-start gap-2">
-                      <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <p className="text-sm">{report.description}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Resolution info */}
-                {report.status === 'RESOLVED' && (
-                  <div className="mt-3 p-3 bg-muted rounded-lg text-sm">
-                    <p>
-                      <strong>Action:</strong>{' '}
-                      {actionOptions.find((a) => a.value === report.action)?.label || report.action}
-                    </p>
-                    {report.notes && (
-                      <p className="mt-1">
-                        <strong>Notes:</strong> {report.notes}
-                      </p>
-                    )}
-                    {report.resolvedBy && (
-                      <p className="text-muted-foreground mt-1">
-                        Resolved by {report.resolvedBy.email}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Page {page} of {totalPages}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {statusFilter === 'PENDING' && total > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: '#f8717114', border: '1px solid #f8717130', borderRadius: 6 }}>
+              <AlertTriangle size={13} color="#f87171" />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#f87171' }}>{total} OPEN</span>
             </div>
           )}
+          <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} style={S.select}>
+            <option value="">All</option>
+            <option value="PENDING">Pending</option>
+            <option value="DISMISSED">Dismissed</option>
+            <option value="ACTION_TAKEN">Action Taken</option>
+          </select>
+        </div>
+      </div>
+
+      <div style={S.card}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>{['Reporter', 'Reported User', 'Reason', 'Status', 'Submitted', 'Actions'].map((heading) => <th key={heading} style={S.th}>{heading}</th>)}</tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              [...Array(6)].map((_, rowIndex) => (
+                <tr key={rowIndex}>
+                  {[...Array(6)].map((_, columnIndex) => (
+                    <td key={columnIndex} style={S.td}>
+                      <div style={{ height: 14, background: '#111c2e', borderRadius: 3, width: 80 }} />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : reports.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ ...S.td, textAlign: 'center', padding: 48 }}>
+                  <Flag size={32} color="#1a2636" style={{ margin: '0 auto 12px' }} />
+                  <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#2d4055', letterSpacing: 2 }}>
+                    {statusFilter === 'PENDING' ? 'NO OPEN REPORTS' : 'NO RECORDS'}
+                  </p>
+                </td>
+              </tr>
+            ) : reports.map((report: any) => (
+              <tr
+                key={report.id}
+                style={{ transition: 'background 0.1s' }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = 'rgba(212,168,83,0.03)';
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <td style={S.td}>
+                  <p style={{ fontSize: 12, fontWeight: 500, color: '#b8ccd8' }}>{report.reporter?.profile?.displayName || report.reporter?.email || '-'}</p>
+                </td>
+                <td style={S.td}>
+                  <p style={{ fontSize: 12, fontWeight: 500, color: '#b8ccd8' }}>{report.reportedUser?.profile?.displayName || report.reportedUser?.email || '-'}</p>
+                </td>
+                <td style={S.td}>
+                  <span style={S.badge(reasonColor[report.reason] || '#7a9bb5')}>{report.reason?.replace(/_/g, ' ')}</span>
+                </td>
+                <td style={S.td}>
+                  <span style={S.badge(statusColor[report.status] || '#7a9bb5')}>{report.status}</span>
+                </td>
+                <td style={{ ...S.td, fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>
+                  {report.createdAt ? new Date(report.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
+                </td>
+                <td style={S.td}>
+                  <button onClick={() => setSelected(report)} style={{ ...S.btn('#d4a853'), display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Eye size={11} /> Review
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {pages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
+          <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#3a5068' }}>PAGE {page} OF {pages}</p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))} disabled={page === 1} style={{ ...S.btn('#7a9bb5'), display: 'flex', alignItems: 'center', gap: 4, opacity: page === 1 ? 0.4 : 1 }}><ChevronLeft size={12} /> Prev</button>
+            <button onClick={() => setPage((currentPage) => Math.min(pages, currentPage + 1))} disabled={page === pages} style={{ ...S.btn('#7a9bb5'), display: 'flex', alignItems: 'center', gap: 4, opacity: page === pages ? 0.4 : 1 }}>Next <ChevronRight size={12} /></button>
+          </div>
         </div>
       )}
 
-      {/* Resolve Modal */}
-      <Modal
-        isOpen={showResolveModal}
-        onClose={() => {
-          setShowResolveModal(false);
-          setSelectedReport(null);
-          setAction('DISMISSED');
-          setNotes('');
-        }}
-        title="Review Report"
-        size="lg"
-      >
-        {selectedReport && (
-          <div className="space-y-6">
-            {/* Report Details */}
-            <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Reporter</p>
-                <div className="flex items-center gap-2">
-                  <Avatar
-                    src={selectedReport.reporter?.profile?.profileImageUrl}
-                    name={selectedReport.reporter?.profile?.displayName}
-                    size="sm"
-                  />
-                  <span className="font-medium">
-                    {selectedReport.reporter?.profile?.displayName || selectedReport.reporter?.email}
-                  </span>
-                </div>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Reported User</p>
-                <div className="flex items-center gap-2">
-                  <Avatar
-                    src={selectedReport.reported?.profile?.profileImageUrl}
-                    name={selectedReport.reported?.profile?.displayName}
-                    size="sm"
-                  />
-                  <span className="font-medium">
-                    {selectedReport.reported?.profile?.displayName || selectedReport.reported?.email}
-                  </span>
-                </div>
-              </div>
+      {selected && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#0d1524', border: '1px solid #1a2636', borderRadius: 10, width: '100%', maxWidth: 520 }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #141f2e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600, fontSize: 20, color: '#dce8f5' }}>Report Review</h3>
+              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#3a5068', cursor: 'pointer' }}><X size={18} /></button>
             </div>
-
-            <div className="p-4 border rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                <span className="font-medium">Reason: {selectedReport.reason.replace(/_/g, ' ')}</span>
+            <div style={{ padding: '20px 24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
+                <div style={{ padding: 14, background: '#0a1420', borderRadius: 7, border: '1px solid #141f2e' }}>
+                  <p style={{ ...S.label, marginBottom: 6 }}>Reporter</p>
+                  <p style={{ fontSize: 13, color: '#b8ccd8' }}>{selected.reporter?.profile?.displayName || selected.reporter?.email}</p>
+                </div>
+                <div style={{ padding: 14, background: '#0a1420', borderRadius: 7, border: '1px solid #141f2e' }}>
+                  <p style={{ ...S.label, marginBottom: 6 }}>Reported User</p>
+                  <p style={{ fontSize: 13, color: '#b8ccd8' }}>{selected.reportedUser?.profile?.displayName || selected.reportedUser?.email}</p>
+                </div>
               </div>
-              {selectedReport.description && (
-                <p className="text-muted-foreground">{selectedReport.description}</p>
+
+              <div style={{ padding: 14, background: '#0a1420', borderRadius: 7, border: '1px solid #141f2e', marginBottom: 20 }}>
+                <p style={{ ...S.label, marginBottom: 6 }}>Reason</p>
+                <span style={S.badge(reasonColor[selected.reason] || '#7a9bb5')}>{selected.reason?.replace(/_/g, ' ')}</span>
+                {selected.description && <p style={{ fontSize: 13, color: '#7a9bb5', marginTop: 10, lineHeight: 1.6 }}>{selected.description}</p>}
+              </div>
+
+              {selected.status === 'PENDING' ? (
+                <>
+                  <label style={{ ...S.label, display: 'block', marginBottom: 6 }}>Resolution Action</label>
+                  <select value={resolutionChoice} onChange={(event) => setResolutionChoice(event.target.value as keyof typeof resolutionOptions)} style={{ ...S.select, display: 'block', width: '100%', marginBottom: 14 }}>
+                    {Object.entries(resolutionOptions).map(([key, option]) => (
+                      <option key={key} value={key}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <label style={{ ...S.label, display: 'block', marginBottom: 6 }}>Resolution Notes</label>
+                  <textarea
+                    value={resolution}
+                    onChange={(event) => setResolution(event.target.value)}
+                    placeholder="Describe the outcome..."
+                    style={{ ...S.input, height: 80, resize: 'none', marginBottom: 16 }}
+                  />
+                  <button
+                    onClick={() => resolveMutation.mutate({ id: selected.id, notes: resolution, choiceKey: resolutionChoice })}
+                    disabled={resolveMutation.isPending || !resolution.trim()}
+                    style={{ ...S.btn('#34d399'), width: '100%', padding: '10px', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: !resolution.trim() ? 0.6 : 1 }}
+                  >
+                    <Check size={13} /> Submit Resolution
+                  </button>
+                </>
+              ) : (
+                <div style={{ padding: 14, background: '#0a1420', borderRadius: 7, border: '1px solid #141f2e' }}>
+                  <p style={{ ...S.label, marginBottom: 8 }}>Resolution</p>
+                  <span style={S.badge(statusColor[selected.status])}>{selected.status}</span>
+                  {selected.resolution && <p style={{ fontSize: 13, color: '#7a9bb5', marginTop: 10 }}>{selected.resolution}</p>}
+                </div>
               )}
             </div>
-
-            {/* Action Selection for pending reports */}
-            {selectedReport.status === 'PENDING' && (
-              <>
-                <Select
-                  label="Action"
-                  value={action}
-                  onChange={(e) => setAction(e.target.value)}
-                  options={actionOptions}
-                />
-
-                <Textarea
-                  label="Notes (optional)"
-                  placeholder="Add any notes about your decision..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={3}
-                />
-
-                <div className="flex gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowResolveModal(false)}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={() =>
-                      resolveMutation.mutate({
-                        reportId: selectedReport.id,
-                        action,
-                        notes: notes || undefined,
-                      })
-                    }
-                    isLoading={resolveMutation.isPending}
-                    className="flex-1"
-                  >
-                    <Check className="h-4 w-4 mr-2" />
-                    Resolve Report
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {/* Show resolution for already resolved reports */}
-            {selectedReport.status === 'RESOLVED' && (
-              <div className="p-4 bg-green-500/10 rounded-lg">
-                <p className="font-medium">
-                  Action Taken:{' '}
-                  {actionOptions.find((a) => a.value === selectedReport.action)?.label}
-                </p>
-                {selectedReport.notes && (
-                  <p className="text-sm text-muted-foreground mt-1">{selectedReport.notes}</p>
-                )}
-              </div>
-            )}
           </div>
-        )}
-      </Modal>
+        </div>
+      )}
     </div>
   );
 }

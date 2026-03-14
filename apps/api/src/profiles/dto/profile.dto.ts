@@ -20,7 +20,7 @@ export class UpdateProfileDto {
   @MaxLength(100)
   displayName?: string;
 
-  @ApiPropertyOptional({ example: 'Army veteran, love hiking and fishing' })
+  @ApiPropertyOptional({ example: 'British Army veteran, served 10 years. Passionate about supporting fellow veterans.' })
   @IsOptional()
   @IsString()
   @MaxLength(1000)
@@ -36,35 +36,23 @@ export class UpdateProfileDto {
   @IsEnum(Gender)
   gender?: Gender;
 
-  @ApiPropertyOptional({ type: [String], enum: Gender })
-  @IsOptional()
-  @IsArray()
-  @IsEnum(Gender, { each: true })
-  interestedIn?: Gender[];
-
-  @ApiPropertyOptional({ example: 'San Diego, CA' })
+  @ApiPropertyOptional({ example: 'Manchester, UK' })
   @IsOptional()
   @IsString()
   @MaxLength(200)
   location?: string;
 
-  @ApiPropertyOptional({ example: 32.7157 })
+  @ApiPropertyOptional({ example: 53.4808 })
   @IsOptional()
   @IsNumber()
   latitude?: number;
 
-  @ApiPropertyOptional({ example: -117.1611 })
+  @ApiPropertyOptional({ example: -2.2426 })
   @IsOptional()
   @IsNumber()
   longitude?: number;
 
-  @ApiPropertyOptional({ type: [String], enum: Gender, description: 'Genders user is looking for' })
-  @IsOptional()
-  @IsArray()
-  @IsEnum(Gender, { each: true })
-  lookingFor?: Gender[];
-
-  @ApiPropertyOptional({ example: ['hiking', 'fishing', 'photography'] })
+  @ApiPropertyOptional({ example: ['hiking', 'fishing', 'photography', 'veterans support'] })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

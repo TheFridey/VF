@@ -5,14 +5,17 @@ import { MessagingController } from './messaging.controller';
 import { MessagingService } from './messaging.service';
 import { ChatGateway } from './chat.gateway';
 import { PrismaModule } from '../common/prisma/prisma.module';
+import { RedisModule } from '../common/redis/redis.module';
 import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
+    RedisModule,
     PrismaModule, 
     AuditModule,
     JwtModule.registerAsync({
-      imports: [ConfigModule],
+      imports: [
+    RedisModule,ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),

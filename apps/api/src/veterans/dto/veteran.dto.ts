@@ -30,6 +30,10 @@ export class UpdateVeteranDetailsDto {
 }
 
 export class CreateServicePeriodDto {
+  @ApiProperty({ enum: MilitaryBranch })
+  @IsEnum(MilitaryBranch)
+  branch: MilitaryBranch;
+
   @ApiProperty({ example: 1, minimum: 1, maximum: 12 })
   @IsInt()
   @Min(1)

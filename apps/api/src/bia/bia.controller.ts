@@ -147,4 +147,22 @@ export class BiaController {
   ) {
     return this.biaService.getCareerResources(category);
   }
+
+  // ─── Regiment Forums ──────────────────────────────────────────────────────
+
+  @Get('regiments')
+  @Public()
+  @ApiOperation({ summary: 'Get all UK regiments with member user counts (public)' })
+  getRegiments() {
+    return this.biaService.getRegiments();
+  }
+
+  @Get('regiments/:slug/forums')
+  @ApiOperation({ summary: 'Get forum categories for a regiment (regiment members only)' })
+  getRegimentForumCategories(
+    @CurrentUser('id') userId: string,
+    @Param('slug') slug: string,
+  ) {
+    return this.biaService.getRegimentForumCategories(userId, slug);
+  }
 }

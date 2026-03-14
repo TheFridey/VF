@@ -54,65 +54,68 @@ export default function ThreadListPage() {
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/app/bia/forums')} className="text-gray-400 hover:text-white transition-colors">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <button onClick={() => router.push('/app/bia/forums')} className="text-slate-400 hover:text-white transition-colors shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
-            <h1 className="text-xl font-bold text-white">{category?.name}</h1>
-            <p className="text-sm text-gray-400">{category?.description}</p>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-white truncate">{category?.name}</h1>
+            <p className="text-sm text-slate-400 mt-0.5 truncate">{category?.description}</p>
           </div>
         </div>
-        <Button onClick={() => setShowNewThread(true)} size="sm" className="bg-green-600 hover:bg-green-500 gap-2">
+        <Button onClick={() => setShowNewThread(true)} size="sm" className="bg-green-600 hover:bg-green-500 gap-2 shrink-0">
           <Plus className="w-4 h-4" /> New Thread
         </Button>
       </div>
 
       {/* Threads */}
       {threads.length === 0 ? (
-        <div className="text-center py-16 text-gray-500">
-          <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p>No threads yet. Be the first to start a discussion.</p>
+        <div className="text-center py-16 text-slate-500">
+          <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />
+          <p className="font-medium">No threads yet.</p>
+          <p className="text-sm mt-1">Be the first to start a discussion.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {threads.map((thread: any) => (
-            <Card
+            <div
               key={thread.id}
               className={cn(
-                'bg-gray-800/60 border-gray-700/50 hover:border-green-500/40 hover:bg-gray-800 transition-all cursor-pointer group',
-                thread.isPinned && 'border-green-600/30 bg-green-900/10',
+                'bg-slate-800 border rounded-xl transition-all cursor-pointer group hover:bg-slate-750',
+                thread.isPinned
+                  ? 'border-green-600/50 hover:border-green-500'
+                  : 'border-slate-700 hover:border-slate-500',
               )}
               onClick={() => router.push(`/app/bia/forums/thread/${thread.id}`)}
             >
-              <CardContent className="p-4 flex items-center gap-4">
+              <div className="p-4 flex items-center gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {thread.isPinned && <Pin className="w-4 h-4 text-green-400 shrink-0" />}
-                    {thread.isLocked && <Lock className="w-4 h-4 text-gray-500 shrink-0" />}
-                    <h3 className="font-semibold text-white group-hover:text-green-300 transition-colors truncate">
+                    {thread.isPinned && <Pin className="w-3.5 h-3.5 text-green-400 shrink-0" />}
+                    {thread.isLocked && <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />}
+                    <h3 className="font-semibold text-slate-100 group-hover:text-green-300 transition-colors truncate text-sm">
                       {thread.title}
                     </h3>
                   </div>
-                  <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
-                    <span>{thread.author?.profile?.displayName || 'Unknown'}</span>
-                    <span>·</span>
+                  <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-400">
+                    <span className="font-medium">{thread.author?.profile?.displayName || 'Unknown'}</span>
+                    <span className="text-slate-600">·</span>
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatRelativeTime(thread.lastPostAt)}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 text-sm text-gray-400 shrink-0">
-                  <div className="flex items-center gap-1 hidden sm:flex">
-                    <MessageSquare className="w-4 h-4" />
-                    <span>{thread._count?.posts || 0}</span>
+                <div className="flex items-center gap-4 text-xs text-slate-400 shrink-0">
+                  <div className="hidden sm:flex flex-col items-center">
+                    <span className="font-semibold text-slate-200 text-sm">{thread._count?.posts || 0}</span>
+                    <span className="text-slate-500">replies</span>
                   </div>
-                  <div className="flex items-center gap-1 hidden sm:flex">
-                    <Eye className="w-4 h-4" />
-                    <span>{thread.viewCount}</span>
+                  <div className="hidden sm:flex flex-col items-center">
+                    <span className="font-semibold text-slate-200 text-sm">{thread.viewCount}</span>
+                    <span className="text-slate-500">views</span>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -121,7 +124,7 @@ export default function ThreadListPage() {
       <Modal isOpen={showNewThread} onClose={() => setShowNewThread(false)} title="New Thread">
         <div className="space-y-4">
           <div>
-            <label className="text-sm text-gray-400 mb-1 block">Title</label>
+            <label className="text-sm font-medium text-slate-300 mb-1.5 block">Title</label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -130,13 +133,13 @@ export default function ThreadListPage() {
             />
           </div>
           <div>
-            <label className="text-sm text-gray-400 mb-1 block">Content</label>
+            <label className="text-sm font-medium text-slate-300 mb-1.5 block">Content</label>
             <Textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="Share your thoughts..."
               rows={6}
-              className="bg-gray-700/50 border-gray-600 text-white placeholder-gray-500 resize-none w-full rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+              className="resize-none w-full rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
             />
           </div>
           <div className="flex justify-end gap-3 pt-2">

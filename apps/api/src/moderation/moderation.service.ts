@@ -1,7 +1,12 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { ResolveReportDto } from './dto/moderation.dto';
 import { AuditService } from '../audit/audit.service';
 import { ReportStatus, ReportReason, UserStatus } from '@prisma/client';
+
+interface CreateReportDto { reportedUserId: string; reason: string; description?: string; }
+interface BlockUserDto { blockedUserId: string; reason?: string; }
+interface GetReportsDto { page?: number; limit?: number; status?: string; }
 
 @Injectable()
 export class ModerationService {
@@ -11,7 +16,7 @@ export class ModerationService {
   ) {}
 
   // Reports
-  async createReport(userId: string, dto: any, ipAddress?: string) {
+  async createReport(userId: string, dto: CreateReportDto, ipAddress?: string) {
     const { reportedUserId, reason, description } = dto;
     
     if (userId === reportedUserId) {
@@ -73,13 +78,14 @@ export class ModerationService {
     };
   }
 
-  async getPendingReports(dto: any) {
+  async getPendingReports(dto: GetReportsDto) {
     const { page = 1, limit = 20, status } = dto;
     return this.getReports(status as ReportStatus, page, limit);
   }
 
-  async resolveReport(moderatorId: string, reportId: string, dto: any, ipAddress?: string) {
-    const { resolution, takeAction } = dto;
+  async resolveReport(moderatorId: string, reportId: string, dto: ResolveReportDto, ipAddress?: string) {
+    const resolution = dto.resolution;
+    const takeAction = dto.userAction != null;
     
     const report = await this.prisma.report.findUnique({
       where: { id: reportId },
@@ -93,7 +99,7 @@ export class ModerationService {
     const updatedReport = await this.prisma.report.update({
       where: { id: reportId },
       data: {
-        status: takeAction ? ReportStatus.ACTION_TAKEN : ReportStatus.DISMISSED,
+        status: (takeAction ? ReportStatus.ACTION_TAKEN : ReportStatus.DISMISSED) as any,
         resolution,
         resolverId: moderatorId,
         resolvedAt: new Date(),
@@ -130,7 +136,7 @@ export class ModerationService {
   }
 
   // Blocks
-  async blockUser(userId: string, dto: any, ipAddress?: string) {
+  async blockUser(userId: string, dto: BlockUserDto, ipAddress?: string) {
     const { blockedUserId, reason } = dto;
     
     if (userId === blockedUserId) {

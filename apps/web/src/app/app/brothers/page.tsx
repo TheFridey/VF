@@ -175,10 +175,10 @@ export default function BrothersPage() {
         <Card className="text-center py-12">
           <CardContent>
             <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">No matches found</h3>
+            <h3 className="text-lg font-medium mb-2">No veterans found yet</h3>
             <p className="text-muted-foreground">
               We couldn&apos;t find veterans with overlapping service periods. Make sure your
-              service details are up to date.
+              service history to improve reconnection matching.
             </p>
           </CardContent>
         </Card>
@@ -220,34 +220,44 @@ export default function BrothersPage() {
                   {/* Right side - Overlap info */}
                   <div className="flex-1 p-4 sm:p-6 bg-muted/30">
                     <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant={
-                            (candidate.overlapScore || 0) >= 0.7
-                              ? 'success'
-                              : (candidate.overlapScore || 0) >= 0.4
-                              ? 'warning'
-                              : 'default'
-                          }
-                        >
-                          {Math.round((candidate.overlapScore || 0) * 100)}% Match
-                        </Badge>
-                      </div>
+                      <Badge
+                        variant={
+                          (candidate.overlapScore || 0) >= 0.7
+                            ? 'success'
+                            : (candidate.overlapScore || 0) >= 0.4
+                            ? 'warning'
+                            : 'default'
+                        }
+                      >
+                        {Math.round((candidate.overlapScore || 0) * 100)}% Service Overlap
+                      </Badge>
                       <Button size="sm" onClick={() => handleConnect(candidate)}>
                         <UserPlus className="h-4 w-4 mr-1" />
                         Connect
                       </Button>
                     </div>
 
-                    {candidate.overlappingPeriods && candidate.overlappingPeriods.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium">Overlapping Service:</p>
-                        {candidate.overlappingPeriods.map((period, i) => (
-                          <div
-                            key={i}
-                            className="text-sm bg-background rounded p-2 flex items-center gap-2"
-                          >
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                    {/* Why you may know this veteran */}
+                    {candidate.overlapReasons && candidate.overlapReasons.length > 0 ? (
+                      <div className="space-y-1.5 mb-3">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                          Why you may know them
+                        </p>
+                        {candidate.overlapReasons.map((reason: string, i: number) => (
+                          <div key={i} className="flex items-center gap-2 text-sm bg-primary/5 rounded px-2 py-1.5">
+                            <Shield className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                            <span className="text-foreground">{reason}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : candidate.overlappingPeriods && candidate.overlappingPeriods.length > 0 ? (
+                      <div className="space-y-1.5 mb-3">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                          Overlapping service
+                        </p>
+                        {candidate.overlappingPeriods.map((period: any, i: number) => (
+                          <div key={i} className="text-sm bg-background rounded p-2 flex items-center gap-2">
+                            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                             <span>
                               {formatBranch(period.branch)} • {period.dateRange}
                               {period.location && ` • ${period.location}`}
@@ -255,10 +265,10 @@ export default function BrothersPage() {
                           </div>
                         ))}
                       </div>
-                    )}
+                    ) : null}
 
                     {candidate.bio && (
-                      <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
+                      <p className="text-sm text-muted-foreground line-clamp-2">
                         {candidate.bio}
                       </p>
                     )}

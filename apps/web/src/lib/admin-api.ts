@@ -1,14 +1,23 @@
 import axios, { AxiosInstance } from 'axios';
 import { useAuthStore } from '@/stores/auth-store';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const isServer = typeof window === 'undefined';
+const API_BASE = isServer
+  ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/v1`
+  : '/api';
+
+type ResolveReportPayload = {
+  status: 'DISMISSED' | 'ACTION_TAKEN';
+  resolution: string;
+  userAction?: 'WARNING' | 'SUSPEND_7_DAYS' | 'SUSPEND_30_DAYS' | 'PERMANENT_BAN';
+};
 
 class AdminApiClient {
   private client: AxiosInstance;
 
   constructor() {
     this.client = axios.create({
-      baseURL: `${API_URL}/api/v1`,
+      baseURL: API_BASE,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -16,15 +25,46 @@ class AdminApiClient {
     });
 
     this.client.interceptors.request.use((config) => {
-      const token = useAuthStore.getState().accessToken;
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+      if (typeof document !== 'undefined') {
+        const csrfToken = document.cookie
+          .split('; ')
+          .find((cookie) => cookie.startsWith('csrf-token='))
+          ?.split('=')[1];
+
+        if (csrfToken) {
+          config.headers['X-CSRF-Token'] = csrfToken;
+        }
       }
+
       return config;
     });
+
+    this.client.interceptors.response.use(
+      (response) => {
+        if (
+          response.data !== null &&
+          typeof response.data === 'object' &&
+          'data' in response.data &&
+          'timestamp' in response.data
+        ) {
+          response.data = response.data.data;
+        }
+
+        return response;
+      },
+      async (error) => {
+        if (error.response?.status === 401) {
+          useAuthStore.getState().logout();
+          if (typeof window !== 'undefined') {
+            window.location.href = '/auth/login';
+          }
+        }
+
+        return Promise.reject(error);
+      },
+    );
   }
 
-  // Dashboard
   async getDashboardStats() {
     const response = await this.client.get('/admin/dashboard');
     return response.data;
@@ -35,7 +75,6 @@ class AdminApiClient {
     return response.data;
   }
 
-  // Users
   async getUsers(params?: {
     page?: number;
     limit?: number;
@@ -69,7 +108,6 @@ class AdminApiClient {
     return response.data;
   }
 
-  // Verification
   async getVerificationRequests(params?: {
     page?: number;
     limit?: number;
@@ -94,7 +132,6 @@ class AdminApiClient {
     return response.data;
   }
 
-  // Reports
   async getReports(params?: {
     page?: number;
     limit?: number;
@@ -110,10 +147,7 @@ class AdminApiClient {
     return response.data;
   }
 
-  async resolveReport(reportId: string, data: {
-    action: 'DISMISSED' | 'WARNING' | 'SUSPEND_7_DAYS' | 'SUSPEND_30_DAYS' | 'PERMANENT_BAN';
-    notes?: string;
-  }) {
+  async resolveReport(reportId: string, data: ResolveReportPayload) {
     const response = await this.client.post(`/moderation/reports/${reportId}/resolve`, data);
     return response.data;
   }
@@ -123,7 +157,6 @@ class AdminApiClient {
     return response.data;
   }
 
-  // Audit Logs
   async getAuditLogs(params?: {
     page?: number;
     limit?: number;
@@ -136,13 +169,37 @@ class AdminApiClient {
     return response.data;
   }
 
-  // Settings
+  async getForumThreads(params?: { page?: number; limit?: number; categoryId?: string }) {
+    const response = await this.client.get('/admin/bia/threads', { params });
+    return response.data;
+  }
+
+  async setThreadLocked(threadId: string, locked: boolean) {
+    const response = await this.client.patch(`/admin/bia/threads/${threadId}`, { isLocked: locked });
+    return response.data;
+  }
+
+  async deleteThread(threadId: string) {
+    const response = await this.client.delete(`/admin/bia/threads/${threadId}`);
+    return response.data;
+  }
+
+  async getBusinessListings(params?: { page?: number; limit?: number; approved?: boolean }) {
+    const response = await this.client.get('/admin/bia/listings', { params });
+    return response.data;
+  }
+
+  async setListingApproved(listingId: string, approved: boolean) {
+    const response = await this.client.patch(`/admin/bia/listings/${listingId}`, { isApproved: approved });
+    return response.data;
+  }
+
   async getSettings() {
     const response = await this.client.get('/admin/settings');
     return response.data;
   }
 
-  async updateSettings(data: any) {
+  async updateSettings(data: unknown) {
     const response = await this.client.patch('/admin/settings', data);
     return response.data;
   }

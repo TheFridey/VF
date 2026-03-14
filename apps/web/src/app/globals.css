@@ -301,3 +301,75 @@
 .transition-smooth {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* ── Mobile audit fixes ─────────────────────────────────────────────────────
+   Applied after audit pass — March 2026
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Prevent horizontal overflow on all pages */
+html, body {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%; /* prevent iOS font inflation */
+}
+
+/* Tap targets — minimum 44×44px for all interactive elements on touch screens */
+@media (max-width: 768px) {
+  button,
+  [role="button"],
+  a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Exception: inline text links don't need full height */
+  p a,
+  span a {
+    min-height: unset;
+    display: inline;
+  }
+
+  /* Card padding reduction on small screens */
+  .card-padding {
+    padding: 12px;
+  }
+
+  /* Form inputs — larger text on mobile prevents iOS zoom-on-focus */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important; /* iOS zooms on inputs < 16px */
+  }
+
+  /* Safe area insets for notched phones (iPhone X+) */
+  .bottom-nav-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .top-nav-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+/* Message thread: ensure input bar stays above keyboard on mobile */
+@media (max-width: 768px) {
+  .message-input-bar {
+    position: sticky;
+    bottom: 0;
+    background: hsl(var(--background));
+    border-top: 1px solid hsl(var(--border));
+    padding-bottom: env(safe-area-inset-bottom, 8px);
+  }
+}
+
+/* Overflow-safe tables (admin panel has fixed-column tables) */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* BIA forum thread list — prevent long titles from causing overflow */
+.thread-title {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { MatchStatus, MatchType } from '@prisma/client';
+import { ConnectionStatus, ConnectionType } from '../common/enums/connection.enum';
 
 @Injectable()
 export class MessagingService {
@@ -19,68 +19,76 @@ export class MessagingService {
   }
 
   async getConversations(userId: string) {
-    // Get all active matches for this user
-    const matches = await this.prisma.match.findMany({
-      where: {
-        OR: [{ user1Id: userId }, { user2Id: userId }],
-        status: MatchStatus.ACTIVE,
-        matchType: MatchType.BROTHERS,
-      },
-      include: {
-        user1: {
-          include: { profile: true },
+    // Single query: connections + last message per connection (included relation)
+    // + unread counts via a single groupBy aggregation below.
+    // Previously this fired 1 + N queries (N = number of conversations).
+    // Now it fires exactly 2 queries regardless of conversation count.
+    const [connections, unreadGroups] = await Promise.all([
+      this.prisma.connection.findMany({
+        where: {
+          OR: [{ user1Id: userId }, { user2Id: userId }],
+          status: ConnectionStatus.ACTIVE,
+          connectionType: ConnectionType.BROTHERS_IN_ARMS,
         },
-        user2: {
-          include: { profile: true },
-        },
-        messages: {
-          where: { deletedAt: null },
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
-      },
-      orderBy: { lastMessageAt: 'desc' },
-    });
-
-    // Get unread counts for each match
-    const conversations = await Promise.all(
-      matches.map(async (match) => {
-        const otherUser = match.user1Id === userId ? match.user2 : match.user1;
-        const lastMessage = match.messages[0];
-
-        const unreadCount = await this.prisma.message.count({
-          where: {
-            matchId: match.id,
-            receiverId: userId,
-            readAt: null,
-            deletedAt: null,
+        include: {
+          user1: { include: { profile: true } },
+          user2: { include: { profile: true } },
+          messages: {
+            where: { deletedAt: null },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
           },
-        });
-
-        return {
-          matchId: match.id,
-          matchType: match.matchType,
-          user: {
-            id: otherUser.id,
-            displayName: otherUser.profile?.displayName || 'Unknown',
-            photoUrl: otherUser.profile?.profileImageUrl || null,
-          },
-          lastMessage: lastMessage
-            ? {
-                content: this.decryptMessage(
-                  lastMessage.encryptedContent,
-                  lastMessage.iv,
-                  lastMessage.authTag,
-                ),
-                createdAt: lastMessage.createdAt,
-                isFromMe: lastMessage.senderId === userId,
-              }
-            : null,
-          unreadCount,
-          lastMessageAt: match.lastMessageAt,
-        };
+        },
+        orderBy: { lastMessageAt: 'desc' },
       }),
+      // Single aggregation to get unread counts for ALL conversations at once
+      this.prisma.message.groupBy({
+        by: ['connectionId'],
+        where: {
+          receiverId: userId,
+          readAt: null,
+          deletedAt: null,
+          connection: {
+            status: ConnectionStatus.ACTIVE,
+            connectionType: ConnectionType.BROTHERS_IN_ARMS,
+          },
+        },
+        _count: { id: true },
+      }),
+    ]);
+
+    // Build a O(1) lookup map from the aggregation result
+    const unreadByConnection = new Map<string, number>(
+      unreadGroups.map((g) => [g.connectionId, g._count.id]),
     );
+
+    const conversations = connections.map((connection) => {
+      const otherUser = connection.user1Id === userId ? connection.user2 : connection.user1;
+      const lastMessage = connection.messages[0];
+
+      return {
+        connectionId: connection.id,
+        connectionType: connection.connectionType,
+        user: {
+          id: otherUser.id,
+          displayName: otherUser.profile?.displayName || 'Unknown',
+          photoUrl: otherUser.profile?.profileImageUrl || null,
+        },
+        lastMessage: lastMessage
+          ? {
+              content: this.decryptMessage(
+                lastMessage.encryptedContent,
+                lastMessage.iv,
+                lastMessage.authTag,
+              ),
+              createdAt: lastMessage.createdAt,
+              isFromMe: lastMessage.senderId === userId,
+            }
+          : null,
+        unreadCount: unreadByConnection.get(connection.id) ?? 0,
+        lastMessageAt: connection.lastMessageAt,
+      };
+    });
 
     return { conversations };
   }
@@ -91,53 +99,53 @@ export class MessagingService {
         receiverId: userId,
         readAt: null,
         deletedAt: null,
-        match: { status: MatchStatus.ACTIVE, matchType: MatchType.BROTHERS },
+        connection: { status: ConnectionStatus.ACTIVE, connectionType: ConnectionType.BROTHERS_IN_ARMS },
       },
     });
 
     // Get unread counts per match
-    const matchUnreads = await this.prisma.message.groupBy({
-      by: ['matchId'],
+    const connectionUnreads = await this.prisma.message.groupBy({
+      by: ['connectionId'],
       where: {
         receiverId: userId,
         readAt: null,
         deletedAt: null,
-        match: { status: MatchStatus.ACTIVE, matchType: MatchType.BROTHERS },
+        connection: { status: ConnectionStatus.ACTIVE, connectionType: ConnectionType.BROTHERS_IN_ARMS },
       },
       _count: { id: true },
     });
 
-    const byMatch: Record<string, number> = {};
-    matchUnreads.forEach((m) => {
-      byMatch[m.matchId] = m._count.id;
+    const byConnection: Record<string, number> = {};
+    connectionUnreads.forEach((m) => {
+      byConnection[m.connectionId] = m._count.id;
     });
 
     return {
       total: totalUnread,
-      byMatch,
+      byConnection,
     };
   }
 
-  async getMessages(matchId: string, userId: string, page = 1, limit = 50) {
+  async getMessages(connectionId: string, userId: string, page = 1, limit = 50) {
     // Verify user is participant
-    const match = await this.verifyParticipant(matchId, userId);
+    const connection = await this.verifyParticipant(connectionId, userId);
 
     const skip = (page - 1) * limit;
 
     const [messages, total] = await Promise.all([
       this.prisma.message.findMany({
-        where: { matchId, deletedAt: null },
+        where: { connectionId, deletedAt: null },
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
       }),
-      this.prisma.message.count({ where: { matchId, deletedAt: null } }),
+      this.prisma.message.count({ where: { connectionId, deletedAt: null } }),
     ]);
 
     // Decrypt messages
     const decryptedMessages = messages.map(msg => ({
       id: msg.id,
-      matchId: msg.matchId,
+      connectionId: msg.connectionId,
       senderId: msg.senderId,
       content: this.decryptMessage(msg.encryptedContent, msg.iv, msg.authTag),
       createdAt: msg.createdAt,
@@ -154,18 +162,18 @@ export class MessagingService {
     };
   }
 
-  async sendMessage(matchId: string, senderId: string, content: string, ipAddress?: string) {
+  async sendMessage(connectionId: string, senderId: string, content: string, ipAddress?: string) {
     // Verify sender is participant
-    const match = await this.verifyParticipant(matchId, senderId);
+    const connection = await this.verifyParticipant(connectionId, senderId);
 
-    const receiverId = match.user1Id === senderId ? match.user2Id : match.user1Id;
+    const receiverId = connection.user1Id === senderId ? connection.user2Id : connection.user1Id;
 
     // Encrypt message
     const { encrypted, iv, authTag } = this.encryptMessage(content);
 
     const message = await this.prisma.message.create({
       data: {
-        matchId,
+        connectionId,
         senderId,
         receiverId,
         encryptedContent: encrypted,
@@ -175,8 +183,8 @@ export class MessagingService {
     });
 
     // Update match lastMessageAt
-    await this.prisma.match.update({
-      where: { id: matchId },
+    await this.prisma.connection.update({
+      where: { id: connectionId },
       data: { lastMessageAt: new Date() },
     });
 
@@ -190,7 +198,7 @@ export class MessagingService {
 
     return {
       id: message.id,
-      matchId: message.matchId,
+      connectionId: message.connectionId,
       senderId: message.senderId,
       content,
       createdAt: message.createdAt,
@@ -198,12 +206,12 @@ export class MessagingService {
     };
   }
 
-  async markAsRead(matchId: string, userId: string) {
-    await this.verifyParticipant(matchId, userId);
+  async markAsRead(connectionId: string, userId: string) {
+    await this.verifyParticipant(connectionId, userId);
 
     await this.prisma.message.updateMany({
       where: {
-        matchId,
+        connectionId,
         receiverId: userId,
         readAt: null,
       },
@@ -274,23 +282,23 @@ export class MessagingService {
     return { success: true };
   }
 
-  private async verifyParticipant(matchId: string, userId: string) {
-    const match = await this.prisma.match.findUnique({
-      where: { id: matchId },
+  private async verifyParticipant(connectionId: string, userId: string) {
+    const connection = await this.prisma.connection.findUnique({
+      where: { id: connectionId },
     });
 
-    if (!match) throw new NotFoundException('Match not found');
-    if (match.matchType !== MatchType.BROTHERS) {
+    if (!connection) throw new NotFoundException('Connection not found');
+    if (connection.connectionType !== ConnectionType.BROTHERS_IN_ARMS) {
       throw new ForbiddenException('Only Brothers in Arms conversations are supported');
     }
-    if (match.user1Id !== userId && match.user2Id !== userId) {
+    if (connection.user1Id !== userId && connection.user2Id !== userId) {
       throw new ForbiddenException('Not authorized');
     }
-    if (match.status !== MatchStatus.ACTIVE) {
-      throw new ForbiddenException('Match is not active');
+    if (connection.status !== ConnectionStatus.ACTIVE) {
+      throw new ForbiddenException('Connection is not active');
     }
 
-    return match;
+    return connection;
   }
 
   private encryptMessage(content: string): { encrypted: string; iv: string; authTag: string } {

@@ -5,17 +5,16 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '../enums/user-role.enum';
 import { ROLES_KEY, MIN_ROLE_KEY } from '../decorators/roles.decorator';
 
 // Role hierarchy for comparison
 const ROLE_HIERARCHY: Record<UserRole, number> = {
-  [UserRole.CIVILIAN]: 1,
-  [UserRole.VETERAN_UNVERIFIED]: 2,
-  [UserRole.VETERAN_VERIFIED]: 3,
-  [UserRole.VETERAN_PAID]: 4,
-  [UserRole.MODERATOR]: 5,
-  [UserRole.ADMIN]: 6,
+  [UserRole.VETERAN_UNVERIFIED]: 1,
+  [UserRole.VETERAN_VERIFIED]: 2,
+  [UserRole.VETERAN_MEMBER]: 3,
+  [UserRole.MODERATOR]: 4,
+  [UserRole.ADMIN]: 5,
 };
 
 @Injectable()

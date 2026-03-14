@@ -3,7 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   images: {
-    domains: ['localhost', 's3.amazonaws.com', 'veteranfinder-uploads.s3.amazonaws.com'],
+    domains: ['localhost', 'res.cloudinary.com', 'images.unsplash.com'],
   },
   async rewrites() {
     return [

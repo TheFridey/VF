@@ -13,7 +13,8 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { MatchType } from '@prisma/client';
+import { RedisService } from '../common/redis/redis.service';
+import { ConnectionType } from '../common/enums/connection.enum';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -34,10 +35,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private connectedUsers: Map<string, string[]> = new Map(); // userId -> socketIds
   private encryptionKey: Buffer;
 
+  private readonly WS_RATE_LIMIT = 10;
+  private readonly WS_RATE_WINDOW = 60;
+
   constructor(
     private jwtService: JwtService,
     private configService: ConfigService,
     private prisma: PrismaService,
+    private redisService: RedisService,
   ) {
     const key = this.configService.get('ENCRYPTION_KEY', 'default-dev-encryption-key-32ch');
     this.encryptionKey = crypto.scryptSync(key, 'salt', 32);
@@ -78,6 +83,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(socket: AuthenticatedSocket) {
     try {
+      // IP-based connection rate limit: max 10 new WS connections per IP per 60s
+      const clientIp = (socket.handshake.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+        ?? socket.handshake.address ?? 'unknown';
+      const attempts = await this.redisService.incrementRateLimit(`ws_connect:${clientIp}`, this.WS_RATE_WINDOW);
+      if (attempts > this.WS_RATE_LIMIT) {
+        this.logger.warn(`WS rate limit exceeded for IP ${clientIp}`);
+        socket.disconnect();
+        return;
+      }
+
       // Extract token from handshake
       const token = socket.handshake.auth?.token || 
                     socket.handshake.headers?.authorization?.replace('Bearer ', '');
@@ -93,30 +108,41 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         secret: this.configService.get<string>('JWT_SECRET'),
       });
 
+      // Check JWT blacklist - logout must invalidate WS connections too
+      const isBlacklisted = await this.redisService.exists(`blacklist:${String(payload.sub)}:${String(payload.iat)}`);
+      if (isBlacklisted) {
+        socket.disconnect();
+        return;
+      }
+
       socket.userId = payload.sub;
       
       // Track connected users
-      const existingSockets = this.connectedUsers.get(socket.userId) || [];
+      const uid = socket.userId!;
+      const existingSockets = this.connectedUsers.get(uid) || [];
       existingSockets.push(socket.id);
-      this.connectedUsers.set(socket.userId, existingSockets);
+      this.connectedUsers.set(uid, existingSockets);
 
       // Join user to their own room for direct messages
-      socket.join(`user:${socket.userId}`);
+      socket.join(`user:${socket.userId!}`);
 
-      // Join user to their match rooms
-      const matches = await this.prisma.match.findMany({
+      // Join user to their active connection rooms.
+      // This query IS awaited because socket.io rooms must be joined before
+      // the connection is considered ready to receive messages.
+      const connections = await this.prisma.connection.findMany({
         where: {
           OR: [
             { user1Id: socket.userId },
             { user2Id: socket.userId },
           ],
           status: 'ACTIVE',
-          matchType: MatchType.BROTHERS,
+          connectionType: ConnectionType.BROTHERS_IN_ARMS,
         },
+        select: { id: true }, // select only what we need — avoids fetching full rows
       });
 
-      for (const match of matches) {
-        socket.join(`match:${match.id}`);
+      for (const conn of connections) {
+        socket.join(`connection:${conn.id}`);
       }
 
       this.logger.log(`User ${socket.userId} connected (socket: ${socket.id})`);
@@ -124,11 +150,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Notify user is online
       this.server.emit('user:online', { userId: socket.userId });
 
-      // Update last active
-      await this.prisma.profile.updateMany({
+      // Update last active — fire-and-forget.
+      // This is telemetry only; it must not hold up the WS handshake or
+      // occupy a pool connection while callers wait for the response.
+      this.prisma.profile.updateMany({
         where: { userId: socket.userId },
         data: { lastActiveAt: new Date() },
-      });
+      }).catch(() => { /* non-critical — ignore errors */ });
 
     } catch (error) {
       this.logger.warn(`Connection rejected: Invalid token`);
@@ -149,11 +177,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Notify user is offline (only when all sockets disconnected)
       this.server.emit('user:offline', { userId: socket.userId });
       
-      // Update last active
-      await this.prisma.profile.updateMany({
+      // Update last active — fire-and-forget (telemetry, must not hold pool connection)
+      this.prisma.profile.updateMany({
         where: { userId: socket.userId },
         data: { lastActiveAt: new Date() },
-      });
+      }).catch(() => { /* non-critical */ });
     } else {
       this.connectedUsers.set(socket.userId, updatedSockets);
     }
@@ -164,30 +192,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('message:send')
   async handleMessage(
     @ConnectedSocket() socket: AuthenticatedSocket,
-    @MessageBody() data: { matchId: string; content: string },
+    @MessageBody() data: { connectionId: string; content: string },
   ) {
     if (!socket.userId) return;
 
     try {
       // Verify user is part of this match
-      const match = await this.prisma.match.findFirst({
+      const conn = await this.prisma.connection.findFirst({
         where: {
-          id: data.matchId,
+          id: data.connectionId,
           OR: [
             { user1Id: socket.userId },
             { user2Id: socket.userId },
           ],
           status: 'ACTIVE',
-          matchType: MatchType.BROTHERS,
+          connectionType: ConnectionType.BROTHERS_IN_ARMS,
         },
       });
 
-      if (!match) {
-        socket.emit('error', { message: 'Match not found or unauthorized' });
+      if (!conn) {
+        socket.emit('error', { message: 'Connection not found or unauthorized' });
         return;
       }
 
-      const receiverId = match.user1Id === socket.userId ? match.user2Id : match.user1Id;
+      const receiverId = conn.user1Id === socket.userId ? conn.user2Id : conn.user1Id;
 
       // Encrypt the message
       const { encrypted, iv, authTag } = this.encryptMessage(data.content);
@@ -195,7 +223,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Create message with encryption
       const message = await this.prisma.message.create({
         data: {
-          matchId: data.matchId,
+          connectionId: data.connectionId,
           senderId: socket.userId,
           receiverId,
           encryptedContent: encrypted,
@@ -218,15 +246,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       // Update match's lastMessageAt
-      await this.prisma.match.update({
-        where: { id: data.matchId },
+      await this.prisma.connection.update({
+        where: { id: data.connectionId },
         data: { lastMessageAt: new Date() },
       });
 
       // Emit to match room (decrypted for real-time display)
-      this.server.to(`match:${data.matchId}`).emit('message:new', {
+      this.server.to(`connection:${data.connectionId}`).emit('message:new', {
         id: message.id,
-        matchId: message.matchId,
+        connectionId: message.connectionId,
         senderId: message.senderId,
         content: data.content, // Send decrypted content to clients
         createdAt: message.createdAt,
@@ -242,7 +270,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         // Trigger push notification (handled by push notification service)
         this.server.emit('push:message', {
           userId: receiverId,
-          matchId: data.matchId,
+          connectionId: data.connectionId,
           senderId: socket.userId,
           preview: data.content.substring(0, 50),
         });
@@ -257,7 +285,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('message:read')
   async handleMessageRead(
     @ConnectedSocket() socket: AuthenticatedSocket,
-    @MessageBody() data: { matchId: string; messageIds: string[] },
+    @MessageBody() data: { connectionId: string; messageIds: string[] },
   ) {
     if (!socket.userId) return;
 
@@ -267,7 +295,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         where: {
           id: { in: data.messageIds },
           receiverId: socket.userId,
-          matchId: data.matchId,
+          connectionId: data.connectionId,
         },
         data: {
           readAt: new Date(),
@@ -275,8 +303,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       // Notify sender that messages were read
-      this.server.to(`match:${data.matchId}`).emit('message:read', {
-        matchId: data.matchId,
+      this.server.to(`connection:${data.connectionId}`).emit('message:read', {
+        connectionId: data.connectionId,
         messageIds: data.messageIds,
         readBy: socket.userId,
         readAt: new Date(),
@@ -290,12 +318,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('typing:start')
   async handleTypingStart(
     @ConnectedSocket() socket: AuthenticatedSocket,
-    @MessageBody() data: { matchId: string },
+    @MessageBody() data: { connectionId: string },
   ) {
     if (!socket.userId) return;
 
-    socket.to(`match:${data.matchId}`).emit('typing:start', {
-      matchId: data.matchId,
+    socket.to(`connection:${data.connectionId}`).emit('typing:start', {
+      connectionId: data.connectionId,
       userId: socket.userId,
     });
   }
@@ -303,12 +331,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('typing:stop')
   async handleTypingStop(
     @ConnectedSocket() socket: AuthenticatedSocket,
-    @MessageBody() data: { matchId: string },
+    @MessageBody() data: { connectionId: string },
   ) {
     if (!socket.userId) return;
 
-    socket.to(`match:${data.matchId}`).emit('typing:stop', {
-      matchId: data.matchId,
+    socket.to(`connection:${data.connectionId}`).emit('typing:stop', {
+      connectionId: data.connectionId,
       userId: socket.userId,
     });
   }
@@ -324,8 +352,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   // Helper method to send notification about new match
-  notifyNewMatch(matchId: string, user1Id: string, user2Id: string) {
-    this.sendToUser(user1Id, 'match:new', { matchId });
-    this.sendToUser(user2Id, 'match:new', { matchId });
+  notifyNewMatch(connectionId: string, user1Id: string, user2Id: string) {
+    this.sendToUser(user1Id, 'match:new', { connectionId });
+    this.sendToUser(user2Id, 'match:new', { connectionId });
   }
 }

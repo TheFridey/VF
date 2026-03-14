@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { 
@@ -42,8 +42,8 @@ interface LastMessage {
 }
 
 interface Conversation {
-  matchId: string;
-  matchType: string;
+  connectionId: string;
+  connectionType: string;
   user: ConversationUser;
   lastMessage: LastMessage | null;
   unreadCount: number;
@@ -52,7 +52,7 @@ interface Conversation {
 
 interface Message {
   id: string;
-  matchId: string;
+  connectionId: string;
   senderId: string;
   content: string;
   createdAt: string;
@@ -185,12 +185,18 @@ export default function MessagesPage() {
   const [messageInput, setMessageInput] = useState('');
   const [showActions, setShowActions] = useState(false);
   const [showVideoCall, setShowVideoCall] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [reportReason, setReportReason] = useState('HARASSMENT');
+  const [reportDescription, setReportDescription] = useState('');
+  const [blockConfirmed, setBlockConfirmed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: conversationsData, isLoading: conversationsLoading } = useQuery({
     queryKey: ['conversations'],
     queryFn: () => api.getConversations(),
     refetchInterval: 10000,
+    enabled: !!user?.id,
   });
 
   const {
@@ -198,15 +204,41 @@ export default function MessagesPage() {
     isLoading: messagesLoading,
     refetch: refetchMessages,
   } = useQuery({
-    queryKey: ['messages', selectedConversation?.matchId],
-    queryFn: () => api.getMessages(selectedConversation!.matchId),
-    enabled: !!selectedConversation,
+    queryKey: ['messages', selectedConversation?.connectionId],
+    queryFn: () => api.getMessages(selectedConversation!.connectionId),
+    enabled: !!user?.id && !!selectedConversation,
     refetchInterval: 5000,
   });
 
+  const reportMutation = useMutation({
+    mutationFn: () => api.reportUser({
+      reportedUserId: selectedConversation!.user.id,
+      reason: reportReason,
+      description: reportDescription,
+    }),
+    onSuccess: () => {
+      toast.success('Report submitted — our team will review it');
+      setShowReportModal(false);
+      setReportReason('HARASSMENT');
+      setReportDescription('');
+    },
+    onError: () => toast.error('Failed to submit report'),
+  });
+
+  const blockMutation = useMutation({
+    mutationFn: () => api.blockUser(selectedConversation!.user.id, 'Blocked from messages'),
+    onSuccess: () => {
+      toast.success(`${selectedConversation?.user.displayName} has been blocked`);
+      setShowBlockModal(false);
+      setSelectedConversation(null);
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+    onError: () => toast.error('Failed to block user'),
+  });
+
   const sendMessageMutation = useMutation({
-    mutationFn: ({ matchId, content }: { matchId: string; content: string }) =>
-      api.sendMessage(matchId, content),
+    mutationFn: ({ connectionId, content }: { connectionId: string; content: string }) =>
+      api.sendMessage(connectionId, content),
     onSuccess: () => {
       setMessageInput('');
       refetchMessages();
@@ -218,29 +250,29 @@ export default function MessagesPage() {
   });
 
   const markAsReadMutation = useMutation({
-    mutationFn: (matchId: string) => api.markMessagesAsRead(matchId),
+    mutationFn: (connectionId: string) => api.markMessagesAsRead(connectionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['unreadCounts'] });
     },
   });
 
   const conversationList: Conversation[] = conversationsData?.conversations || [];
-  const messageList: Message[] = messagesData?.messages || [];
+  const messageList = useMemo<Message[]>(() => messagesData?.messages || [], [messagesData]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messageList]);
 
   useEffect(() => {
-    if (selectedConversation) {
-      markAsReadMutation.mutate(selectedConversation.matchId);
+    if (user?.id && selectedConversation?.connectionId) {
+      markAsReadMutation.mutate(selectedConversation.connectionId);
     }
-  }, [selectedConversation?.matchId]);
+  }, [markAsReadMutation, selectedConversation, user?.id]);
 
   const handleSendMessage = () => {
     if (!messageInput.trim() || !selectedConversation) return;
     sendMessageMutation.mutate({
-      matchId: selectedConversation.matchId,
+      connectionId: selectedConversation.connectionId,
       content: messageInput.trim(),
     });
   };
@@ -277,21 +309,27 @@ export default function MessagesPage() {
         ) : conversationList.length === 0 ? (
           <div className="flex-1 flex items-center justify-center p-6 text-center">
             <div>
-              <p className="text-muted-foreground mb-2">No conversations yet</p>
-              <p className="text-sm text-muted-foreground">
-                Connect with another veteran to start chatting.
+              <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                <User className="h-7 w-7 text-muted-foreground" />
+              </div>
+              <p className="font-medium mb-1">No conversations yet</p>
+              <p className="text-sm text-muted-foreground mb-3">
+                Connect with veterans you served with to start chatting.
               </p>
+              <a href="/app/brothers" className="text-sm text-primary hover:underline font-medium">
+                Find veterans →
+              </a>
             </div>
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto">
             {conversationList.map((conversation) => (
               <button
-                key={conversation.matchId}
+                key={conversation.connectionId}
                 onClick={() => setSelectedConversation(conversation)}
                 className={cn(
                   'w-full p-4 flex items-center gap-3 hover:bg-muted/50 transition-colors text-left',
-                  selectedConversation?.matchId === conversation.matchId && 'bg-muted'
+                  selectedConversation?.connectionId === conversation.connectionId && 'bg-muted'
                 )}
               >
                 <Avatar
@@ -329,7 +367,7 @@ export default function MessagesPage() {
                     {conversation.unreadCount}
                   </Badge>
                 )}
-                {conversation.matchType === 'BROTHERS' && (
+                {conversation.connectionType === 'BROTHERS_IN_ARMS' && (
                   <Badge variant="outline" className="text-xs">
                     BIA
                   </Badge>
@@ -428,7 +466,7 @@ export default function MessagesPage() {
                       <button
                         onClick={() => {
                           setShowActions(false);
-                          toast.success('Report feature coming soon');
+                          setShowReportModal(true);
                         }}
                         className="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
                       >
@@ -438,7 +476,7 @@ export default function MessagesPage() {
                       <button
                         onClick={() => {
                           setShowActions(false);
-                          toast.success('Block feature coming soon');
+                          setShowBlockModal(true);
                         }}
                         className="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 text-destructive"
                       >
@@ -515,9 +553,9 @@ export default function MessagesPage() {
               <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
                 <Send className="h-8 w-8 text-muted-foreground" />
               </div>
-              <h2 className="text-xl font-semibold mb-2">Select a conversation</h2>
+              <h2 className="text-xl font-semibold mb-2">Your Messages</h2>
               <p className="text-muted-foreground">
-                Choose a connection from the list to start chatting
+                Select a connection from the list to open the conversation
               </p>
             </div>
           </div>
@@ -531,6 +569,79 @@ export default function MessagesPage() {
           onClose={() => setShowVideoCall(false)}
           callee={selectedConversation.user}
         />
+      )}
+
+      {/* Report User Modal */}
+      {showReportModal && selectedConversation && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="bg-background border rounded-xl p-6 w-full max-w-md shadow-xl">
+            <h3 className="font-semibold text-lg mb-1">Report {selectedConversation.user.displayName}</h3>
+            <p className="text-sm text-muted-foreground mb-5">Reports are reviewed by our moderation team, typically within 24 hours.</p>
+            <div className="mb-4">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-2">Reason</label>
+              <select
+                value={reportReason}
+                onChange={e => setReportReason(e.target.value)}
+                className="w-full border rounded-lg p-2 text-sm bg-background"
+              >
+                <option value="HARASSMENT">Harassment</option>
+                <option value="FAKE_PROFILE">Fake profile / not a veteran</option>
+                <option value="SPAM">Spam</option>
+                <option value="INAPPROPRIATE_CONTENT">Inappropriate content</option>
+                <option value="SCAM">Scam or fraud</option>
+                <option value="IMPERSONATION">Impersonation</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+            <div className="mb-5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-2">Additional details (optional)</label>
+              <textarea
+                value={reportDescription}
+                onChange={e => setReportDescription(e.target.value)}
+                placeholder="Describe what happened..."
+                rows={3}
+                className="w-full border rounded-lg p-2 text-sm bg-background resize-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowReportModal(false)} className="flex-1 border rounded-lg py-2 text-sm">Cancel</button>
+              <button
+                onClick={() => reportMutation.mutate()}
+                disabled={reportMutation.isPending}
+                className="flex-1 bg-destructive text-destructive-foreground rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+              >
+                {reportMutation.isPending ? 'Submitting...' : 'Submit Report'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Block User Modal */}
+      {showBlockModal && selectedConversation && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="bg-background border rounded-xl p-6 w-full max-w-sm shadow-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                <Ban className="h-5 w-5 text-destructive" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Block {selectedConversation.user.displayName}?</h3>
+                <p className="text-xs text-muted-foreground">They won't be able to contact you</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowBlockModal(false)} className="flex-1 border rounded-lg py-2 text-sm">Cancel</button>
+              <button
+                onClick={() => blockMutation.mutate()}
+                disabled={blockMutation.isPending}
+                className="flex-1 bg-destructive text-destructive-foreground rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+              >
+                {blockMutation.isPending ? 'Blocking...' : 'Block User'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

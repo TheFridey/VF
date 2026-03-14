@@ -1,7 +1,7 @@
+import { ConnectionType } from '../common/enums/connection.enum';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { MatchType } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -29,7 +29,7 @@ export class UsersService {
     return user;
   }
 
-  async update(id: string, data: any) {
+  async update(id: string, data: Record<string, unknown>) {
     return this.prisma.user.update({
       where: { id },
       data,
@@ -84,7 +84,7 @@ export class UsersService {
       });
 
       // 2. Delete all matches involving user
-      await tx.match.deleteMany({
+      await tx.connection.deleteMany({
         where: {
           OR: [
             { user1Id: userId },
@@ -93,15 +93,7 @@ export class UsersService {
         },
       });
 
-      // 3. Delete all likes (given and received)
-      await tx.like.deleteMany({
-        where: {
-          OR: [
-            { likerId: userId },
-            { likedId: userId },
-          ],
-        },
-      });
+      // Dating features removed — no like records to delete.
 
       // 4. Delete all blocks (given and received)
       await tx.block.deleteMany({
@@ -185,14 +177,14 @@ export class UsersService {
     }
 
     // Get user's matches
-    const matches = await this.prisma.match.findMany({
+    const matches = await this.prisma.connection.findMany({
       where: {
         OR: [{ user1Id: userId }, { user2Id: userId }],
-        matchType: MatchType.BROTHERS,
+        connectionType: ConnectionType.BROTHERS_IN_ARMS,
       },
       select: {
         id: true,
-        matchType: true,
+        connectionType: true,
         status: true,
         createdAt: true,
       },
@@ -206,8 +198,8 @@ export class UsersService {
       user: {
         ...userData,
         matches: matches.map(m => ({
-          matchId: m.id,
-          type: m.matchType,
+          connectionId: m.id,
+          type: m.connectionType,
           status: m.status,
           createdAt: m.createdAt,
         })),

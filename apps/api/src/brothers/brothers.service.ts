@@ -1,17 +1,30 @@
+import { unitSimilarity, deploymentsMatch, canonicalTheatre } from './unit-matcher';
+import { UserRole } from '../common/enums/user-role.enum';
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { UserRole, MatchType, MatchStatus, MilitaryBranch } from '@prisma/client';
+import { RedisService } from '../common/redis/redis.service';
+import { MilitaryBranch } from '@prisma/client';
+import { ConnectionType, ConnectionStatus } from '../common/enums/connection.enum';
+
+// Brothers search results are cached per user for 5 minutes.
+// Invalidated when the user updates their veteran details or a new veteran
+// is verified (via cache key expiry rather than active invalidation —
+// 5 min staleness is acceptable for a matching feed).
+const BROTHERS_CACHE_TTL = 300; // 5 minutes
 
 @Injectable()
 export class BrothersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   async getConnectionRequests(userId: string) {
     // Get pending connection requests (matches in PENDING status where user is user2)
-    const requests = await this.prisma.match.findMany({
+    const requests = await this.prisma.connection.findMany({
       where: {
-        matchType: MatchType.BROTHERS,
-        status: MatchStatus.PENDING,
+        connectionType: ConnectionType.BROTHERS_IN_ARMS,
+        status: ConnectionStatus.PENDING,
         user2Id: userId,
       },
       include: {
@@ -62,16 +75,16 @@ export class BrothersService {
 
     if (!user || !target) throw new NotFoundException('User not found');
 
-    const isUserVerified = user.role === UserRole.VETERAN_VERIFIED || user.role === UserRole.VETERAN_PAID;
-    const isTargetVerified = target.role === UserRole.VETERAN_VERIFIED || target.role === UserRole.VETERAN_PAID;
+    const isUserVerified = user.role === UserRole.VETERAN_VERIFIED || user.role === UserRole.VETERAN_MEMBER;
+    const isTargetVerified = target.role === UserRole.VETERAN_VERIFIED || target.role === UserRole.VETERAN_MEMBER;
     if (!isUserVerified || !isTargetVerified) {
       throw new ForbiddenException('Both users must be verified veterans');
     }
 
     // Check if connection already exists
-    const existingMatch = await this.prisma.match.findFirst({
+    const existingMatch = await this.prisma.connection.findFirst({
       where: {
-        matchType: MatchType.BROTHERS,
+        connectionType: ConnectionType.BROTHERS_IN_ARMS,
         OR: [
           { user1Id: userId, user2Id: targetUserId },
           { user1Id: targetUserId, user2Id: userId },
@@ -87,45 +100,52 @@ export class BrothersService {
     const overlapScore = this.calculateOverlapScore(user, target);
 
     // Create pending match (user1 is the sender)
-    const match = await this.prisma.match.create({
+    const match = await this.prisma.connection.create({
       data: {
         user1Id: userId,
         user2Id: targetUserId,
-        matchType: MatchType.BROTHERS,
-        status: MatchStatus.PENDING,
+        connectionType: ConnectionType.BROTHERS_IN_ARMS,
+        status: ConnectionStatus.PENDING,
         overlapScore,
       },
     });
 
-    return { success: true, matchId: match.id };
+    return { success: true, connectionId: match.id };
   }
 
   async respondToRequest(userId: string, requestId: string, accept: boolean) {
-    const match = await this.prisma.match.findUnique({
+    const match = await this.prisma.connection.findUnique({
       where: { id: requestId },
     });
 
     if (!match) throw new NotFoundException('Request not found');
     if (match.user2Id !== userId) throw new ForbiddenException('Not authorized');
-    if (match.status !== MatchStatus.PENDING) {
+    if (match.status !== ConnectionStatus.PENDING) {
       throw new BadRequestException('Request already processed');
     }
 
     if (accept) {
-      await this.prisma.match.update({
+      await this.prisma.connection.update({
         where: { id: requestId },
-        data: { status: MatchStatus.ACTIVE },
+        data: { status: ConnectionStatus.ACTIVE },
       });
       return { success: true, accepted: true };
     } else {
-      await this.prisma.match.delete({
+      await this.prisma.connection.delete({
         where: { id: requestId },
       });
       return { success: true, accepted: false };
     }
   }
 
-  async searchBrothers(userId: string, filters?: any) {
+  async searchBrothers(userId: string, filters?: Record<string, unknown>) {
+    // ── Cache check ──────────────────────────────────────────────────────────
+    // Brothers search is expensive: loads all verified veterans with service
+    // periods + calculates fuzzy unit overlap scores.  Cache per user for 5 min.
+    const cacheKey = `brothers:search:${userId}`;
+    const cached = await this.redis.cacheGet<ReturnType<typeof this.formatBrotherCandidate>[]>(cacheKey);
+    if (cached) return cached;
+
     // Verify user is a verified veteran
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -138,7 +158,7 @@ export class BrothersService {
 
     if (!user) throw new NotFoundException('User not found');
     
-    if (user.role !== UserRole.VETERAN_VERIFIED && user.role !== UserRole.VETERAN_PAID) {
+    if (user.role !== UserRole.VETERAN_VERIFIED && user.role !== UserRole.VETERAN_MEMBER) {
       throw new ForbiddenException('Only verified veterans can use Brothers in Arms');
     }
 
@@ -146,7 +166,7 @@ export class BrothersService {
     const candidates = await this.prisma.user.findMany({
       where: {
         id: { not: userId },
-        role: { in: [UserRole.VETERAN_VERIFIED, UserRole.VETERAN_PAID] },
+        role: { in: [UserRole.VETERAN_VERIFIED, UserRole.VETERAN_MEMBER] },
         veteranDetails: {
           isNot: null,
         },
@@ -160,16 +180,21 @@ export class BrothersService {
       take: 50,
     });
 
-    // Calculate overlap scores
+    // Calculate overlap scores — keep ALL candidates, sort by score descending.
+    // Users with score=0 (no detected overlap) show as "Other Veterans" in the UI.
     const scoredCandidates = candidates
-      .map((candidate: any) => ({
+      .map((candidate) => ({
         ...candidate,
         overlapScore: this.calculateOverlapScore(user, candidate),
       }))
-      .filter((c: any) => c.overlapScore > 0)
-      .sort((a: any, b: any) => b.overlapScore - a.overlapScore);
+      .sort((a, b) => b.overlapScore - a.overlapScore);
 
-    return scoredCandidates.map((c: any) => this.formatBrotherCandidate(c));
+    const result = scoredCandidates.map((c) => this.formatBrotherCandidate(c, user));
+
+    // Cache the result — fire-and-forget (cache failure must not break the response)
+    this.redis.cacheSet(cacheKey, result, BROTHERS_CACHE_TTL).catch(() => {});
+
+    return result;
   }
 
   async connectWithBrother(userId: string, targetUserId: string) {
@@ -191,16 +216,16 @@ export class BrothersService {
 
     if (!user || !target) throw new NotFoundException('User not found');
 
-    const isUserVerified = user.role === UserRole.VETERAN_VERIFIED || user.role === UserRole.VETERAN_PAID;
-    const isTargetVerified = target.role === UserRole.VETERAN_VERIFIED || target.role === UserRole.VETERAN_PAID;
+    const isUserVerified = user.role === UserRole.VETERAN_VERIFIED || user.role === UserRole.VETERAN_MEMBER;
+    const isTargetVerified = target.role === UserRole.VETERAN_VERIFIED || target.role === UserRole.VETERAN_MEMBER;
     if (!isUserVerified || !isTargetVerified) {
       throw new ForbiddenException('Both users must be verified veterans');
     }
 
     // Check if match already exists
-    const existingMatch = await this.prisma.match.findFirst({
+    const existingMatch = await this.prisma.connection.findFirst({
       where: {
-        matchType: MatchType.BROTHERS,
+        connectionType: ConnectionType.BROTHERS_IN_ARMS,
         OR: [
           { user1Id: userId, user2Id: targetUserId },
           { user1Id: targetUserId, user2Id: userId },
@@ -216,12 +241,12 @@ export class BrothersService {
     const overlapScore = this.calculateOverlapScore(user, target);
 
     // Create match
-    const match = await this.prisma.match.create({
+    const match = await this.prisma.connection.create({
       data: {
         user1Id: userId < targetUserId ? userId : targetUserId,
         user2Id: userId < targetUserId ? targetUserId : userId,
-        matchType: MatchType.BROTHERS,
-        status: MatchStatus.ACTIVE,
+        connectionType: ConnectionType.BROTHERS_IN_ARMS,
+        status: ConnectionStatus.ACTIVE,
         overlapScore,
       },
     });
@@ -230,10 +255,10 @@ export class BrothersService {
   }
 
   async getBrotherConnections(userId: string) {
-    const matches = await this.prisma.match.findMany({
+    const matches = await this.prisma.connection.findMany({
       where: {
-        matchType: MatchType.BROTHERS,
-        status: MatchStatus.ACTIVE,
+        connectionType: ConnectionType.BROTHERS_IN_ARMS,
+        status: ConnectionStatus.ACTIVE,
         OR: [{ user1Id: userId }, { user2Id: userId }],
       },
       include: {
@@ -261,7 +286,7 @@ export class BrothersService {
     return matches.map(match => {
       const otherUser = match.user1Id === userId ? match.user2 : match.user1;
       return {
-        matchId: match.id,
+        connectionId: match.id,
         overlapScore: match.overlapScore,
         connectedAt: match.createdAt,
         user: {
@@ -285,38 +310,130 @@ export class BrothersService {
       score += 20;
     }
 
-    // Check duty station overlap
-    const stations1 = new Set(user1.veteranDetails.dutyStations || []);
-    const stations2 = user2.veteranDetails.dutyStations || [];
-    for (const station of stations2) {
-      if (stations1.has(station)) {
-        score += 15;
+    // Deployment theatre overlap (fuzzy — "Helmand" matches "Afghanistan")
+    const deployments1: string[] = user1.veteranDetails.deployments || [];
+    const deployments2: string[] = user2.veteranDetails.deployments || [];
+    for (const d1 of deployments1) {
+      for (const d2 of deployments2) {
+        if (deploymentsMatch(d1, d2)) { score += 20; break; }
       }
     }
 
-    // Check service period overlap
+    // Legacy duty station array overlap (fuzzy)
+    const stations1: string[] = user1.veteranDetails.dutyStations || [];
+    const stations2: string[] = user2.veteranDetails.dutyStations || [];
+    for (const s1 of stations1) {
+      for (const s2 of stations2) {
+        if (unitSimilarity(s1, s2) >= 0.7) { score += 10; break; }
+      }
+    }
+
+    // Service period overlap with fuzzy unit matching
     const periods1 = user1.veteranDetails.servicePeriods || [];
     const periods2 = user2.veteranDetails.servicePeriods || [];
 
     for (const p1 of periods1) {
       for (const p2 of periods2) {
-        if (this.periodsOverlap(p1, p2)) {
-          score += 25;
-          
-          // Same unit during overlap
-          if (p1.unit && p2.unit && p1.unit === p2.unit) {
-            score += 40;
-          }
-          
-          // Same duty station during overlap
-          if (p1.dutyStation && p2.dutyStation && p1.dutyStation === p2.dutyStation) {
-            score += 30;
-          }
+        if (!this.periodsOverlap(p1, p2)) continue;
+
+        // Time overlap bonus (scales with overlap length)
+        const overlapMonths = this.overlapDurationMonths(p1, p2);
+        score += Math.min(25, Math.floor(overlapMonths / 3)); // up to 25 pts for 6+ months overlap
+
+        // Fuzzy unit match
+        if (p1.unit && p2.unit) {
+          const sim = unitSimilarity(p1.unit, p2.unit);
+          if (sim >= 0.8) score += 40;       // strong match: same unit
+          else if (sim >= 0.6) score += 20;  // likely same unit
+        }
+
+        // Fuzzy duty station match within period
+        if (p1.dutyStation && p2.dutyStation) {
+          const sim = unitSimilarity(p1.dutyStation, p2.dutyStation);
+          if (sim >= 0.7) score += 15;
         }
       }
     }
 
-    return Math.min(score, 100); // Cap at 100
+    return Math.min(score, 100);
+  }
+
+  private overlapDurationMonths(p1: any, p2: any): number {
+    const start = Math.max(new Date(p1.startDate).getTime(), new Date(p2.startDate).getTime());
+    const end1 = p1.endDate ? new Date(p1.endDate).getTime() : Date.now();
+    const end2 = p2.endDate ? new Date(p2.endDate).getTime() : Date.now();
+    const end = Math.min(end1, end2);
+    return Math.max(0, Math.floor((end - start) / (1000 * 60 * 60 * 24 * 30)));
+  }
+
+  /** Returns structured reasons why two users may know each other */
+  private getOverlapReasons(user1: any, candidate: any): string[] {
+    const reasons: string[] = [];
+    if (!user1.veteranDetails || !candidate.veteranDetails) return reasons;
+
+    const vd1 = user1.veteranDetails;
+    const vd2 = candidate.veteranDetails;
+
+    if (vd1.branch && vd2.branch && vd1.branch === vd2.branch) {
+      reasons.push(`Both served in the ${this.branchLabel(vd1.branch)}`);
+    }
+
+    const periods1 = vd1.servicePeriods || [];
+    const periods2 = vd2.servicePeriods || [];
+    let sameUnitFound = false;
+    let sameStationFound = false;
+    let timeOverlapFound = false;
+
+    for (const p1 of periods1) {
+      for (const p2 of periods2) {
+        if (!this.periodsOverlap(p1, p2)) continue;
+        
+        if (!timeOverlapFound) {
+          const start = new Date(Math.max(new Date(p1.startDate).getTime(), new Date(p2.startDate).getTime()));
+          const end1 = p1.endDate ? new Date(p1.endDate) : new Date();
+          const end2 = p2.endDate ? new Date(p2.endDate) : new Date();
+          const end = new Date(Math.min(end1.getTime(), end2.getTime()));
+          const startYear = start.getFullYear();
+          const endYear = end.getFullYear();
+          const yearRange = startYear === endYear ? `${startYear}` : `${startYear}–${endYear}`;
+          reasons.push(`Overlapping service ${yearRange}`);
+          timeOverlapFound = true;
+        }
+        
+        if (!sameUnitFound && p1.unit && p2.unit && unitSimilarity(p1.unit, p2.unit) >= 0.6) {
+          reasons.push(`Same unit: ${p1.unit}`);
+          sameUnitFound = true;
+        }
+        
+        if (!sameStationFound && p1.dutyStation && p2.dutyStation && unitSimilarity(p1.dutyStation, p2.dutyStation) >= 0.6) {
+          reasons.push(`Same station: ${p1.dutyStation}`);
+          sameStationFound = true;
+        }
+      }
+    }
+
+    // Deployment theatre matching (fuzzy)
+    const deployments1: string[] = vd1.deployments || [];
+    const deployments2: string[] = vd2.deployments || [];
+    for (const d1 of deployments1) {
+      for (const d2 of deployments2) {
+        if (deploymentsMatch(d1, d2)) {
+          reasons.push(`Both deployed to ${canonicalTheatre(d1)}`);
+          break;
+        }
+      }
+    }
+
+    return reasons.slice(0, 4); // Return at most 4 reasons
+  }
+
+  private branchLabel(branch: string): string {
+    const labels: Record<string, string> = {
+      BRITISH_ARMY: 'British Army', ROYAL_NAVY: 'Royal Navy',
+      ROYAL_AIR_FORCE: 'Royal Air Force', ROYAL_MARINES: 'Royal Marines',
+      RESERVE_FORCES: 'Reserve Forces', OTHER: 'Armed Forces',
+    };
+    return labels[branch] || branch;
   }
 
   private periodsOverlap(p1: any, p2: any): boolean {
@@ -328,30 +445,26 @@ export class BrothersService {
     return start1 <= end2 && start2 <= end1;
   }
 
-  private formatBrotherCandidate(candidate: any) {
-    const age = candidate.profile?.dateOfBirth 
-      ? Math.floor((Date.now() - new Date(candidate.profile.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
-      : null;
-      
+  private formatBrotherCandidate(candidate: any, requestingUser?: any) {
     return {
       id: candidate.id,
       displayName: candidate.profile?.displayName || 'Unknown',
       bio: candidate.profile?.bio || null,
       profileImageUrl: candidate.profile?.profileImageUrl || null,
       location: candidate.profile?.location || null,
-      age,
-      interests: candidate.profile?.interests || [],
-      overlapScore: candidate.overlapScore / 100, // Convert to 0-1 range
+      overlapScore: candidate.overlapScore / 100,
+      overlapReasons: requestingUser ? this.getOverlapReasons(requestingUser, candidate) : [],
       veteranInfo: candidate.veteranDetails ? {
         branch: candidate.veteranDetails.branch,
         rank: candidate.veteranDetails.rank,
-        isVerified: true, // Only verified vets can use Brothers
+        regiment: candidate.veteranDetails.regiment || null,
+        isVerified: true,
       } : null,
-      overlappingPeriods: candidate.veteranDetails?.dutyStations?.slice(0, 3).map((station: string) => ({
+      overlappingPeriods: (candidate.veteranDetails?.servicePeriods || []).slice(0, 3).map((p: { unit?: string | null; branch?: string | null; startDate?: Date | null; endDate?: Date | null; dutyStation?: string | null }) => ({
         branch: candidate.veteranDetails.branch,
-        dateRange: 'Overlapping service',
-        location: station,
-      })) || [],
+        dateRange: `${p.startDate ? new Date(p.startDate).getFullYear() : '?'}${p.endDate ? '–' + new Date(p.endDate).getFullYear() : '–present'}`,
+        location: p.dutyStation || p.unit || null,
+      })),
     };
   }
 }

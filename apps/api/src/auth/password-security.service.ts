@@ -10,12 +10,24 @@ import { PrismaService } from '../common/prisma/prisma.service';
 // Type:        Argon2id  (resists side-channel AND GPU/ASIC attacks simultaneously)
 // Memory:      64 MB     (makes parallel GPU attacks prohibitively expensive)
 // Iterations:  3         (time cost — slows brute force without impacting UX)
-// Parallelism: 4 threads (maximises use of available CPU cores)
+// Parallelism: 1 thread  (see note below)
 // Hash length: 32 bytes  (256-bit output)
-// Argon2id options — passed inline to avoid TS overload discrimination on `raw`
+//
+// ── Why parallelism=1, not 4 ────────────────────────────────────────────────
+// argon2 runs inside Node.js's libuv thread pool (default size: 4 threads).
+// Setting parallelism=4 fills ALL 4 libuv threads for the duration of each
+// hash (~300–600ms with these params).  While those threads are busy, ALL
+// other libuv-dependent async operations queue behind them — including the
+// initial TCP socket creation for new Prisma connections.  Under concurrent
+// login attempts this manifests as P2024 connection-pool exhaustion.
+//
+// parallelism=1 uses one thread per hash operation, leaving the other 3 free
+// for Prisma, DNS, file I/O, etc.  The security impact is negligible: the
+// memory cost (64 MB) already makes GPU cracking prohibitively expensive
+// regardless of the thread count used during hashing.
 const ARGON2_MEMORY   = 65536;  // 64 MB
 const ARGON2_TIME     = 3;
-const ARGON2_PARALLEL = 4;
+const ARGON2_PARALLEL = 1;      // ← was 4; see note above
 const ARGON2_LENGTH   = 32;
 
 // ─── Security Policy ──────────────────────────────────────────────────────────
@@ -232,7 +244,7 @@ export class PasswordSecurityService {
 
   async isPasswordReused(userId: string, newPassword: string): Promise<boolean> {
     try {
-      const history = await (this.prisma as any).passwordHistory.findMany({
+      const history = await this.prisma.passwordHistory.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
         take: PASSWORD_HISTORY_DEPTH,
@@ -252,12 +264,12 @@ export class PasswordSecurityService {
 
   async recordPasswordHistory(userId: string, passwordHash: string): Promise<void> {
     try {
-      await (this.prisma as any).passwordHistory.create({
+      await this.prisma.passwordHistory.create({
         data: { userId, passwordHash },
       });
 
       // Prune history beyond depth limit
-      const old = await (this.prisma as any).passwordHistory.findMany({
+      const old = await this.prisma.passwordHistory.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
         skip: PASSWORD_HISTORY_DEPTH,
@@ -265,7 +277,7 @@ export class PasswordSecurityService {
       });
 
       if (old.length > 0) {
-        await (this.prisma as any).passwordHistory.deleteMany({
+        await this.prisma.passwordHistory.deleteMany({
           where: { id: { in: old.map(r => r.id) } },
         });
       }

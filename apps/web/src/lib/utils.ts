@@ -60,7 +60,7 @@ export function formatRole(role: string): string {
     CIVILIAN: 'Civilian',
     VETERAN_UNVERIFIED: 'Veteran (Unverified)',
     VETERAN_VERIFIED: 'Verified Veteran',
-    VETERAN_PAID: 'Premium Veteran',
+    VETERAN_MEMBER: 'BIA Member',
     MODERATOR: 'Moderator',
     ADMIN: 'Administrator',
   };
@@ -82,9 +82,9 @@ export function truncate(str: string, length: number): string {
 }
 
 export function isVeteran(role: string): boolean {
-  return ['VETERAN_UNVERIFIED', 'VETERAN_VERIFIED', 'VETERAN_PAID'].includes(role);
+  return ['VETERAN_UNVERIFIED', 'VETERAN_VERIFIED', 'VETERAN_MEMBER'].includes(role);
 }
 
 export function isVerifiedVeteran(role: string): boolean {
-  return ['VETERAN_VERIFIED', 'VETERAN_PAID'].includes(role);
+  return ['VETERAN_VERIFIED', 'VETERAN_MEMBER'].includes(role);
 }

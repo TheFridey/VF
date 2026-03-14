@@ -15,7 +15,7 @@ export enum UserRole {
   CIVILIAN = 'CIVILIAN',
   VETERAN_UNVERIFIED = 'VETERAN_UNVERIFIED',
   VETERAN_VERIFIED = 'VETERAN_VERIFIED',
-  VETERAN_PAID = 'VETERAN_PAID',
+  VETERAN_MEMBER = 'VETERAN_MEMBER',
   MODERATOR = 'MODERATOR',
   ADMIN = 'ADMIN',
 }
@@ -137,4 +137,58 @@ export class GetAuditLogsDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+}
+
+export class GetForumThreadsDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @ApiPropertyOptional({ description: 'Filter by category ID' })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+}
+
+export class GetListingsDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+}
+
+export class UpdateThreadDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  isLocked?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  isPinned?: boolean;
+}
+
+export class UpdateListingDto {
+  @ApiProperty()
+  isApproved: boolean;
 }

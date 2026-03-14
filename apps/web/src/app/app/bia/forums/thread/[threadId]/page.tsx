@@ -54,76 +54,76 @@ export default function ThreadViewPage() {
       <div className="flex items-start gap-3">
         <button
           onClick={() => router.push(`/app/bia/forums/${category?.slug}`)}
-          className="text-gray-400 hover:text-white transition-colors mt-1 shrink-0"
+          className="text-slate-400 hover:text-white transition-colors mt-1 shrink-0"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             {thread?.isPinned && <Pin className="w-4 h-4 text-green-400" />}
-            {thread?.isLocked && <Lock className="w-4 h-4 text-gray-500" />}
+            {thread?.isLocked && <Lock className="w-4 h-4 text-slate-500" />}
             <h1 className="text-xl font-bold text-white">{thread?.title}</h1>
           </div>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <p className="text-sm text-slate-400 mt-0.5">
             {category?.name} · {data?.total} {data?.total === 1 ? 'post' : 'posts'}
           </p>
         </div>
       </div>
 
       {/* Posts */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {posts.map((post: any, idx: number) => {
           const isOp = post.authorId === thread?.authorId;
           const isMe = post.authorId === user?.id;
           return (
-            <Card
+            <div
               key={post.id}
               className={cn(
-                'border-gray-700/50',
-                isOp ? 'bg-gray-800/80 border-green-600/20' : 'bg-gray-800/50',
-                isMe && 'border-blue-600/20',
+                'rounded-xl border overflow-hidden',
+                isOp ? 'bg-slate-800 border-green-700/40' : 'bg-slate-800 border-slate-700',
+                isMe && !isOp && 'border-blue-700/40',
               )}
             >
-              <CardContent className="p-4 sm:p-5">
-                <div className="flex gap-3 sm:gap-4">
-                  {/* Avatar */}
-                  <div className="shrink-0">
-                    <Avatar
-                      src={post.author?.profile?.profileImageUrl}
-                      fallback={post.author?.profile?.displayName?.[0] || '?'}
-                      className="w-10 h-10"
-                    />
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-2">
-                      <span className="font-semibold text-white text-sm">
-                        {post.author?.profile?.displayName || 'Unknown'}
-                      </span>
-                      {isOp && (
-                        <Badge className="bg-green-600/20 text-green-400 border-green-600/30 text-xs">OP</Badge>
-                      )}
-                      {isMe && (
-                        <Badge className="bg-blue-600/20 text-blue-400 border-blue-600/30 text-xs">You</Badge>
-                      )}
-                      {post.author?.veteranDetails?.branch && (
-                        <div className="flex items-center gap-1 text-xs text-gray-500">
-                          <Shield className="w-3 h-3" />
-                          <span>{formatBranch(post.author.veteranDetails.branch)}</span>
-                          {post.author.veteranDetails.rank && <span>· {post.author.veteranDetails.rank}</span>}
-                        </div>
-                      )}
-                      <span className="text-xs text-gray-500 ml-auto">
-                        {formatRelativeTime(post.createdAt)}
-                        {post.isEdited && <span className="ml-1 italic">(edited)</span>}
-                      </span>
+              {/* Post header */}
+              <div className={cn(
+                'flex items-center gap-3 px-4 py-2.5 border-b',
+                isOp ? 'bg-green-950/40 border-green-700/30' : 'bg-slate-900/50 border-slate-700',
+                isMe && !isOp && 'bg-blue-950/30 border-blue-700/30',
+              )}>
+                <Avatar
+                  src={post.author?.profile?.profileImageUrl}
+                  fallback={post.author?.profile?.displayName?.[0] || '?'}
+                  className="w-8 h-8"
+                />
+                <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+                  <span className="font-semibold text-slate-100 text-sm">
+                    {post.author?.profile?.displayName || 'Unknown'}
+                  </span>
+                  {isOp && (
+                    <Badge className="bg-green-700/30 text-green-400 border-green-600/40 text-xs py-0">OP</Badge>
+                  )}
+                  {isMe && (
+                    <Badge className="bg-blue-700/30 text-blue-400 border-blue-600/40 text-xs py-0">You</Badge>
+                  )}
+                  {post.author?.veteranDetails?.branch && (
+                    <div className="flex items-center gap-1 text-xs text-slate-400">
+                      <Shield className="w-3 h-3" />
+                      <span>{formatBranch(post.author.veteranDetails.branch)}</span>
+                      {post.author.veteranDetails.rank && <span>· {post.author.veteranDetails.rank}</span>}
                     </div>
-                    <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
-                  </div>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+                <span className="text-xs text-slate-500 shrink-0">
+                  {formatRelativeTime(post.createdAt)}
+                  {post.isEdited && <span className="ml-1 italic">(edited)</span>}
+                </span>
+              </div>
+
+              {/* Post body */}
+              <div className="px-4 py-3.5">
+                <p className="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
+              </div>
+            </div>
           );
         })}
         <div ref={bottomRef} />
@@ -131,24 +131,24 @@ export default function ThreadViewPage() {
 
       {/* Reply box */}
       {thread?.isLocked ? (
-        <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-800/40 rounded-xl p-4 border border-gray-700/30">
-          <Lock className="w-4 h-4" />
+        <div className="flex items-center gap-2 text-sm text-slate-400 bg-slate-800 rounded-xl p-4 border border-slate-700">
+          <Lock className="w-4 h-4 shrink-0" />
           <span>This thread is locked. No further replies are allowed.</span>
         </div>
       ) : (
-        <div className="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 space-y-3">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
           <textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}
             placeholder="Write your reply..."
             rows={4}
-            className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg p-3 text-sm text-white placeholder-gray-500 resize-none focus:outline-none focus:ring-1 focus:ring-green-500 transition-colors"
+            className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-sm text-slate-100 placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50 transition-colors"
           />
           <div className="flex justify-end">
             <button
               onClick={() => postMutation.mutate()}
               disabled={!reply.trim() || postMutation.isPending}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors"
             >
               {postMutation.isPending ? <Spinner className="w-4 h-4" /> : <Send className="w-4 h-4" />}
               Post Reply

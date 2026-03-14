@@ -392,7 +392,7 @@ export default function HomePage() {
             <FeatureCard
               icon={Users}
               title="Brothers in Arms"
-              description="Reconnect with service members you may have served alongside. Our unique matching algorithm finds veterans with overlapping service periods."
+              description="Find veterans from your regiment, unit, or deployment. Service history overlap matching identifies veterans you likely served alongside."
               delay={100}
             />
             <FeatureCard

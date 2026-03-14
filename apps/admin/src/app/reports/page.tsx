@@ -2,244 +2,220 @@
 
 import { useEffect, useState } from 'react';
 import { adminApi } from '@/lib/api';
-import { format } from 'date-fns';
+import { Flag, Eye, Check, X, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-interface Report {
-  id: string;
-  reason: string;
-  description?: string;
-  status: string;
-  resolution?: string;
-  createdAt: string;
-  reporter: {
-    email: string;
-    profile?: { displayName?: string };
-  };
-  reportedUser: {
-    id: string;
-    email: string;
-    status: string;
-    profile?: { displayName?: string };
-  };
-}
+const S = {
+  card: { background: '#0d1524', border: '1px solid #1a2636', borderRadius: 8 },
+  label: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#3a5068', letterSpacing: 2, textTransform: 'uppercase' as const },
+  h1: { fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 28, color: '#dce8f5', letterSpacing: 0.5 },
+  select: { background: '#060c17', border: '1px solid #1a2636', borderRadius: 6, padding: '8px 12px', color: '#c8d6e5', fontSize: 12, fontFamily: "'JetBrains Mono', monospace", outline: 'none', cursor: 'pointer' },
+  textarea: { background: '#060c17', border: '1px solid #1a2636', borderRadius: 6, padding: '9px 12px', color: '#c8d6e5', fontSize: 13, outline: 'none', width: '100%', resize: 'none' as const, fontFamily: "'Barlow', sans-serif" },
+  th: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#2d4055', letterSpacing: 2, padding: '11px 16px', textAlign: 'left' as const, borderBottom: '1px solid #141f2e', fontWeight: 500 },
+  td: { padding: '13px 16px', borderBottom: '1px solid #0d1524', fontSize: 13, color: '#7a9bb5', verticalAlign: 'middle' as const },
+  btn: (c: string) => ({ background: `${c}14`, border: `1px solid ${c}30`, color: c, borderRadius: 5, padding: '5px 10px', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 500 }),
+  badge: (c: string) => ({ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: 1.5, padding: '3px 8px', borderRadius: 3, background: `${c}18`, color: c, border: `1px solid ${c}30` }),
+};
+
+type ResolutionChoice = {
+  label: string;
+  status: 'DISMISSED' | 'ACTION_TAKEN';
+  userAction?: 'WARNING' | 'SUSPEND_7_DAYS' | 'SUSPEND_30_DAYS' | 'PERMANENT_BAN';
+};
+
+const reasonColor: Record<string, string> = {
+  HARASSMENT: '#f87171',
+  FAKE_PROFILE: '#fbbf24',
+  SPAM: '#f97316',
+  INAPPROPRIATE_CONTENT: '#fb7185',
+  SCAM: '#f87171',
+  IMPERSONATION: '#fbbf24',
+  OTHER: '#7a9bb5',
+};
+
+const statusColor: Record<string, string> = {
+  PENDING: '#fbbf24',
+  DISMISSED: '#7a9bb5',
+  ACTION_TAKEN: '#a78bfa',
+};
+
+const resolutionChoices: Record<string, ResolutionChoice> = {
+  DISMISSED: { label: 'Dismissed - no action', status: 'DISMISSED' },
+  WARNING: { label: 'Warning issued', status: 'ACTION_TAKEN', userAction: 'WARNING' },
+  SUSPEND_7_DAYS: { label: 'Suspend for 7 days', status: 'ACTION_TAKEN', userAction: 'SUSPEND_7_DAYS' },
+  SUSPEND_30_DAYS: { label: 'Suspend for 30 days', status: 'ACTION_TAKEN', userAction: 'SUSPEND_30_DAYS' },
+  PERMANENT_BAN: { label: 'Permanent ban', status: 'ACTION_TAKEN', userAction: 'PERMANENT_BAN' },
+};
 
 export default function ReportsPage() {
-  const [reports, setReports] = useState<Report[]>([]);
+  const [reports, setReports] = useState<any[]>([]);
+  const [statusFilter, setStatusFilter] = useState('PENDING');
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('PENDING');
-  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [selected, setSelected] = useState<any>(null);
   const [resolution, setResolution] = useState('');
-  const [action, setAction] = useState('');
-
-  useEffect(() => {
-    fetchReports();
-  }, [filter]);
+  const [resolveChoice, setResolveChoice] = useState<keyof typeof resolutionChoices>('DISMISSED');
+  const [saving, setSaving] = useState(false);
 
   const fetchReports = async () => {
     setLoading(true);
     try {
-      const data = await adminApi.getReports({ status: filter || undefined });
-      setReports(data.reports || data || []);
-    } catch (err) {
+      const data = await adminApi.getReports({ status: statusFilter || undefined });
+      setReports(Array.isArray(data) ? data : (data.reports || data.data || []));
+    } catch {
       toast.error('Failed to load reports');
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchReports();
+  }, [statusFilter]);
+
   const handleResolve = async () => {
-    if (!selectedReport || !resolution.trim()) {
-      toast.error('Please provide a resolution');
+    if (!selected || !resolution.trim()) {
       return;
     }
+
+    setSaving(true);
     try {
-      await adminApi.resolveReport(selectedReport.id, resolution, action);
+      const choice = resolutionChoices[resolveChoice];
+      await adminApi.resolveReport(selected.id, {
+        status: choice.status,
+        resolution,
+        userAction: choice.userAction,
+      });
       toast.success('Report resolved');
-      setSelectedReport(null);
+      setSelected(null);
       setResolution('');
-      setAction('');
+      setResolveChoice('DISMISSED');
       fetchReports();
-    } catch (err) {
-      toast.error('Failed to resolve report');
+    } catch {
+      toast.error('Failed to resolve');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const reasonLabels: Record<string, string> = {
-    FAKE_PROFILE: 'Fake Profile',
-    HARASSMENT: 'Harassment',
-    INAPPROPRIATE_CONTENT: 'Inappropriate Content',
-    SPAM: 'Spam',
-    SCAM: 'Scam',
-    IMPERSONATION: 'Impersonation',
-    UNDERAGE: 'Underage',
-    OTHER: 'Other',
-  };
-
-  const statusColors: Record<string, string> = {
-    PENDING: 'bg-yellow-100 text-yellow-800',
-    DISMISSED: 'bg-gray-100 text-gray-800',
-    ACTION_TAKEN: 'bg-green-100 text-green-800',
-  };
+  const openCount = reports.filter((report) => report.status === 'PENDING').length;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Reports Management</h1>
-
-      {/* Filter */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-md"
-        >
-          <option value="">All Reports</option>
-          <option value="PENDING">Pending</option>
-          <option value="DISMISSED">Dismissed</option>
-          <option value="ACTION_TAKEN">Action Taken</option>
-        </select>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div>
+          <h1 style={S.h1}>Reports</h1>
+          <p style={{ ...S.label, marginTop: 5 }}>User-submitted conduct reports</p>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {openCount > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: '#f8717114', border: '1px solid #f8717130', borderRadius: 6 }}>
+              <AlertTriangle size={13} color="#f87171" />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#f87171' }}>{openCount} OPEN</span>
+            </div>
+          )}
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={S.select}>
+            <option value="PENDING">Pending</option>
+            <option value="DISMISSED">Dismissed</option>
+            <option value="ACTION_TAKEN">Action Taken</option>
+            <option value="">All</option>
+          </select>
+        </div>
       </div>
 
-      {/* Reports Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          </div>
-        ) : reports.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            No reports found
-          </div>
-        ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reported User</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reporter</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+      <div style={S.card}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>{['Reporter', 'Reported', 'Reason', 'Status', 'Date', 'Action'].map((heading) => <th key={heading} style={S.th}>{heading}</th>)}</tr>
+          </thead>
+          <tbody>
+            {loading ? [...Array(6)].map((_, rowIndex) => (
+              <tr key={rowIndex}>
+                {[120, 120, 90, 70, 70, 80].map((width, columnIndex) => (
+                  <td key={columnIndex} style={S.td}>
+                    <div style={{ height: 13, background: '#111c2e', borderRadius: 3, width }} />
+                  </td>
+                ))}
               </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {reports.map((report) => (
-                <tr key={report.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        {report.reportedUser?.profile?.displayName || 'No name'}
-                      </div>
-                      <div className="text-sm text-gray-500">{report.reportedUser?.email}</div>
-                      <div className="text-xs text-gray-400">Status: {report.reportedUser?.status}</div>
-                    </div>
+            ))
+              : reports.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ ...S.td, textAlign: 'center', padding: 56 }}>
+                    <Flag size={36} color="#1a2636" style={{ margin: '0 auto 14px' }} />
+                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#2d4055', letterSpacing: 2 }}>
+                      {statusFilter === 'PENDING' ? 'NO OPEN REPORTS' : 'NO RECORDS'}
+                    </p>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded">
-                      {reasonLabels[report.reason] || report.reason}
-                    </span>
+                </tr>
+              ) : reports.map((report: any) => (
+                <tr
+                  key={report.id}
+                  onMouseEnter={(event) => {
+                    event.currentTarget.style.background = 'rgba(212,168,83,0.03)';
+                  }}
+                  onMouseLeave={(event) => {
+                    event.currentTarget.style.background = 'transparent';
+                  }}
+                  style={{ transition: 'background 0.1s' }}
+                >
+                  <td style={S.td}><p style={{ fontSize: 12, fontWeight: 500, color: '#b8ccd8' }}>{report.reporter?.profile?.displayName || report.reporter?.email || '-'}</p></td>
+                  <td style={S.td}><p style={{ fontSize: 12, fontWeight: 500, color: '#b8ccd8' }}>{report.reportedUser?.profile?.displayName || report.reportedUser?.email || '-'}</p></td>
+                  <td style={S.td}><span style={S.badge(reasonColor[report.reason] || '#7a9bb5')}>{report.reason?.replace(/_/g, ' ')}</span></td>
+                  <td style={S.td}><span style={S.badge(statusColor[report.status] || '#7a9bb5')}>{report.status}</span></td>
+                  <td style={{ ...S.td, fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>
+                    {report.createdAt ? new Date(report.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {report.reporter?.profile?.displayName || report.reporter?.email}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-semibold rounded ${statusColors[report.status]}`}>
-                      {report.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {format(new Date(report.createdAt), 'MMM d, yyyy')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {report.status === 'PENDING' ? (
-                      <button
-                        onClick={() => setSelectedReport(report)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        Resolve
-                      </button>
-                    ) : (
-                      <span className="text-gray-400">
-                        {report.resolution?.substring(0, 30)}...
-                      </span>
-                    )}
+                  <td style={S.td}>
+                    <button onClick={() => { setSelected(report); setResolveChoice('DISMISSED'); setResolution(''); }} style={S.btn('#d4a853')}><Eye size={11} /> Review</button>
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
-        )}
+          </tbody>
+        </table>
       </div>
 
-      {/* Resolve Modal */}
-      {selectedReport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-lg w-full">
-            <div className="p-6">
-              <h2 className="text-xl font-bold mb-4">Resolve Report</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Reported User</label>
-                  <p className="text-gray-900">{selectedReport.reportedUser?.email}</p>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Reason</label>
-                  <p className="text-gray-900">{reasonLabels[selectedReport.reason]}</p>
-                </div>
-
-                {selectedReport.description && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Description</label>
-                    <p className="text-gray-900">{selectedReport.description}</p>
+      {selected && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.87)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#0d1524', border: '1px solid #1a2636', borderRadius: 10, width: '100%', maxWidth: 500 }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #141f2e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600, fontSize: 20, color: '#dce8f5' }}>Report Review</h3>
+              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#3a5068', cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <div style={{ padding: '20px 24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
+                {[['Reporter', selected.reporter?.profile?.displayName || selected.reporter?.email], ['Reported', selected.reportedUser?.profile?.displayName || selected.reportedUser?.email]].map(([label, value]) => (
+                  <div key={label} style={{ padding: 12, background: '#0a1420', borderRadius: 7, border: '1px solid #141f2e' }}>
+                    <p style={{ ...S.label, marginBottom: 5 }}>{label}</p>
+                    <p style={{ fontSize: 13, color: '#b8ccd8' }}>{value || '-'}</p>
                   </div>
-                )}
-
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Action to take</label>
-                  <select
-                    value={action}
-                    onChange={(e) => setAction(e.target.value)}
-                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md"
-                  >
-                    <option value="">No action (dismiss)</option>
-                    <option value="warn">Warn user</option>
-                    <option value="suspend">Suspend user</option>
-                    <option value="ban">Ban user</option>
+                ))}
+              </div>
+              <div style={{ padding: 12, background: '#0a1420', borderRadius: 7, border: '1px solid #141f2e', marginBottom: 18 }}>
+                <p style={{ ...S.label, marginBottom: 6 }}>Reason</p>
+                <span style={S.badge(reasonColor[selected.reason] || '#7a9bb5')}>{selected.reason?.replace(/_/g, ' ')}</span>
+                {selected.description && <p style={{ fontSize: 13, color: '#7a9bb5', marginTop: 10, lineHeight: 1.6 }}>{selected.description}</p>}
+              </div>
+              {selected.status === 'PENDING' ? (
+                <>
+                  <label style={{ ...S.label, display: 'block', marginBottom: 6 }}>Action</label>
+                  <select value={resolveChoice} onChange={(event) => setResolveChoice(event.target.value as keyof typeof resolutionChoices)} style={{ ...S.select, display: 'block', width: '100%', marginBottom: 12 }}>
+                    {Object.entries(resolutionChoices).map(([key, choice]) => (
+                      <option key={key} value={key}>
+                        {choice.label}
+                      </option>
+                    ))}
                   </select>
+                  <label style={{ ...S.label, display: 'block', marginBottom: 6 }}>Notes</label>
+                  <textarea value={resolution} onChange={(event) => setResolution(event.target.value)} rows={3} placeholder="Resolution details..." style={{ ...S.textarea, marginBottom: 16 }} />
+                  <button onClick={handleResolve} disabled={saving || !resolution.trim()} style={{ ...S.btn('#34d399'), width: '100%', justifyContent: 'center', padding: '10px', fontSize: 13, opacity: !resolution.trim() ? 0.6 : 1 }}>
+                    <Check size={13} /> Submit Resolution
+                  </button>
+                </>
+              ) : (
+                <div style={{ padding: 12, background: '#111c2e', borderRadius: 7 }}>
+                  <span style={S.badge(statusColor[selected.status])}>{selected.status}</span>
+                  {selected.resolution && <p style={{ fontSize: 13, color: '#7a9bb5', marginTop: 10 }}>{selected.resolution}</p>}
                 </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Resolution notes</label>
-                  <textarea
-                    value={resolution}
-                    onChange={(e) => setResolution(e.target.value)}
-                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md"
-                    rows={3}
-                    placeholder="Describe how this was resolved..."
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end space-x-3">
-                <button
-                  onClick={() => {
-                    setSelectedReport(null);
-                    setResolution('');
-                    setAction('');
-                  }}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-900"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleResolve}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Resolve Report
-                </button>
-              </div>
+              )}
             </div>
           </div>
         </div>

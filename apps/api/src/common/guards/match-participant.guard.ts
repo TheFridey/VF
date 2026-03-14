@@ -1,6 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { MatchStatus } from '@prisma/client';
+import { ConnectionStatus } from '../enums/connection.enum';
 
 @Injectable()
 export class MatchParticipantGuard implements CanActivate {
@@ -9,43 +9,30 @@ export class MatchParticipantGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const { user } = request;
-    const matchId = request.params.matchId;
+    const matchId = request.params.matchId || request.params.connectionId;
 
-    if (!user) {
-      throw new ForbiddenException('User not authenticated');
-    }
+    if (!user) throw new ForbiddenException('User not authenticated');
+    if (!matchId) throw new ForbiddenException('Connection ID is required');
 
-    if (!matchId) {
-      throw new ForbiddenException('Match ID is required');
-    }
-
-    // Check if the user is a participant in the match
-    const match = await this.prisma.match.findUnique({
+    const connection = await this.prisma.connection.findUnique({
       where: { id: matchId },
       select: { user1Id: true, user2Id: true, status: true },
     });
 
-    if (!match) {
-      throw new NotFoundException('Match not found');
+    if (!connection) throw new NotFoundException('Connection not found');
+
+    if (connection.status === ConnectionStatus.CANCELLED) {
+      throw new NotFoundException('Connection not found');
     }
 
-    if (match.status === MatchStatus.CANCELLED) {
-      throw new NotFoundException('Match not found');
-    }
-
-    const isParticipant = match.user1Id === user.id || match.user2Id === user.id;
+    const isParticipant = connection.user1Id === user.id || connection.user2Id === user.id;
 
     if (!isParticipant) {
-      // Admins and moderators can view matches
-      if (user.role === 'ADMIN' || user.role === 'MODERATOR') {
-        return true;
-      }
-      throw new ForbiddenException('You are not a participant in this match');
+      if (user.role === 'ADMIN' || user.role === 'MODERATOR') return true;
+      throw new ForbiddenException('You are not a participant in this connection');
     }
 
-    // Attach match to request for later use
-    request.match = match;
-
+    request.match = connection;
     return true;
   }
 }

@@ -94,7 +94,7 @@ export function ProfileCard({
               variant={overlapScore >= 0.7 ? 'success' : overlapScore >= 0.4 ? 'warning' : 'default'}
               className="absolute top-3 right-3"
             >
-              {Math.round(overlapScore * 100)}% Match
+              {Math.round(overlapScore * 100)}% Overlap
             </Badge>
           )}
         </div>

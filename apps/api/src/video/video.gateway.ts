@@ -11,8 +11,8 @@ import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { ConnectionType } from '../common/enums/connection.enum';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { MatchType } from '@prisma/client';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -21,7 +21,7 @@ interface AuthenticatedSocket extends Socket {
 interface CallSession {
   callerId: string;
   calleeId: string;
-  matchId: string;
+  connectionId: string;
   status: 'ringing' | 'connected' | 'ended';
   startedAt: Date;
 }
@@ -62,9 +62,9 @@ export class VideoGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       socket.userId = payload.sub;
-      this.connectedUsers.set(socket.userId, socket.id);
+      this.connectedUsers.set(socket.userId!, socket.id);
 
-      this.logger.log(`Video: User ${socket.userId} connected`);
+      this.logger.log(`Video: User ${socket.userId!} connected`);
 
     } catch (error) {
       socket.disconnect();
@@ -88,25 +88,50 @@ export class VideoGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /**
    * Initiate a video call
    */
+  // Generate time-limited TURN credentials (HMAC-SHA1 with shared secret)
+  private getTurnCredentials(): { urls: string[]; username: string; credential: string } | null {
+    const secret = this.configService?.get<string>('TURN_SECRET');
+    const host = this.configService?.get<string>('TURN_HOST', 'turn.veteranfinder.co.uk');
+    if (!secret) return null;
+
+    const timestamp = Math.floor(Date.now() / 1000) + 24 * 3600; // valid 24h
+    const username = `${timestamp}:veteranfinder`;
+    const credential = require('crypto')
+      .createHmac('sha1', secret)
+      .update(username)
+      .digest('base64');
+
+    return {
+      urls: [
+        `turn:${host}:3478?transport=udp`,
+        `turn:${host}:3478?transport=tcp`,
+        `stun:${host}:3478`,
+      ],
+      username,
+      credential,
+    };
+  }
+
   @SubscribeMessage('call:initiate')
   async handleCallInitiate(
     @ConnectedSocket() socket: AuthenticatedSocket,
-    @MessageBody() data: { matchId: string; calleeId: string },
+    @MessageBody() data: { connectionId: string; calleeId: string },
   ) {
     if (!socket.userId) return;
 
     // Verify users are matched
-    const match = await this.prisma.match.findFirst({
+    const match = await this.prisma.connection.findFirst({
       where: {
-        id: data.matchId,
+        id: data.connectionId,
         OR: [
           { user1Id: socket.userId, user2Id: data.calleeId },
           { user1Id: data.calleeId, user2Id: socket.userId },
         ],
         status: 'ACTIVE',
-        matchType: MatchType.BROTHERS,
+        connectionType: ConnectionType.BROTHERS_IN_ARMS,
       },
     });
+    const iceServers = this.getTurnCredentials() ? [this.getTurnCredentials()!] : [];
 
     if (!match) {
       socket.emit('call:error', { message: 'Cannot call this user' });
@@ -134,7 +159,7 @@ export class VideoGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const session: CallSession = {
       callerId: socket.userId,
       calleeId: data.calleeId,
-      matchId: data.matchId,
+      connectionId: data.connectionId,
       status: 'ringing',
       startedAt: new Date(),
     };
@@ -160,7 +185,7 @@ export class VideoGateway implements OnGatewayConnection, OnGatewayDisconnect {
       callerId: socket.userId,
       callerName: caller?.profile?.displayName || 'Unknown',
       callerImage: caller?.profile?.profileImageUrl,
-      matchId: data.matchId,
+      connectionId: data.connectionId,
     });
 
     // Confirm to caller

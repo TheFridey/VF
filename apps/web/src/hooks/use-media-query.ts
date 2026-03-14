@@ -27,7 +27,10 @@ export function useIsMobile() {
 }
 
 export function useIsTablet() {
-  return useMediaQuery('(min-width: 768px)') && !useMediaQuery('(min-width: 1024px)');
+  const isTabletUp = useMediaQuery('(min-width: 768px)');
+  const isDesktopUp = useMediaQuery('(min-width: 1024px)');
+
+  return isTabletUp && !isDesktopUp;
 }
 
 export function useIsDesktop() {

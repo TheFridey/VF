@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Patch,
+  Delete,
   Param,
   Query,
   Body,
@@ -18,6 +19,8 @@ import {
   UpdateUserStatusDto,
   UpdateUserRoleDto,
   GetAuditLogsDto,
+  UpdateThreadDto,
+  UpdateListingDto,
 } from './dto/admin.dto';
 
 @ApiTags('admin')
@@ -82,5 +85,47 @@ export class AdminController {
   @ApiOperation({ summary: 'Get audit logs with filters' })
   async getAuditLogs(@Query() dto: GetAuditLogsDto) {
     return this.adminService.getAuditLogs(dto);
+  }
+
+  // ============ BIA COMMUNITY ============
+
+  @Get('bia/threads')
+  @ApiOperation({ summary: 'Get all forum threads for moderation' })
+  async getForumThreads(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('categoryId') categoryId?: string,
+  ) {
+    return this.adminService.getForumThreads({ page: +page, limit: +limit, categoryId });
+  }
+
+  @Patch('bia/threads/:threadId')
+  @ApiOperation({ summary: 'Lock/unlock forum thread' })
+  async updateThread(
+    @Param('threadId') threadId: string,
+    @Body() body: UpdateThreadDto,
+  ) {
+    return this.adminService.updateForumThread(threadId, body);
+  }
+
+  @Delete('bia/threads/:threadId')
+  @ApiOperation({ summary: 'Delete forum thread' })
+  async deleteThread(@Param('threadId') threadId: string, @CurrentUser('id') adminId: string) {
+    return this.adminService.deleteForumThread(threadId, adminId);
+  }
+
+  @Get('bia/listings')
+  @ApiOperation({ summary: 'Get all business listings' })
+  async getListings(@Query('page') page = 1, @Query('limit') limit = 20) {
+    return this.adminService.getBusinessListings({ page: +page, limit: +limit });
+  }
+
+  @Patch('bia/listings/:listingId')
+  @ApiOperation({ summary: 'Approve/reject business listing' })
+  async updateListing(
+    @Param('listingId') listingId: string,
+    @Body() body: UpdateListingDto,
+  ) {
+    return this.adminService.updateBusinessListing(listingId, body.isApproved);
   }
 }

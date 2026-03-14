@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 
 // Core modules
@@ -14,18 +15,19 @@ import { ProfilesModule } from './profiles/profiles.module';
 import { VeteransModule } from './veterans/veterans.module';
 import { VerificationModule } from './verification/verification.module';
 import { BrothersModule } from './brothers/brothers.module';
-import { MatchesModule } from './matches/matches.module';
+import { ConnectionsModule } from './connections/connections.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { ModerationModule } from './moderation/moderation.module';
 import { AdminModule } from './admin/admin.module';
 import { AuditModule } from './audit/audit.module';
-import { StorageModule } from './storage/storage.module';
 import { GdprModule } from './gdpr/gdpr.module';
 import { HealthModule } from './health/health.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { VideoModule } from './video/video.module';
+import { BiaModule } from './bia/bia.module';
+import { EmailModule } from './email/email.module';
 
 // Guards
 import { ThrottlerGuard } from '@nestjs/throttler';
@@ -42,23 +44,14 @@ import { ThrottlerGuard } from '@nestjs/throttler';
     PrismaModule,
     RedisModule,
 
-    // Rate limiting
+    // Cron / task scheduling — required by VerificationService SLA cron
+    ScheduleModule.forRoot(),
+
+    // Rate limiting — three tiers: burst (1s), burst-medium (10s), sustained (60s)
     ThrottlerModule.forRoot([
-      {
-        name: 'short',
-        ttl: 1000,
-        limit: 3,
-      },
-      {
-        name: 'medium',
-        ttl: 10000,
-        limit: 20,
-      },
-      {
-        name: 'long',
-        ttl: 60000,
-        limit: 100,
-      },
+      { name: 'short',  ttl: 1000,  limit: 3   },
+      { name: 'medium', ttl: 10000, limit: 20  },
+      { name: 'long',   ttl: 60000, limit: 100 },
     ]),
 
     // Feature modules
@@ -68,24 +61,29 @@ import { ThrottlerGuard } from '@nestjs/throttler';
     VeteransModule,
     VerificationModule,
     BrothersModule,
-    MatchesModule,
+    ConnectionsModule,
     MessagingModule,
     ModerationModule,
     AdminModule,
     AuditModule,
-    StorageModule,
     GdprModule,
     HealthModule,
     UploadsModule,
     SubscriptionsModule,
     NotificationsModule,
     VideoModule,
+    BiaModule,
+    EmailModule,
   ],
   providers: [
+    // IP-based rate limiting applied globally
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+    // Per-user rate limiting is applied per-controller via @UseGuards(UserThrottlerGuard)
+    // rather than globally, because unauthenticated routes have no user context.
+    // See: apps/api/src/common/guards/user-throttler.guard.ts
   ],
 })
 export class AppModule {}

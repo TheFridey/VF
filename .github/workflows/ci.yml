@@ -1,0 +1,231 @@
+name: VeteranFinder CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  lint:
+    name: Lint and Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            apps/api/package-lock.json
+            apps/web/package-lock.json
+            apps/admin/package-lock.json
+
+      - name: Install API dependencies
+        run: npm ci --prefix apps/api
+
+      - name: Install web dependencies
+        run: npm ci --prefix apps/web
+
+      - name: Install admin dependencies
+        run: npm ci --prefix apps/admin
+
+      - name: Lint API
+        run: npm run lint --prefix apps/api
+
+      - name: Lint web
+        run: npm run lint --prefix apps/web
+
+      - name: Lint admin
+        run: npm run lint --prefix apps/admin
+
+      - name: Typecheck API
+        run: npm run typecheck --prefix apps/api
+
+      - name: Typecheck web
+        run: npm run typecheck --prefix apps/web
+
+      - name: Typecheck admin
+        run: npm run typecheck --prefix apps/admin
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+
+      - name: Install API dependencies
+        run: npm ci --prefix apps/api
+
+      - name: Run unit tests
+        run: npm test --prefix apps/api -- --coverage --passWithNoTests
+        env:
+          JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
+          PASSWORD_PEPPER: ci-test-pepper-32-chars-long-xxxxxx
+          NODE_ENV: test
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          flags: unit
+          fail_ci_if_error: false
+
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: vf_test
+          POSTGRES_PASSWORD: vf_test_pass
+          POSTGRES_DB: veteranfinder_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+
+      - name: Install API dependencies
+        run: npm ci --prefix apps/api
+
+      - name: Run database migrations
+        run: npx --prefix apps/api prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://vf_test:vf_test_pass@localhost:5432/veteranfinder_test
+
+      - name: Seed test database
+        run: npx --prefix apps/api prisma db seed
+        env:
+          DATABASE_URL: postgresql://vf_test:vf_test_pass@localhost:5432/veteranfinder_test
+          JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
+          PASSWORD_PEPPER: ci-test-pepper-32-chars-long-xxxxxx
+          COOKIE_SECRET: ci-cookie-secret-min-32-chars-long
+
+      - name: Run E2E tests
+        run: npm run test:e2e --prefix apps/api
+        env:
+          DATABASE_URL: postgresql://vf_test:vf_test_pass@localhost:5432/veteranfinder_test
+          DATABASE_URL_TEST: postgresql://vf_test:vf_test_pass@localhost:5432/veteranfinder_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
+          JWT_EXPIRES_IN: 15m
+          PASSWORD_PEPPER: ci-test-pepper-32-chars-long-xxxxxx
+          COOKIE_SECRET: ci-cookie-secret-min-32-chars-long
+          NODE_ENV: test
+          ADMIN_EMAIL: admin@veteranfinder.com
+          ADMIN_PASSWORD: Password123!
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            apps/api/package-lock.json
+            apps/web/package-lock.json
+            apps/admin/package-lock.json
+
+      - name: Install API dependencies
+        run: npm ci --prefix apps/api
+
+      - name: Install web dependencies
+        run: npm ci --prefix apps/web
+
+      - name: Install admin dependencies
+        run: npm ci --prefix apps/admin
+
+      - name: Build API
+        run: npm run build --prefix apps/api
+
+      - name: Build web
+        run: npm run build --prefix apps/web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3000
+          NEXT_PUBLIC_WS_URL: ws://localhost:3000
+
+      - name: Build admin
+        run: npm run build --prefix apps/admin
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3000
+
+  security:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            apps/api/package-lock.json
+            apps/web/package-lock.json
+            apps/admin/package-lock.json
+
+      - name: Install API dependencies
+        run: npm ci --prefix apps/api
+
+      - name: Install web dependencies
+        run: npm ci --prefix apps/web
+
+      - name: Install admin dependencies
+        run: npm ci --prefix apps/admin
+
+      - name: Audit API dependencies
+        run: npm audit --prefix apps/api --audit-level high
+        continue-on-error: true
+
+      - name: Audit web dependencies
+        run: npm audit --prefix apps/web --audit-level high
+        continue-on-error: true
+
+      - name: Audit admin dependencies
+        run: npm audit --prefix apps/admin --audit-level high
+        continue-on-error: true

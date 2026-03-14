@@ -50,18 +50,19 @@ export class CreateBusinessListingDto {
 
 export class CreateMentorProfileDto {
   @ApiProperty()
+  @IsString()
+  @MinLength(10)
+  headline: string;
+
+  @ApiProperty()
   @IsArray()
   @IsString({ each: true })
-  specialisms: string[];
+  expertise: string[];
 
-  @ApiProperty()
+  @ApiProperty({ required: false })
   @IsString()
-  @MinLength(20)
-  bio: string;
-
-  @ApiProperty()
-  @IsString()
-  availability: string;
+  @IsOptional()
+  availability?: string;
 }
 
 export class SendMentorRequestDto {

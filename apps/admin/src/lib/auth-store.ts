@@ -11,12 +11,10 @@ interface User {
 }
 
 interface AuthState {
-  accessToken: string | null;
-  refreshToken: string | null;
   user: User | null;
+  isAuthenticated: boolean;
   _hasHydrated: boolean;
-  setTokens: (accessToken: string, refreshToken: string) => void;
-  setUser: (user: User) => void;
+  setUser: (user: User | null) => void;
   logout: () => void;
   setHasHydrated: (state: boolean) => void;
 }
@@ -24,17 +22,27 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      accessToken: null,
-      refreshToken: null,
       user: null,
+      isAuthenticated: false,
       _hasHydrated: false,
-      setTokens: (accessToken, refreshToken) => set({ accessToken, refreshToken }),
-      setUser: (user) => set({ user }),
-      logout: () => set({ accessToken: null, refreshToken: null, user: null }),
+
+      setUser: (user) =>
+        set({
+          user,
+          isAuthenticated: !!user,
+        }),
+
+      logout: () => {
+        set({
+          user: null,
+          isAuthenticated: false,
+        });
+      },
+
       setHasHydrated: (state) => set({ _hasHydrated: state }),
     }),
     {
-      name: 'admin-auth-storage',
+      name: 'admin-auth-user',
       storage: createJSONStorage(() => {
         if (typeof window === 'undefined') {
           return {
@@ -43,11 +51,16 @@ export const useAuthStore = create<AuthState>()(
             removeItem: () => {},
           };
         }
+
         return localStorage;
       }),
+      partialize: (state) => ({ user: state.user }),
       onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
+        if (state) {
+          state.isAuthenticated = !!state.user;
+          state.setHasHydrated(true);
+        }
       },
-    }
-  )
+    },
+  ),
 );

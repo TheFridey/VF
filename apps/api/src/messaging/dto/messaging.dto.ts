@@ -15,7 +15,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class SendMessageDto {
   @ApiProperty({ description: 'ID of the match/conversation' })
   @IsUUID()
-  matchId: string;
+  connectionId: string;
 
   @ApiProperty({ description: 'Message content' })
   @IsString()

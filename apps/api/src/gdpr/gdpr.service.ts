@@ -20,10 +20,6 @@ export class GdprService {
           include: { servicePeriods: true },
         },
         verificationRequests: true,
-        matchesAsUser1: true,
-        matchesAsUser2: true,
-        likes: true,
-        likedBy: true,
         blocks: true,
         reportsMade: true,
       },
@@ -208,14 +204,9 @@ export class GdprService {
         where: { OR: [{ senderId: userId }, { receiverId: userId }] },
       });
 
-      // Delete matches
-      await tx.match.deleteMany({
+      // Delete connections
+      await tx.connection.deleteMany({
         where: { OR: [{ user1Id: userId }, { user2Id: userId }] },
-      });
-
-      // Delete likes
-      await tx.like.deleteMany({
-        where: { OR: [{ likerId: userId }, { likedId: userId }] },
       });
 
       // Delete blocks

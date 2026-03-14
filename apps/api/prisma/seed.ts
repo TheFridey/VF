@@ -1,8 +1,55 @@
-import { PrismaClient, UserRole, UserStatus, Gender, MilitaryBranch, MatchType, MatchStatus, ReportReason, ReportStatus } from '@prisma/client';
+import { PrismaClient, UserRole, UserStatus, Gender, MilitaryBranch, ReportReason, ReportStatus } from '@prisma/client';
+import { UK_REGIMENTS } from '../src/common/constants/regiments';
+import { ConnectionType, ConnectionStatus } from '../src/common/enums/connection.enum';
 import * as argon2 from 'argon2';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// ── Load env vars in same priority order as NestJS ConfigModule ───────────────
+// NestJS uses envFilePath: ['.env.local', '.env'] — .env.local wins.
+// `prisma db seed` only loads .env automatically, so we must do this manually
+// or PASSWORD_PEPPER mismatches between seed and running service.
+function loadEnvFile(filePath: string) {
+  if (!fs.existsSync(filePath)) return;
+  const lines = fs.readFileSync(filePath, 'utf8').split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const value = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
+    // Only set if not already in environment (shell vars take highest priority)
+    if (!(key in process.env)) {
+      process.env[key] = value;
+    }
+  }
+}
+const apiRoot = path.resolve(__dirname, '..');
+loadEnvFile(path.join(apiRoot, '.env.local')); // highest priority
+loadEnvFile(path.join(apiRoot, '.env'));        // fallback
 
 const prisma = new PrismaClient();
+
+// ── Password hashing — MUST match PasswordSecurityService exactly ─────────────
+// The service applies a HMAC-SHA256 pepper before hashing.  If the seed hashes
+// without pepper the stored hash will never match a login attempt.
+function applyPepper(password: string): string {
+  const pepper = process.env.PASSWORD_PEPPER;
+  if (!pepper) return password; // dev fallback — matches service behaviour
+  return crypto.createHmac('sha256', pepper).update(password).digest('hex');
+}
+
+async function hashPassword(password: string): Promise<string> {
+  return argon2.hash(applyPepper(password), {
+    type: argon2.argon2id,
+    memoryCost: 65536,
+    timeCost: 3,
+    parallelism: 1,
+    hashLength: 32,
+  });
+}
 
 // Encryption for messages - MUST match messaging.service.ts exactly
 function encryptMessage(text: string): { encryptedContent: string; iv: string; authTag: string } {
@@ -27,14 +74,19 @@ async function main() {
   console.log('🌱 Seeding database with comprehensive test data...');
   console.log('');
 
-  const defaultPassword = await argon2.hash('Password123!');
-  const adminPassword = await argon2.hash('Admin123!@#');
-  const modPassword = await argon2.hash('Moderator123!@#');
+  const defaultPassword = await hashPassword('Password123!');
+  const adminPassword = await hashPassword('Admin123!@#');
+  const modPassword = await hashPassword('Moderator123!@#');
 
   // ============ ADMIN & MODERATOR ============
   const admin = await prisma.user.upsert({
     where: { email: 'admin@veteranfinder.com' },
-    update: {},
+    update: {
+      passwordHash: adminPassword,
+      role: UserRole.ADMIN,
+      status: UserStatus.ACTIVE,
+      emailVerified: true,
+    },
     create: {
       email: 'admin@veteranfinder.com',
       passwordHash: adminPassword,
@@ -53,7 +105,7 @@ async function main() {
 
   const moderator = await prisma.user.upsert({
     where: { email: 'moderator@veteranfinder.com' },
-    update: {},
+    update: { emailVerified: true, status: UserStatus.ACTIVE, role: UserRole.MODERATOR },
     create: {
       email: 'moderator@veteranfinder.com',
       passwordHash: modPassword,
@@ -75,7 +127,7 @@ async function main() {
   // John - Army veteran (main test account)
   const john = await prisma.user.upsert({
     where: { email: 'john.doe@example.com' },
-    update: {},
+    update: { emailVerified: true, status: UserStatus.ACTIVE, role: UserRole.VETERAN_VERIFIED },
     create: {
       email: 'john.doe@example.com',
       passwordHash: defaultPassword,
@@ -85,13 +137,12 @@ async function main() {
       profile: {
         create: {
           displayName: 'John D.',
-          bio: 'Army veteran, 10 years service. Looking to reconnect with fellow soldiers and find meaningful connections.',
+          bio: 'Army veteran, 10 years service. Looking to reconnect with fellow soldiers and rebuild old friendships.',
           gender: Gender.MALE,
           dateOfBirth: new Date('1985-03-15'),
-          location: 'San Diego, CA',
-          latitude: 32.7157,
-          longitude: -117.1611,
-          lookingFor: [Gender.FEMALE],
+          location: 'Manchester, UK',
+          latitude: 53.4808,
+          longitude: -2.2426,
           interests: ['hiking', 'fishing', 'motorcycles', 'veterans support', 'photography'],
           isVisible: true,
         },
@@ -123,7 +174,7 @@ async function main() {
   // Sarah - Navy veteran (matched with John)
   const sarah = await prisma.user.upsert({
     where: { email: 'sarah.smith@example.com' },
-    update: {},
+    update: { emailVerified: true, status: UserStatus.ACTIVE, role: UserRole.VETERAN_VERIFIED },
     create: {
       email: 'sarah.smith@example.com',
       passwordHash: defaultPassword,
@@ -133,13 +184,12 @@ async function main() {
       profile: {
         create: {
           displayName: 'Sarah S.',
-          bio: 'Navy veteran, served on the USS Reagan. Now working in cybersecurity. Love sailing and exploring new places!',
+          bio: 'Navy veteran, served on the HMS Dragon. Now working in cybersecurity. Always happy to reconnect with old shipmates.',
           gender: Gender.FEMALE,
           dateOfBirth: new Date('1988-07-22'),
           location: 'Virginia Beach, VA',
           latitude: 36.8529,
           longitude: -75.9780,
-          lookingFor: [Gender.MALE],
           interests: ['technology', 'sailing', 'travel', 'cooking', 'wine tasting'],
           isVisible: true,
         },
@@ -171,7 +221,7 @@ async function main() {
   // Marcus - Marine veteran (Brothers in Arms match with John)
   const marcus = await prisma.user.upsert({
     where: { email: 'marcus.williams@example.com' },
-    update: {},
+    update: { emailVerified: true, status: UserStatus.ACTIVE, role: UserRole.VETERAN_VERIFIED },
     create: {
       email: 'marcus.williams@example.com',
       passwordHash: defaultPassword,
@@ -187,7 +237,6 @@ async function main() {
           location: 'Los Angeles, CA',
           latitude: 34.0522,
           longitude: -118.2437,
-          lookingFor: [Gender.FEMALE],
           interests: ['fitness', 'MMA', 'veteran advocacy', 'surfing'],
           isVisible: true,
         },
@@ -219,7 +268,7 @@ async function main() {
   // Lisa - Air Force veteran
   const lisa = await prisma.user.upsert({
     where: { email: 'lisa.chen@example.com' },
-    update: {},
+    update: { emailVerified: true, status: UserStatus.ACTIVE, role: UserRole.VETERAN_VERIFIED },
     create: {
       email: 'lisa.chen@example.com',
       passwordHash: defaultPassword,
@@ -235,7 +284,6 @@ async function main() {
           location: 'Phoenix, AZ',
           latitude: 33.4484,
           longitude: -112.0740,
-          lookingFor: [Gender.MALE],
           interests: ['aviation', 'business', 'hiking', 'photography', 'dogs'],
           isVisible: true,
         },
@@ -267,7 +315,7 @@ async function main() {
   // David - Coast Guard veteran
   const david = await prisma.user.upsert({
     where: { email: 'david.torres@example.com' },
-    update: {},
+    update: { emailVerified: true, status: UserStatus.ACTIVE, role: UserRole.VETERAN_VERIFIED },
     create: {
       email: 'david.torres@example.com',
       passwordHash: defaultPassword,
@@ -283,7 +331,6 @@ async function main() {
           location: 'Seattle, WA',
           latitude: 47.6062,
           longitude: -122.3321,
-          lookingFor: [Gender.FEMALE],
           interests: ['dogs', 'boating', 'search and rescue', 'woodworking'],
           isVisible: true,
         },
@@ -316,7 +363,7 @@ async function main() {
   
   const mike = await prisma.user.upsert({
     where: { email: 'mike.johnson@example.com' },
-    update: {},
+    update: { emailVerified: true, status: UserStatus.ACTIVE, role: UserRole.VETERAN_UNVERIFIED },
     create: {
       email: 'mike.johnson@example.com',
       passwordHash: defaultPassword,
@@ -332,7 +379,6 @@ async function main() {
           location: 'Austin, TX',
           latitude: 30.2672,
           longitude: -97.7431,
-          lookingFor: [Gender.FEMALE],
           interests: ['fitness', 'shooting sports', 'BBQ', 'country music'],
           isVisible: true,
         },
@@ -363,7 +409,7 @@ async function main() {
 
   const rachel = await prisma.user.upsert({
     where: { email: 'rachel.kim@example.com' },
-    update: {},
+    update: { emailVerified: true, status: UserStatus.ACTIVE, role: UserRole.VETERAN_UNVERIFIED },
     create: {
       email: 'rachel.kim@example.com',
       passwordHash: defaultPassword,
@@ -379,7 +425,6 @@ async function main() {
           location: 'Portland, OR',
           latitude: 45.5152,
           longitude: -122.6784,
-          lookingFor: [Gender.MALE, Gender.FEMALE],
           interests: ['art', 'music', 'hiking', 'coffee'],
           isVisible: true,
         },
@@ -408,79 +453,81 @@ async function main() {
   });
   console.log('✅ Unverified Veteran:', rachel.email);
 
-  // ============ CIVILIAN USERS ============
+  // ============ UNVERIFIED VETERAN USERS ============
   
   const emily = await prisma.user.upsert({
-    where: { email: 'emily.wilson@example.com' },
-    update: {},
+    where: { email: 'emily.davies@example.com' },
+    update: { emailVerified: true, status: UserStatus.ACTIVE, role: UserRole.VETERAN_UNVERIFIED },
     create: {
-      email: 'emily.wilson@example.com',
+      email: 'emily.davies@example.com',
       passwordHash: defaultPassword,
-      role: UserRole.CIVILIAN,
+      role: UserRole.VETERAN_UNVERIFIED,
       status: UserStatus.ACTIVE,
       emailVerified: true,
       profile: {
         create: {
-          displayName: 'Emily W.',
-          bio: 'Teacher and military supporter. My dad was Army, grew up on bases.',
-          gender: Gender.FEMALE,
-          dateOfBirth: new Date('1990-04-12'),
-          location: 'Denver, CO',
-          latitude: 39.7392,
-          longitude: -104.9903,
-          lookingFor: [Gender.MALE],
-          interests: ['education', 'volunteering', 'yoga', 'books', 'travel'],
+          displayName: 'Emily D.',
+          bio: 'Ex-Royal Signals, 2008-2014. Based in Leeds now. Looking to reconnect with former colleagues.',
+          location: 'Leeds, UK',
           isVisible: true,
+        },
+      },
+      veteranDetails: {
+        create: {
+          branch: 'BRITISH_ARMY',
+          rank: 'Corporal',
+          dutyStations: ['Blandford Camp'],
+          deployments: ['Afghanistan (2012)'],
         },
       },
     },
   });
-  console.log('✅ Civilian:', emily.email);
+  console.log('✅ Unverified Veteran:', emily.email);
 
   const james = await prisma.user.upsert({
-    where: { email: 'james.brown@example.com' },
-    update: {},
+    where: { email: 'james.taylor@example.com' },
+    update: { emailVerified: true, status: UserStatus.ACTIVE, role: UserRole.VETERAN_UNVERIFIED },
     create: {
-      email: 'james.brown@example.com',
+      email: 'james.taylor@example.com',
       passwordHash: defaultPassword,
-      role: UserRole.CIVILIAN,
+      role: UserRole.VETERAN_UNVERIFIED,
       status: UserStatus.ACTIVE,
       emailVerified: true,
       profile: {
         create: {
-          displayName: 'James B.',
-          bio: 'Software engineer, volunteer with veteran coding bootcamps.',
-          gender: Gender.MALE,
-          dateOfBirth: new Date('1987-09-18'),
-          location: 'San Francisco, CA',
-          latitude: 37.7749,
-          longitude: -122.4194,
-          lookingFor: [Gender.FEMALE],
-          interests: ['coding', 'gaming', 'mentoring', 'running'],
+          displayName: 'James T.',
+          bio: 'Royal Marines, 2005-2013. Two tours of Helmand. Now in Bristol, working in security.',
+          location: 'Bristol, UK',
           isVisible: true,
+        },
+      },
+      veteranDetails: {
+        create: {
+          branch: 'ROYAL_MARINES',
+          rank: 'Sergeant',
+          dutyStations: ['Norton Manor Camp'],
+          deployments: ['Afghanistan (2008)', 'Afghanistan (2011)'],
         },
       },
     },
   });
-  console.log('✅ Civilian:', james.email);
+  console.log('✅ Unverified Veteran:', james.email);
 
   // ============ PROBLEM USERS ============
   
   const suspended = await prisma.user.upsert({
     where: { email: 'suspended.user@example.com' },
-    update: {},
+    update: { emailVerified: true, status: UserStatus.SUSPENDED, role: UserRole.VETERAN_UNVERIFIED },
     create: {
       email: 'suspended.user@example.com',
       passwordHash: defaultPassword,
-      role: UserRole.CIVILIAN,
+      role: UserRole.VETERAN_UNVERIFIED,
       status: UserStatus.SUSPENDED,
       emailVerified: true,
       profile: {
         create: {
           displayName: 'Suspended User',
           bio: 'This account has been suspended.',
-          gender: Gender.MALE,
-          dateOfBirth: new Date('1995-01-01'),
           location: 'Unknown',
           isVisible: false,
         },
@@ -491,19 +538,17 @@ async function main() {
 
   const banned = await prisma.user.upsert({
     where: { email: 'banned.user@example.com' },
-    update: {},
+    update: { emailVerified: true, status: UserStatus.BANNED, role: UserRole.VETERAN_UNVERIFIED },
     create: {
       email: 'banned.user@example.com',
       passwordHash: defaultPassword,
-      role: UserRole.CIVILIAN,
+      role: UserRole.VETERAN_UNVERIFIED,
       status: UserStatus.BANNED,
       emailVerified: true,
       profile: {
         create: {
           displayName: 'Banned User',
           bio: 'This account has been permanently banned.',
-          gender: Gender.MALE,
-          dateOfBirth: new Date('1993-01-01'),
           location: 'Unknown',
           isVisible: false,
         },
@@ -517,13 +562,13 @@ async function main() {
 
   // ============ SUBSCRIPTIONS ============
   const subscriptions = [
-    { userId: admin.id, tier: 'BUNDLE_ULTIMATE' },
-    { userId: moderator.id, tier: 'BUNDLE_ULTIMATE' },
+    { userId: admin.id, tier: 'BIA_PLUS' },
+    { userId: moderator.id, tier: 'BIA_PLUS' },
     { userId: john.id, tier: 'BIA_PLUS' },
     { userId: sarah.id, tier: 'BIA_PLUS' },
     { userId: marcus.id, tier: 'BIA_BASIC' },
     { userId: lisa.id, tier: 'BIA_BASIC' },
-    { userId: david.id, tier: 'BUNDLE_PREMIUM_BIA' },
+    { userId: david.id, tier: 'BIA_BASIC' },
     { userId: mike.id, tier: 'FREE' },
     { userId: rachel.id, tier: 'FREE' },
     { userId: emily.id, tier: 'FREE' },
@@ -533,7 +578,7 @@ async function main() {
   ];
 
   for (const sub of subscriptions) {
-    await prisma.subscription.upsert({
+    await (prisma as any).membership.upsert({
       where: { userId: sub.userId },
       update: { tier: sub.tier as any, status: 'ACTIVE' },
       create: {
@@ -548,9 +593,9 @@ async function main() {
   console.log('   • sarah.smith: BIA_PLUS');
   console.log('   • marcus.williams: BIA_BASIC');
   console.log('   • lisa.chen: BIA_BASIC');
-  console.log('   • david.torres: BUNDLE_PREMIUM_BIA');
+  console.log('   • david.torres: BIA_BASIC');
   console.log('   • emily.wilson: FREE');
-  console.log('   • admin & moderator: BUNDLE_ULTIMATE');
+  console.log('   • admin & moderator: BIA_PLUS');
 
   console.log('');
   console.log('📋 Creating verification requests...');
@@ -581,74 +626,74 @@ async function main() {
   console.log('🤝 Creating Brothers in Arms matches...');
 
   // ============ BROTHERS IN ARMS MATCHES ============
-  const match1 = await prisma.match.upsert({
+  const match1 = await (prisma as any).connection.upsert({
     where: {
-      user1Id_user2Id_matchType: {
+      user1Id_user2Id_connectionType: {
         user1Id: john.id,
         user2Id: sarah.id,
-        matchType: MatchType.BROTHERS,
+        connectionType: ConnectionType.BROTHERS_IN_ARMS,
       },
     },
-    update: { status: MatchStatus.ACTIVE },
+    update: { status: ConnectionStatus.ACTIVE },
     create: {
       user1Id: john.id,
       user2Id: sarah.id,
-      matchType: MatchType.BROTHERS,
-      status: MatchStatus.ACTIVE,
+      connectionType: ConnectionType.BROTHERS_IN_ARMS,
+      status: ConnectionStatus.ACTIVE,
     },
   });
   console.log('✅ Match: John + Sarah (Brothers in Arms)');
 
-  const match2 = await prisma.match.upsert({
+  const match2 = await (prisma as any).connection.upsert({
     where: {
-      user1Id_user2Id_matchType: {
+      user1Id_user2Id_connectionType: {
         user1Id: john.id,
         user2Id: lisa.id,
-        matchType: MatchType.BROTHERS,
+        connectionType: ConnectionType.BROTHERS_IN_ARMS,
       },
     },
-    update: { status: MatchStatus.ACTIVE },
+    update: { status: ConnectionStatus.ACTIVE },
     create: {
       user1Id: john.id,
       user2Id: lisa.id,
-      matchType: MatchType.BROTHERS,
-      status: MatchStatus.ACTIVE,
+      connectionType: ConnectionType.BROTHERS_IN_ARMS,
+      status: ConnectionStatus.ACTIVE,
     },
   });
   console.log('✅ Match: John + Lisa (Brothers in Arms)');
 
-  const match3 = await prisma.match.upsert({
+  const match3 = await (prisma as any).connection.upsert({
     where: {
-      user1Id_user2Id_matchType: {
+      user1Id_user2Id_connectionType: {
         user1Id: david.id,
         user2Id: emily.id,
-        matchType: MatchType.BROTHERS,
+        connectionType: ConnectionType.BROTHERS_IN_ARMS,
       },
     },
-    update: { status: MatchStatus.ACTIVE },
+    update: { status: ConnectionStatus.ACTIVE },
     create: {
       user1Id: david.id,
       user2Id: emily.id,
-      matchType: MatchType.BROTHERS,
-      status: MatchStatus.ACTIVE,
+      connectionType: ConnectionType.BROTHERS_IN_ARMS,
+      status: ConnectionStatus.ACTIVE,
     },
   });
   console.log('✅ Match: David + Emily (Brothers in Arms)');
 
-  const match4 = await prisma.match.upsert({
+  const match4 = await (prisma as any).connection.upsert({
     where: {
-      user1Id_user2Id_matchType: {
+      user1Id_user2Id_connectionType: {
         user1Id: john.id,
         user2Id: marcus.id,
-        matchType: MatchType.BROTHERS,
+        connectionType: ConnectionType.BROTHERS_IN_ARMS,
       },
     },
-    update: { status: MatchStatus.ACTIVE },
+    update: { status: ConnectionStatus.ACTIVE },
     create: {
       user1Id: john.id,
       user2Id: marcus.id,
-      matchType: MatchType.BROTHERS,
-      status: MatchStatus.ACTIVE,
+      connectionType: ConnectionType.BROTHERS_IN_ARMS,
+      status: ConnectionStatus.ACTIVE,
     },
   });
   console.log('✅ Match: John + Marcus (Brothers in Arms)');
@@ -679,7 +724,7 @@ async function main() {
     const encrypted = encryptMessage(msg.content);
     await prisma.message.create({
       data: {
-        match: { connect: { id: match1.id } },
+        connection: { connect: { id: match1.id } },
         sender: { connect: { id: msg.senderId } },
         receiver: { connect: { id: msg.receiverId } },
         encryptedContent: encrypted.encryptedContent,
@@ -691,6 +736,7 @@ async function main() {
     });
   }
   console.log('✅ 12 messages: John + Sarah conversation');
+  await prisma.connection.update({ where: { id: match1.id }, data: { lastMessageAt: new Date(Date.now() - 1 * 60 * 1000) } });
 
   // Conversation between John and Marcus (Brothers)
   const johnMarcusMessages = [
@@ -708,7 +754,7 @@ async function main() {
     const encrypted = encryptMessage(msg.content);
     await prisma.message.create({
       data: {
-        match: { connect: { id: match4.id } },
+        connection: { connect: { id: match4.id } },
         sender: { connect: { id: msg.senderId } },
         receiver: { connect: { id: msg.receiverId } },
         encryptedContent: encrypted.encryptedContent,
@@ -720,6 +766,7 @@ async function main() {
     });
   }
   console.log('✅ 8 messages: John + Marcus conversation (Brothers)');
+  await prisma.connection.update({ where: { id: match4.id }, data: { lastMessageAt: new Date(Date.now() - 720 * 60 * 1000) } });
 
   // Conversation between David and Emily
   const davidEmilyMessages = [
@@ -735,7 +782,7 @@ async function main() {
     const encrypted = encryptMessage(msg.content);
     await prisma.message.create({
       data: {
-        match: { connect: { id: match3.id } },
+        connection: { connect: { id: match3.id } },
         sender: { connect: { id: msg.senderId } },
         receiver: { connect: { id: msg.receiverId } },
         encryptedContent: encrypted.encryptedContent,
@@ -747,6 +794,7 @@ async function main() {
     });
   }
   console.log('✅ 6 messages: David + Emily conversation');
+  await prisma.connection.update({ where: { id: match3.id }, data: { lastMessageAt: new Date(Date.now() - 1920 * 60 * 1000) } });
 
   console.log('');
   console.log('🚨 Creating reports for moderation testing...');
@@ -842,6 +890,69 @@ async function main() {
     skipDuplicates: true,
   });
   console.log('✅ 4 audit logs created');
+
+  // ============ REGIMENT FORUMS ============
+  console.log('');
+  console.log('🪖 Seeding regiment forum categories...');
+
+  const REGIMENT_FORUM_TEMPLATES = [
+    { suffix: 'general',  name: 'General Discussion',      icon: 'MessageSquare', description: (r: string) => `General chat and announcements for ${r} veterans` },
+    { suffix: 'history',  name: 'History & Heritage',       icon: 'Shield',        description: (r: string) => `${r} history, traditions, battle honours and proud moments` },
+    { suffix: 'reunions', name: 'Reunions & Events',        icon: 'Users',         description: (r: string) => `Upcoming ${r} reunions, regimental dinners and veteran meetups` },
+    { suffix: 'support',  name: 'Veterans Support',         icon: 'Heart',         description: (r: string) => `Mental health resources, transition advice and mutual support for ${r} veterans` },
+    { suffix: 'ops',      name: 'Operations & Deployments', icon: 'Rocket',        description: (r: string) => `Stories, memories and discussions from ${r} operations and tours of duty` },
+  ];
+
+  let regimentCategoriesCreated = 0;
+  for (const regiment of UK_REGIMENTS) {
+    for (let i = 0; i < REGIMENT_FORUM_TEMPLATES.length; i++) {
+      const tpl = REGIMENT_FORUM_TEMPLATES[i];
+      await (prisma as any).forumCategory.upsert({
+        where: { slug: `${regiment.slug}-${tpl.suffix}` },
+        update: {},
+        create: {
+          slug: `${regiment.slug}-${tpl.suffix}`,
+          name: tpl.name,
+          description: tpl.description(regiment.name),
+          icon: tpl.icon,
+          tier: 'REGIMENT',
+          regiment: regiment.slug,
+          sortOrder: i,
+          isActive: true,
+        },
+      });
+      regimentCategoriesCreated++;
+    }
+  }
+  console.log(`✅ ${regimentCategoriesCreated} regiment forum categories created (${UK_REGIMENTS.length} regiments × 5 forums)`);
+
+  // ============ ASSIGN REGIMENTS TO EXISTING USERS ============
+  console.log('');
+  console.log('🎖️  Assigning regiments to seed users...');
+
+  const regimentAssignments = [
+    { userId: john.id,      regiment: '1-para' },          // Army, Infantryman
+    { userId: sarah.id,     regiment: 'royal-artillery' },  // Army Sergeant
+    { userId: marcus.id,    regiment: '45-commando' },      // Marines
+    { userId: lisa.id,      regiment: 'royal-signals' },    // Corps/Signals
+    { userId: david.id,     regiment: 'royal-engineers' },  // Corps/Engineers
+    { userId: admin.id,     regiment: '22-sas' },           // Admin placeholder
+    { userId: moderator.id, regiment: 'intelligence-corps' },
+  ];
+
+  for (const { userId, regiment } of regimentAssignments) {
+    await (prisma as any).veteranDetails.upsert({
+      where: { userId },
+      update: { regiment },
+      create: { userId, regiment },
+    });
+  }
+  console.log(`✅ Regiments assigned to ${regimentAssignments.length} users`);
+  console.log('   • john.doe          → 1 PARA');
+  console.log('   • sarah.smith       → Royal Artillery');
+  console.log('   • marcus.williams   → 45 Commando');
+  console.log('   • lisa.chen         → Royal Corps of Signals');
+  console.log('   • david.torres      → Royal Engineers');
 
   // ============ SUMMARY ============
   console.log('');

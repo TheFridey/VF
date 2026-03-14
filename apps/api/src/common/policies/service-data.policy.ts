@@ -12,7 +12,6 @@ export enum ServiceDataAction {
 @Injectable()
 export class ServiceDataPolicy {
   private readonly permissions: Record<UserRole, ServiceDataAction[]> = {
-    [UserRole.CIVILIAN]: [],
     [UserRole.VETERAN_UNVERIFIED]: [
       ServiceDataAction.VIEW_OWN,
       ServiceDataAction.EDIT_OWN,
@@ -23,7 +22,7 @@ export class ServiceDataPolicy {
       ServiceDataAction.VIEW_OTHERS_INDICATOR,
       ServiceDataAction.SEARCH,
     ],
-    [UserRole.VETERAN_PAID]: [
+    [UserRole.VETERAN_MEMBER]: [
       ServiceDataAction.VIEW_OWN,
       ServiceDataAction.EDIT_OWN,
       ServiceDataAction.VIEW_OTHERS_INDICATOR,

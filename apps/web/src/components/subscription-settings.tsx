@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
-  Crown,
+  Award,
   Check,
   Shield,
   MessageCircle,
@@ -28,13 +28,9 @@ interface Subscription {
 }
 
 const PLAN_LABELS: Record<string, string> = {
-  FREE: 'Free',
+  FREE:      'Free',
   BIA_BASIC: 'BIA',
-  BIA_PLUS: 'BIA+',
-  PREMIUM_MONTHLY: 'Legacy Premium Monthly',
-  PREMIUM_ANNUAL: 'Legacy Premium Annual',
-  BUNDLE_PREMIUM_BIA: 'Legacy Bundle',
-  BUNDLE_ULTIMATE: 'Legacy Ultimate Bundle',
+  BIA_PLUS:  'BIA+',
 };
 
 export function SubscriptionSettings() {
@@ -82,11 +78,11 @@ export function SubscriptionSettings() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              {isPremium && <Crown className="h-5 w-5 text-yellow-500" />}
+              {isPremium && <Award className="h-5 w-5 text-primary" />}
               Your Subscription
             </CardTitle>
             <Badge variant={isPremium ? 'default' : 'outline'}>
-              {subscription ? (PLAN_LABELS[subscription.tier] || 'Legacy Paid Plan') : 'Free'}
+              {subscription ? (PLAN_LABELS[subscription.tier] || 'BIA Member') : 'Free'}
             </Badge>
           </div>
         </CardHeader>

@@ -4,11 +4,12 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'success' | 'warning' | 'destructive' | 'outline';
+  variant?: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline';
 }
 
 const variantClasses = {
   default: 'bg-primary text-primary-foreground',
+  secondary: 'bg-secondary text-secondary-foreground',
   success: 'bg-green-500 text-white',
   warning: 'bg-yellow-500 text-white',
   destructive: 'bg-destructive text-destructive-foreground',

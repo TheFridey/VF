@@ -1,38 +1,60 @@
 import axios from 'axios';
 import { useAuthStore } from './auth-store';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const isServer = typeof window === 'undefined';
+const API_BASE = isServer
+  ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/v1`
+  : '/api';
 
 const api = axios.create({
-  baseURL: `${API_URL}/api/v1`,
+  baseURL: API_BASE,
   headers: {
     'Content-Type': 'application/json',
   },
   withCredentials: true,
 });
 
-// Helper to filter out empty/undefined params
 const cleanParams = (params?: Record<string, any>) => {
   if (!params) return undefined;
+
   const cleaned: Record<string, any> = {};
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== '') {
       cleaned[key] = value;
     }
   }
+
   return Object.keys(cleaned).length > 0 ? cleaned : undefined;
 };
 
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (typeof document !== 'undefined') {
+    const csrfToken = document.cookie
+      .split('; ')
+      .find((cookie) => cookie.startsWith('csrf-token='))
+      ?.split('=')[1];
+
+    if (csrfToken) {
+      config.headers['X-CSRF-Token'] = csrfToken;
+    }
   }
+
   return config;
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (
+      response.data !== null &&
+      typeof response.data === 'object' &&
+      'data' in response.data &&
+      'timestamp' in response.data
+    ) {
+      response.data = response.data.data;
+    }
+
+    return response;
+  },
   async (error) => {
     if (error.response?.status === 401) {
       useAuthStore.getState().logout();
@@ -40,18 +62,27 @@ api.interceptors.response.use(
         window.location.href = '/auth/login';
       }
     }
+
     return Promise.reject(error);
-  }
+  },
 );
 
 export const adminApi = {
-  // Auth
   login: async (email: string, password: string) => {
     const response = await api.post('/auth/login', { email, password });
     return response.data;
   },
 
-  // Dashboard
+  logout: async () => {
+    const response = await api.post('/auth/logout');
+    return response.data;
+  },
+
+  getMe: async () => {
+    const response = await api.get('/auth/me');
+    return response.data;
+  },
+
   getDashboard: async () => {
     const response = await api.get('/admin/dashboard');
     return response.data;
@@ -62,13 +93,17 @@ export const adminApi = {
     return response.data;
   },
 
-  // Users
   getUsers: async (params?: { page?: number; limit?: number; status?: string; role?: string; search?: string }) => {
     const response = await api.get('/admin/users', { params: cleanParams(params) });
     return response.data;
   },
 
   getUser: async (userId: string) => {
+    const response = await api.get(`/admin/users/${userId}`);
+    return response.data;
+  },
+
+  getUserDetails: async (userId: string) => {
     const response = await api.get(`/admin/users/${userId}`);
     return response.data;
   },
@@ -83,7 +118,6 @@ export const adminApi = {
     return response.data;
   },
 
-  // Verification
   getPendingVerifications: async () => {
     const response = await api.get('/verification/admin/pending');
     return response.data;
@@ -104,14 +138,20 @@ export const adminApi = {
     return response.data;
   },
 
-  // Reports
   getReports: async (params?: { status?: string }) => {
     const response = await api.get('/moderation/reports', { params: cleanParams(params) });
     return response.data;
   },
 
-  resolveReport: async (reportId: string, resolution: string, action?: string) => {
-    const response = await api.post(`/moderation/reports/${reportId}/resolve`, { resolution, action });
+  resolveReport: async (
+    reportId: string,
+    data: {
+      status: 'DISMISSED' | 'ACTION_TAKEN';
+      resolution: string;
+      userAction?: 'WARNING' | 'SUSPEND_7_DAYS' | 'SUSPEND_30_DAYS' | 'PERMANENT_BAN';
+    },
+  ) => {
+    const response = await api.post(`/moderation/reports/${reportId}/resolve`, data);
     return response.data;
   },
 
@@ -120,7 +160,31 @@ export const adminApi = {
     return response.data;
   },
 
-  // Audit Logs
+  getForumThreads: async (params?: { page?: number; limit?: number }) => {
+    const response = await api.get('/admin/bia/threads', { params });
+    return response.data;
+  },
+
+  setThreadLocked: async (threadId: string, locked: boolean) => {
+    const response = await api.patch(`/admin/bia/threads/${threadId}`, { isLocked: locked });
+    return response.data;
+  },
+
+  deleteThread: async (threadId: string) => {
+    const response = await api.delete(`/admin/bia/threads/${threadId}`);
+    return response.data;
+  },
+
+  getBusinessListings: async (params?: { page?: number; limit?: number }) => {
+    const response = await api.get('/admin/bia/listings', { params });
+    return response.data;
+  },
+
+  setListingApproved: async (listingId: string, approved: boolean) => {
+    const response = await api.patch(`/admin/bia/listings/${listingId}`, { isApproved: approved });
+    return response.data;
+  },
+
   getAuditLogs: async (params?: { page?: number; limit?: number; userId?: string; action?: string }) => {
     const response = await api.get('/admin/audit-logs', { params: cleanParams(params) });
     return response.data;

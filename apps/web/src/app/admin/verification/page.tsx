@@ -2,429 +2,218 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  Shield,
-  Check,
-  X,
-  Eye,
-  Clock,
-  FileText,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  User,
-} from 'lucide-react';
+import { Shield, Check, X, Eye, ChevronLeft, ChevronRight, FileText, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Avatar } from '@/components/ui/avatar';
-import { Modal } from '@/components/ui/modal';
-import { Textarea } from '@/components/ui/textarea';
-import { Spinner } from '@/components/ui/spinner';
 import { adminApi } from '@/lib/admin-api';
-import { formatDate, formatRelativeTime, formatBranch } from '@/lib/utils';
 
-const statusOptions = [
-  { value: '', label: 'All' },
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'APPROVED', label: 'Approved' },
-  { value: 'REJECTED', label: 'Rejected' },
-];
+const S = {
+  card: { background: '#0d1524', border: '1px solid #1a2636', borderRadius: 8 },
+  label: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#3a5068', letterSpacing: 2, textTransform: 'uppercase' as const },
+  h1: { fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 26, color: '#dce8f5', letterSpacing: 0.5 },
+  select: { background: '#060c17', border: '1px solid #1a2636', borderRadius: 6, padding: '8px 12px', color: '#c8d6e5', fontSize: 12, fontFamily: "'JetBrains Mono', monospace", outline: 'none', cursor: 'pointer' },
+  input: { background: '#060c17', border: '1px solid #1a2636', borderRadius: 6, padding: '8px 12px', color: '#c8d6e5', fontSize: 13, fontFamily: "'Barlow', sans-serif", outline: 'none', width: '100%' },
+  th: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#2d4055', letterSpacing: 2, padding: '10px 16px', textAlign: 'left' as const, borderBottom: '1px solid #141f2e', fontWeight: 500 },
+  td: { padding: '14px 16px', borderBottom: '1px solid #0d1524', fontSize: 13, color: '#7a9bb5', verticalAlign: 'middle' as const },
+  btn: (color: string) => ({ background: `${color}14`, border: `1px solid ${color}30`, color, borderRadius: 5, padding: '5px 10px', fontSize: 11, cursor: 'pointer', fontFamily: "'Barlow', sans-serif", fontWeight: 500 }),
+  badge: (color: string) => ({ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: 1.5, padding: '3px 8px', borderRadius: 3, background: `${color}18`, color, border: `1px solid ${color}30` }),
+};
+
+const statusColor: Record<string, string> = { PENDING: '#fbbf24', APPROVED: '#34d399', REJECTED: '#f87171' };
 
 export default function AdminVerificationPage() {
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('PENDING');
-  const [selectedRequest, setSelectedRequest] = useState<any>(null);
-  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [selected, setSelected] = useState<any>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [approvalNotes, setApprovalNotes] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-verification', page, statusFilter],
-    queryFn: () =>
-      adminApi.getVerificationRequests({
-        page,
-        limit: 20,
-        status: statusFilter || undefined,
-      }),
+    queryFn: () => adminApi.getVerificationRequests({ page, limit: 20, status: statusFilter || undefined }),
   });
 
   const approveMutation = useMutation({
-    mutationFn: ({ requestId, notes }: { requestId: string; notes?: string }) =>
-      adminApi.approveVerification(requestId, notes),
-    onSuccess: () => {
-      toast.success('Verification approved');
-      queryClient.invalidateQueries({ queryKey: ['admin-verification'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
-      setShowReviewModal(false);
-      setSelectedRequest(null);
-      setApprovalNotes('');
-    },
-    onError: () => toast.error('Failed to approve verification'),
+    mutationFn: ({ id, notes }: any) => adminApi.approveVerification(id, notes),
+    onSuccess: () => { toast.success('Verification approved — email sent to veteran'); qc.invalidateQueries({ queryKey: ['admin-verification'] }); qc.invalidateQueries({ queryKey: ['admin-dashboard'] }); setSelected(null); setApprovalNotes(''); },
+    onError: () => toast.error('Failed to approve'),
   });
 
   const rejectMutation = useMutation({
-    mutationFn: ({ requestId, reason }: { requestId: string; reason: string }) =>
-      adminApi.rejectVerification(requestId, reason),
-    onSuccess: () => {
-      toast.success('Verification rejected');
-      queryClient.invalidateQueries({ queryKey: ['admin-verification'] });
-      setShowReviewModal(false);
-      setSelectedRequest(null);
-      setRejectionReason('');
-    },
-    onError: () => toast.error('Failed to reject verification'),
+    mutationFn: ({ id, reason }: any) => adminApi.rejectVerification(id, reason),
+    onSuccess: () => { toast.success('Verification rejected — email sent to veteran'); qc.invalidateQueries({ queryKey: ['admin-verification'] }); setSelected(null); setRejectionReason(''); },
+    onError: () => toast.error('Failed to reject'),
   });
 
-  const requests = data?.data || [];
-  const totalPages = data?.meta?.totalPages || 1;
-  const pendingCount = data?.meta?.pendingCount || 0;
-
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'default' | 'success' | 'warning' | 'destructive'> = {
-      PENDING: 'warning',
-      APPROVED: 'success',
-      REJECTED: 'destructive',
-    };
-    return <Badge variant={variants[status] || 'default'}>{status}</Badge>;
-  };
+  const requests = data?.requests || [];
+  const total = data?.total || 0;
+  const pages = data?.pages || 1;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 className="text-2xl font-bold">Verification Requests</h1>
-          <p className="text-muted-foreground">Review veteran verification submissions</p>
+          <h1 style={S.h1}>Verification Queue</h1>
+          <p style={{ ...S.label, marginTop: 4 }}>Review veteran identity documents</p>
         </div>
-        {pendingCount > 0 && (
-          <Badge variant="warning" className="text-base px-3 py-1">
-            {pendingCount} Pending
-          </Badge>
-        )}
-      </div>
-
-      {/* Filter */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-4">
-            <Select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPage(1);
-              }}
-              options={statusOptions}
-              className="w-48"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Requests List */}
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Spinner size="lg" />
-        </div>
-      ) : requests.length === 0 ? (
-        <Card className="text-center py-12">
-          <CardContent>
-            <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium">No verification requests</h3>
-            <p className="text-muted-foreground">
-              {statusFilter === 'PENDING'
-                ? 'All caught up! No pending requests.'
-                : 'No requests match your filter.'}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {requests.map((request: any) => (
-            <Card key={request.id}>
-              <CardContent className="p-4">
-                <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  {/* User Info */}
-                  <div className="flex items-center gap-3 flex-1">
-                    <Avatar
-                      src={request.user?.profile?.profileImageUrl}
-                      name={request.user?.profile?.displayName || request.user?.email}
-                      size="md"
-                    />
-                    <div>
-                      <p className="font-medium">
-                        {request.user?.profile?.displayName || 'Unknown User'}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{request.user?.email}</p>
-                      {request.user?.veteranDetails && (
-                        <p className="text-sm text-muted-foreground">
-                          {formatBranch(request.user.veteranDetails.branch)}
-                          {request.user.veteranDetails.rank && ` • ${request.user.veteranDetails.rank}`}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Request Info */}
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <div className="flex items-center gap-2 justify-end mb-1">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">
-                          {request.evidence?.length || 0} document(s)
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Submitted {formatRelativeTime(request.createdAt)}
-                      </p>
-                    </div>
-
-                    {getStatusBadge(request.status)}
-
-                    {request.status === 'PENDING' ? (
-                      <Button
-                        onClick={() => {
-                          setSelectedRequest(request);
-                          setShowReviewModal(true);
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        Review
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setSelectedRequest(request);
-                          setShowReviewModal(true);
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Rejection reason if rejected */}
-                {request.status === 'REJECTED' && request.rejectionReason && (
-                  <div className="mt-3 p-3 bg-destructive/10 rounded-lg">
-                    <p className="text-sm text-destructive">
-                      <strong>Rejection Reason:</strong> {request.rejectionReason}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Page {page} of {totalPages}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {statusFilter === 'PENDING' && total > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: '#fbbf2414', border: '1px solid #fbbf2430', borderRadius: 6 }}>
+              <Clock size={13} color="#fbbf24" />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#fbbf24' }}>{total} AWAITING REVIEW</span>
             </div>
           )}
+          <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} style={S.select}>
+            <option value="">All</option>
+            <option value="PENDING">Pending</option>
+            <option value="APPROVED">Approved</option>
+            <option value="REJECTED">Rejected</option>
+          </select>
+        </div>
+      </div>
+
+      <div style={S.card}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              {['Veteran', 'Status', 'Documents', 'Submitted', 'Reviewed', 'Actions'].map(h => (
+                <th key={h} style={S.th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              [...Array(6)].map((_, i) => (
+                <tr key={i}>{[...Array(6)].map((_, j) => <td key={j} style={S.td}><div style={{ height: 14, background: '#111c2e', borderRadius: 3, width: j === 0 ? 160 : 80 }} /></td>)}</tr>
+              ))
+            ) : requests.length === 0 ? (
+              <tr><td colSpan={6} style={{ ...S.td, textAlign: 'center', padding: 48 }}>
+                <Shield size={32} color="#1a2636" style={{ margin: '0 auto 12px' }} />
+                <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#2d4055', letterSpacing: 2 }}>
+                  {statusFilter === 'PENDING' ? 'QUEUE CLEAR' : 'NO RECORDS'}
+                </p>
+              </td></tr>
+            ) : requests.map((req: any) => (
+              <tr key={req.id} style={{ transition: 'background 0.1s' }}
+                onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = 'rgba(212,168,83,0.03)'}
+                onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}>
+                <td style={S.td}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#b8ccd8' }}>{req.user?.profile?.displayName || '—'}</p>
+                  <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#3a5068' }}>{req.user?.email}</p>
+                </td>
+                <td style={S.td}><span style={S.badge(statusColor[req.status] || '#7a9bb5')}>{req.status}</span></td>
+                <td style={S.td}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <FileText size={13} color="#3a5068" />
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>{req.evidenceUrls?.length || 0} file{req.evidenceUrls?.length !== 1 ? 's' : ''}</span>
+                  </div>
+                </td>
+                <td style={{ ...S.td, fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>
+                  {req.createdAt ? new Date(req.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}
+                </td>
+                <td style={{ ...S.td, fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>
+                  {req.reviewedAt ? new Date(req.reviewedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : <span style={{ color: '#2d4055' }}>—</span>}
+                </td>
+                <td style={S.td}>
+                  <button onClick={() => setSelected(req)}
+                    style={{ ...S.btn('#d4a853'), display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Eye size={11} /> Review
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {pages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
+          <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#3a5068' }}>PAGE {page} OF {pages}</p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ ...S.btn('#7a9bb5'), display: 'flex', alignItems: 'center', gap: 4, opacity: page === 1 ? 0.4 : 1 }}><ChevronLeft size={12} /> Prev</button>
+            <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages} style={{ ...S.btn('#7a9bb5'), display: 'flex', alignItems: 'center', gap: 4, opacity: page === pages ? 0.4 : 1 }}>Next <ChevronRight size={12} /></button>
+          </div>
         </div>
       )}
 
-      {/* Review Modal */}
-      <Modal
-        isOpen={showReviewModal}
-        onClose={() => {
-          setShowReviewModal(false);
-          setSelectedRequest(null);
-          setRejectionReason('');
-          setApprovalNotes('');
-        }}
-        title="Review Verification Request"
-        size="lg"
-      >
-        {selectedRequest && (
-          <div className="space-y-6">
-            {/* User Details */}
-            <div className="flex items-start gap-4 p-4 bg-muted rounded-lg">
-              <Avatar
-                src={selectedRequest.user?.profile?.profileImageUrl}
-                name={selectedRequest.user?.profile?.displayName}
-                size="lg"
-              />
-              <div className="flex-1">
-                <h3 className="font-semibold text-lg">
-                  {selectedRequest.user?.profile?.displayName || 'Unknown User'}
+      {/* Review modal */}
+      {selected && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#0d1524', border: '1px solid #1a2636', borderRadius: 10, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ padding: '22px 24px', borderBottom: '1px solid #141f2e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600, fontSize: 20, color: '#dce8f5' }}>
+                  Verification Review
                 </h3>
-                <p className="text-muted-foreground">{selectedRequest.user?.email}</p>
-                {selectedRequest.user?.veteranDetails && (
-                  <div className="mt-2 text-sm">
-                    <p>
-                      <strong>Branch:</strong>{' '}
-                      {formatBranch(selectedRequest.user.veteranDetails.branch)}
-                    </p>
-                    {selectedRequest.user.veteranDetails.rank && (
-                      <p>
-                        <strong>Rank:</strong> {selectedRequest.user.veteranDetails.rank}
-                      </p>
-                    )}
-                    {selectedRequest.user.veteranDetails.mos && (
-                      <p>
-                        <strong>MOS:</strong> {selectedRequest.user.veteranDetails.mos}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="text-right">
-                {getStatusBadge(selectedRequest.status)}
-                <p className="text-sm text-muted-foreground mt-2">
-                  {formatDate(selectedRequest.createdAt)}
+                <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#d4a853', marginTop: 2 }}>
+                  {selected.user?.profile?.displayName || selected.user?.email}
                 </p>
               </div>
+              <button onClick={() => { setSelected(null); setRejectionReason(''); setApprovalNotes(''); }}
+                style={{ background: 'none', border: 'none', color: '#3a5068', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
             </div>
 
-            {/* Documents */}
-            <div>
-              <h4 className="font-medium mb-3">Submitted Documents</h4>
-              {selectedRequest.evidence && selectedRequest.evidence.length > 0 ? (
-                <div className="grid grid-cols-2 gap-3">
-                  {selectedRequest.evidence.map((doc: any, index: number) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 border rounded-lg"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                        <span className="text-sm truncate">
-                          {doc.filename || `Document ${index + 1}`}
-                        </span>
-                      </div>
-                      <a
-                        href={doc.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline text-sm"
-                      >
-                        <Download className="h-4 w-4" />
-                      </a>
-                    </div>
+            <div style={{ padding: '20px 24px' }}>
+              {/* Evidence files */}
+              <p style={{ ...S.label, marginBottom: 10 }}>Evidence Documents ({selected.evidenceUrls?.length || 0})</p>
+              {selected.evidenceUrls?.length > 0 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+                  {selected.evidenceUrls.map((url: string, i: number) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#0a1420', border: '1px solid #1a2636', borderRadius: 6, color: '#7ab3d4', textDecoration: 'none', fontSize: 12 }}>
+                      <FileText size={13} />
+                      Document {i + 1}
+                    </a>
                   ))}
                 </div>
               ) : (
-                <p className="text-muted-foreground text-sm">No documents submitted</p>
+                <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#f87171', marginBottom: 20 }}>No documents uploaded</p>
+              )}
+
+              {selected.status === 'PENDING' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  {/* Approve */}
+                  <div style={{ padding: 16, background: '#34d39910', border: '1px solid #34d39930', borderRadius: 8 }}>
+                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#34d399', letterSpacing: 1.5, marginBottom: 10 }}>APPROVE</p>
+                    <label style={{ ...S.label, display: 'block', marginBottom: 6 }}>Notes (optional)</label>
+                    <textarea value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)}
+                      placeholder="Internal notes..."
+                      style={{ ...S.input, height: 70, resize: 'none', marginBottom: 12 }} />
+                    <button onClick={() => approveMutation.mutate({ id: selected.id, notes: approvalNotes })}
+                      disabled={approveMutation.isPending}
+                      style={{ ...S.btn('#34d399'), width: '100%', padding: '9px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <Check size={13} /> Approve Veteran
+                    </button>
+                  </div>
+
+                  {/* Reject */}
+                  <div style={{ padding: 16, background: '#f8717110', border: '1px solid #f8717130', borderRadius: 8 }}>
+                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#f87171', letterSpacing: 1.5, marginBottom: 10 }}>REJECT</p>
+                    <label style={{ ...S.label, display: 'block', marginBottom: 6 }}>Reason (required)</label>
+                    <textarea value={rejectionReason} onChange={e => setRejectionReason(e.target.value)}
+                      placeholder="Explain why the documents were rejected..."
+                      style={{ ...S.input, height: 70, resize: 'none', marginBottom: 12 }} />
+                    <button onClick={() => { if (!rejectionReason.trim()) { toast.error('Rejection reason is required'); return; } rejectMutation.mutate({ id: selected.id, reason: rejectionReason }); }}
+                      disabled={rejectMutation.isPending || !rejectionReason.trim()}
+                      style={{ ...S.btn('#f87171'), width: '100%', padding: '9px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: !rejectionReason.trim() ? 0.5 : 1 }}>
+                      <X size={13} /> Reject
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: 16, background: '#111c2e', borderRadius: 8 }}>
+                  <p style={{ ...S.label, marginBottom: 8 }}>Decision</p>
+                  <span style={S.badge(statusColor[selected.status])}>{selected.status}</span>
+                  {selected.rejectionReason && <p style={{ fontSize: 13, color: '#7a9bb5', marginTop: 10 }}>{selected.rejectionReason}</p>}
+                  {selected.notes && <p style={{ fontSize: 13, color: '#7a9bb5', marginTop: 6 }}>{selected.notes}</p>}
+                </div>
               )}
             </div>
-
-            {/* Actions for pending requests */}
-            {selectedRequest.status === 'PENDING' && (
-              <>
-                <div>
-                  <Textarea
-                    label="Approval Notes (optional)"
-                    placeholder="Add any notes about the verification..."
-                    value={approvalNotes}
-                    onChange={(e) => setApprovalNotes(e.target.value)}
-                    rows={2}
-                  />
-                </div>
-
-                <div>
-                  <Textarea
-                    label="Rejection Reason (required if rejecting)"
-                    placeholder="Explain why the verification is being rejected..."
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                    rows={2}
-                  />
-                </div>
-
-                <div className="flex gap-3">
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      if (!rejectionReason.trim()) {
-                        toast.error('Please provide a rejection reason');
-                        return;
-                      }
-                      rejectMutation.mutate({
-                        requestId: selectedRequest.id,
-                        reason: rejectionReason,
-                      });
-                    }}
-                    isLoading={rejectMutation.isPending}
-                    className="flex-1"
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Reject
-                  </Button>
-                  <Button
-                    onClick={() =>
-                      approveMutation.mutate({
-                        requestId: selectedRequest.id,
-                        notes: approvalNotes || undefined,
-                      })
-                    }
-                    isLoading={approveMutation.isPending}
-                    className="flex-1"
-                  >
-                    <Check className="h-4 w-4 mr-2" />
-                    Approve
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {/* Show reason for already reviewed requests */}
-            {selectedRequest.status === 'REJECTED' && selectedRequest.rejectionReason && (
-              <div className="p-4 bg-destructive/10 rounded-lg">
-                <p className="text-sm">
-                  <strong>Rejection Reason:</strong> {selectedRequest.rejectionReason}
-                </p>
-                {selectedRequest.reviewedBy && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Reviewed by {selectedRequest.reviewedBy.email} on{' '}
-                    {formatDate(selectedRequest.reviewedAt)}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {selectedRequest.status === 'APPROVED' && (
-              <div className="p-4 bg-green-500/10 rounded-lg">
-                <p className="text-sm text-green-700">
-                  <strong>Approved</strong>
-                  {selectedRequest.notes && `: ${selectedRequest.notes}`}
-                </p>
-                {selectedRequest.reviewedBy && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Approved by {selectedRequest.reviewedBy.email} on{' '}
-                    {formatDate(selectedRequest.reviewedAt)}
-                  </p>
-                )}
-              </div>
-            )}
           </div>
-        )}
-      </Modal>
+        </div>
+      )}
     </div>
   );
 }

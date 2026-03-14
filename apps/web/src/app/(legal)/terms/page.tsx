@@ -140,7 +140,7 @@ export default function TermsOfServicePage() {
             <ul className="list-disc pl-6 space-y-2">
               <li>Meeting in public places for initial meetings</li>
               <li>Informing friends or family of your plans</li>
-              <li>Not sharing financial information with matches</li>
+              <li>Not sharing financial information with connections</li>
               <li>Reporting suspicious behaviour immediately</li>
               <li>Trusting your instincts and ending conversations if uncomfortable</li>
             </ul>
@@ -195,7 +195,7 @@ export default function TermsOfServicePage() {
             <ul className="list-disc pl-6 space-y-2">
               <li>The Platform will be uninterrupted, secure, or error-free</li>
               <li>Results obtained will be accurate or reliable</li>
-              <li>Any matches or connections will meet your expectations</li>
+              <li>Any connections will meet your expectations</li>
               <li>User-provided information is accurate or truthful</li>
             </ul>
             <p className="mt-4">

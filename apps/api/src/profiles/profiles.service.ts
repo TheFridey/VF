@@ -1,10 +1,18 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { RedisService } from '../common/redis/redis.service';
 import { UpdateProfileDto } from './dto/profile.dto';
+
+// Public profile reads are cached for 2 minutes.
+// Invalidated on profile update via cacheInvalidate().
+const PROFILE_CACHE_TTL = 120;
 
 @Injectable()
 export class ProfilesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   async getProfile(userId: string) {
     const profile = await this.prisma.profile.findUnique({
@@ -22,6 +30,10 @@ export class ProfilesService {
   }
 
   async getProfileById(profileId: string) {
+    const cacheKey = `profile:id:${profileId}`;
+    const cached = await this.redis.cacheGet(cacheKey);
+    if (cached) return cached;
+
     const profile = await this.prisma.profile.findUnique({
       where: { id: profileId },
       include: {
@@ -38,10 +50,15 @@ export class ProfilesService {
     });
 
     if (!profile) throw new NotFoundException('Profile not found');
+    this.redis.cacheSet(cacheKey, profile, PROFILE_CACHE_TTL).catch(() => {});
     return profile;
   }
 
   async getProfileByUserId(userId: string) {
+    const cacheKey = `profile:user:${userId}`;
+    const cached = await this.redis.cacheGet(cacheKey);
+    if (cached) return cached;
+
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
       include: {
@@ -58,6 +75,7 @@ export class ProfilesService {
     });
 
     if (!profile) throw new NotFoundException('Profile not found');
+    this.redis.cacheSet(`profile:user:${userId}`, profile, PROFILE_CACHE_TTL).catch(() => {});
     return profile;
   }
 
@@ -141,10 +159,14 @@ export class ProfilesService {
         location: dto.location,
         latitude: dto.latitude,
         longitude: dto.longitude,
-        lookingFor: dto.lookingFor,
         interests: dto.interests,
         isVisible: dto.isVisible,
       },
+    }).then((updated) => {
+      // Invalidate cached profiles for this user
+      this.redis.cacheInvalidate(`profile:user:${userId}`).catch(() => {});
+      this.redis.cacheInvalidate(`brothers:search:*`).catch(() => {});
+      return updated;
     });
   }
 

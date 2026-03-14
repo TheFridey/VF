@@ -1,44 +1,44 @@
-# Build stage
-FROM --platform=linux/arm64 node:20-alpine AS builder
+# ── Build stage ───────────────────────────────────────────────────────────────
+# No --platform flag: builds correctly on ARM64 (dev) and amd64 (production).
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json ./
+# Limit Node memory during SSR build — prevents OOM on constrained build hosts
+ENV NODE_OPTIONS="--max-old-space-size=1536"
 
-# Install dependencies
+COPY package.json ./
 RUN npm install --legacy-peer-deps
 
-# Copy source files
 COPY . .
 
-# Build the application
+# Output: standalone mode (set in next.config.js output: 'standalone')
 RUN npm run build
 
-# Production stage
-FROM --platform=linux/arm64 node:20-alpine AS runner
+# ── Production stage ───────────────────────────────────────────────────────────
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 
 ENV NODE_ENV=production
+# Memory cap for production Next.js server — generous for a shared VPS
+ENV NODE_OPTIONS="--max-old-space-size=512"
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
-# Copy built application
+# Copy Next.js standalone output — no node_modules in the image
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Set correct permissions
 RUN chown -R nextjs:nodejs /app
 
 USER nextjs
 
 EXPOSE 3001
-
-ENV PORT 3001
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3001
+ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]

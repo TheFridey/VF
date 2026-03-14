@@ -32,6 +32,17 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  coturn:
+    image: coturn/coturn:latest
+    container_name: vf-coturn
+    network_mode: host
+    restart: unless-stopped
+    profiles:
+      - video
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command: -c /etc/coturn/turnserver.conf
+
 volumes:
   postgres_data:
   redis_data:

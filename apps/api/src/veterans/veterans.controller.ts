@@ -13,7 +13,7 @@ export class VeteransController {
   constructor(private veteransService: VeteransService) {}
 
   private checkVeteranRole(role: string) {
-    const veteranRoles = ['VETERAN_UNVERIFIED', 'VETERAN_VERIFIED', 'VETERAN_PAID'];
+    const veteranRoles = ['VETERAN_UNVERIFIED', 'VETERAN_VERIFIED', 'VETERAN_MEMBER'];
     if (!veteranRoles.includes(role)) {
       throw new ForbiddenException('Veteran role required');
     }

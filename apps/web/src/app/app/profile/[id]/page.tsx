@@ -45,17 +45,17 @@ export default function ViewProfilePage() {
   });
 
   // Check if user is matched with this person
-  const { data: matches } = useQuery({
-    queryKey: ['matches'],
-    queryFn: () => api.getMatches(),
+  const { data: connections } = useQuery({
+    queryKey: ['connections'],
+    queryFn: () => api.getConnections(),
   });
 
-  const isMatched = matches?.matches?.some(
-    (match: any) => match.user.id === userId
+  const isConnected = connections?.connections?.some(
+    (c: any) => c.user.id === userId
   );
 
-  const matchData = matches?.matches?.find(
-    (match: any) => match.user.id === userId
+  const connectionData = connections?.connections?.find(
+    (c: any) => c.user.id === userId
   );
 
   if (isLoading) {
@@ -188,11 +188,11 @@ export default function ViewProfilePage() {
           </div>
 
           {/* Action buttons for matched users */}
-          {isMatched && matchData && (
+          {isConnected && connectionData && (
             <div className="flex gap-3 mb-6">
               <Button
                 className="flex-1"
-                onClick={() => router.push(`/app/messages?match=${matchData.id}`)}
+                onClick={() => router.push(`/app/messages?match=${connectionData.id}`)}
               >
                 <MessageCircle className="h-4 w-4 mr-2" />
                 Message

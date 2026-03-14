@@ -2,224 +2,219 @@
 
 import { useEffect, useState } from 'react';
 import { adminApi } from '@/lib/api';
-import { format } from 'date-fns';
+import { Shield, Check, X, Eye, FileText, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { CheckCircle, XCircle, Eye } from 'lucide-react';
 
-interface VerificationRequest {
-  id: string;
-  userId: string;
-  status: string;
-  evidenceUrls: string[];
-  notes?: string;
-  createdAt: string;
-  user: {
-    email: string;
-    profile?: {
-      displayName?: string;
-    };
-    veteranDetails?: {
-      branch?: string;
-      rank?: string;
-    };
-  };
-}
+const S = {
+  card: { background: '#0d1524', border: '1px solid #1a2636', borderRadius: 8 },
+  label: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#3a5068', letterSpacing: 2, textTransform: 'uppercase' as const },
+  h1: { fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 28, color: '#dce8f5', letterSpacing: 0.5 },
+  select: { background: '#060c17', border: '1px solid #1a2636', borderRadius: 6, padding: '8px 12px', color: '#c8d6e5', fontSize: 12, fontFamily: "'JetBrains Mono', monospace", outline: 'none', cursor: 'pointer' },
+  textarea: { background: '#060c17', border: '1px solid #1a2636', borderRadius: 6, padding: '9px 12px', color: '#c8d6e5', fontSize: 13, outline: 'none', width: '100%', resize: 'none' as const, fontFamily: "'Barlow', sans-serif" },
+  th: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#2d4055', letterSpacing: 2, padding: '11px 16px', textAlign: 'left' as const, borderBottom: '1px solid #141f2e', fontWeight: 500 },
+  td: { padding: '14px 16px', borderBottom: '1px solid #0d1524', fontSize: 13, color: '#7a9bb5', verticalAlign: 'middle' as const },
+  btn: (c: string) => ({ background: `${c}14`, border: `1px solid ${c}30`, color: c, borderRadius: 5, padding: '5px 10px', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 500 }),
+  badge: (c: string) => ({ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: 1.5, padding: '3px 8px', borderRadius: 3, background: `${c}18`, color: c, border: `1px solid ${c}30` }),
+};
+
+const statusColor: Record<string, string> = { PENDING: '#fbbf24', APPROVED: '#34d399', REJECTED: '#f87171' };
 
 export default function VerificationPage() {
-  const [requests, setRequests] = useState<VerificationRequest[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [statusFilter, setStatusFilter] = useState('PENDING');
   const [loading, setLoading] = useState(true);
-  const [selectedRequest, setSelectedRequest] = useState<VerificationRequest | null>(null);
+  const [selected, setSelected] = useState<any>(null);
+  const [approvalNotes, setApprovalNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
 
-  useEffect(() => {
-    fetchRequests();
-  }, []);
-
-  const fetchRequests = async () => {
+  const fetch = async () => {
+    setLoading(true);
     try {
       const data = await adminApi.getPendingVerifications();
-      setRequests(data.requests || data || []);
-    } catch (err) {
-      toast.error('Failed to load verification requests');
-    } finally {
-      setLoading(false);
-    }
+      // API returns array of pending, or paginated object
+      const arr = Array.isArray(data) ? data : (data.requests || data.data || []);
+      if (statusFilter === 'PENDING' || !statusFilter) {
+        setRequests(arr.filter((r: any) => !statusFilter || r.status === statusFilter));
+      } else {
+        setRequests(arr.filter((r: any) => r.status === statusFilter));
+      }
+      setPendingCount(arr.filter((r: any) => r.status === 'PENDING').length);
+    } catch { toast.error('Failed to load verifications'); }
+    finally { setLoading(false); }
   };
 
-  const handleApprove = async (requestId: string) => {
+  useEffect(() => { fetch(); }, [statusFilter]);
+
+  const handleApprove = async () => {
+    if (!selected) return;
+    setSaving(true);
     try {
-      await adminApi.approveVerification(requestId, 'Verified via admin panel');
-      toast.success('Verification approved');
-      setSelectedRequest(null);
-      fetchRequests();
-    } catch (err) {
-      toast.error('Failed to approve verification');
-    }
+      await adminApi.approveVerification(selected.id, approvalNotes);
+      toast.success('Approved — email sent to veteran');
+      setSelected(null); setApprovalNotes(''); fetch();
+    } catch { toast.error('Failed to approve'); }
+    finally { setSaving(false); }
   };
 
-  const handleReject = async (requestId: string) => {
-    if (!rejectionReason.trim()) {
-      toast.error('Please provide a rejection reason');
-      return;
-    }
+  const handleReject = async () => {
+    if (!selected || !rejectionReason.trim()) { toast.error('Rejection reason required'); return; }
+    setSaving(true);
     try {
-      await adminApi.rejectVerification(requestId, rejectionReason);
-      toast.success('Verification rejected');
-      setSelectedRequest(null);
-      setRejectionReason('');
-      fetchRequests();
-    } catch (err) {
-      toast.error('Failed to reject verification');
-    }
+      await adminApi.rejectVerification(selected.id, rejectionReason);
+      toast.success('Rejected — email sent to veteran');
+      setSelected(null); setRejectionReason(''); fetch();
+    } catch { toast.error('Failed to reject'); }
+    finally { setSaving(false); }
   };
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Verification Queue</h1>
-
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div>
+          <h1 style={S.h1}>Verification Queue</h1>
+          <p style={{ ...S.label, marginTop: 5 }}>Review veteran identity documents</p>
         </div>
-      ) : requests.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-          No pending verification requests
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {pendingCount > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: '#fbbf2414', border: '1px solid #fbbf2430', borderRadius: 6 }}>
+              <Clock size={13} color="#fbbf24" />
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#fbbf24' }}>{pendingCount} AWAITING</span>
+            </div>
+          )}
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={S.select}>
+            <option value="PENDING">Pending</option>
+            <option value="APPROVED">Approved</option>
+            <option value="REJECTED">Rejected</option>
+            <option value="">All</option>
+          </select>
         </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch / Rank</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Documents</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {requests.map((request) => (
-                <tr key={request.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        {request.user?.profile?.displayName || 'No name'}
-                      </div>
-                      <div className="text-sm text-gray-500">{request.user?.email}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {request.user?.veteranDetails?.branch || 'N/A'}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {request.user?.veteranDetails?.rank || 'N/A'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {request.evidenceUrls?.length || 0} document(s)
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {format(new Date(request.createdAt), 'MMM d, yyyy')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                    <button
-                      onClick={() => setSelectedRequest(request)}
-                      className="inline-flex items-center px-2 py-1 text-blue-600 hover:text-blue-900"
-                    >
-                      <Eye className="w-4 h-4 mr-1" /> Review
-                    </button>
-                    <button
-                      onClick={() => handleApprove(request.id)}
-                      className="inline-flex items-center px-2 py-1 text-green-600 hover:text-green-900"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-1" /> Approve
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      </div>
 
-      {/* Review Modal */}
-      {selectedRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h2 className="text-xl font-bold mb-4">Review Verification Request</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">User</label>
-                  <p className="text-gray-900">
-                    {selectedRequest.user?.profile?.displayName} ({selectedRequest.user?.email})
-                  </p>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Military Details</label>
-                  <p className="text-gray-900">
-                    {selectedRequest.user?.veteranDetails?.branch} - {selectedRequest.user?.veteranDetails?.rank}
-                  </p>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Documents</label>
-                  <ul className="list-disc list-inside text-gray-900">
-                    {selectedRequest.evidenceUrls?.map((url, i) => (
-                      <li key={i}>
-                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                          Document {i + 1}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {selectedRequest.notes && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">Notes</label>
-                    <p className="text-gray-900">{selectedRequest.notes}</p>
+      <div style={S.card}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>{['Veteran', 'Branch / Unit', 'Docs', 'Status', 'Submitted', 'SLA', 'Action'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {loading ? [...Array(5)].map((_, i) => <tr key={i}>{[160,100,50,70,70,80].map((w,j)=><td key={j} style={S.td}><div style={{height:13,background:'#111c2e',borderRadius:3,width:w}}/></td>)}</tr>)
+            : requests.length === 0 ? (
+              <tr><td colSpan={6} style={{ ...S.td, textAlign: 'center', padding: 56 }}>
+                <Shield size={36} color="#1a2636" style={{ margin: '0 auto 14px' }} />
+                <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#2d4055', letterSpacing: 2 }}>
+                  {statusFilter === 'PENDING' ? 'QUEUE CLEAR' : 'NO RECORDS'}
+                </p>
+              </td></tr>
+            ) : requests.map((r: any) => (
+              <tr key={r.id}
+                onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = 'rgba(212,168,83,0.03)'}
+                onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}
+                style={{ transition: 'background 0.1s' }}>
+                <td style={S.td}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#b8ccd8' }}>{r.user?.profile?.displayName || '—'}</p>
+                  <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#3a5068' }}>{r.user?.email}</p>
+                </td>
+                <td style={{ ...S.td, fontSize: 12 }}>
+                  {r.user?.profile?.branch || '—'}
+                  {r.user?.profile?.unit && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#3a5068', display: 'block' }}>{r.user.profile.unit}</span>}
+                </td>
+                <td style={S.td}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <FileText size={13} color="#3a5068" />
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>{r.evidenceUrls?.length || 0}</span>
                   </div>
-                )}
+                </td>
+                <td style={S.td}><span style={S.badge(statusColor[r.status] || '#7a9bb5')}>{r.status}</span></td>
+                <td style={{ ...S.td, fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>
+                  {r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}
+                </td>
+                <td style={S.td}>
+                  {r.sla ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={S.badge(
+                        r.sla.urgency === 'breached' ? '#f87171' :
+                        r.sla.urgency === 'urgent' ? '#fbbf24' : '#34d399'
+                      )}>
+                        {r.sla.urgency === 'breached' ? '🔴 BREACHED' :
+                         r.sla.urgency === 'urgent' ? '🟡 URGENT' : '🟢 ON TRACK'}
+                      </span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#3a5068', marginTop: 2 }}>
+                        {r.sla.hoursElapsed}h / {r.sla.targetHours}h
+                      </span>
+                    </div>
+                  ) : '—'}
+                </td>
+                <td style={S.td}>
+                  <button onClick={() => { setSelected(r); setApprovalNotes(''); setRejectionReason(''); }}
+                    style={S.btn('#d4a853')}><Eye size={11} /> Review</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Rejection Reason (if rejecting)</label>
-                  <textarea
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md"
-                    rows={3}
-                    placeholder="Enter reason for rejection..."
-                  />
+      {/* Review modal */}
+      {selected && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.87)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#0d1524', border: '1px solid #1a2636', borderRadius: 10, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #141f2e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600, fontSize: 20, color: '#dce8f5' }}>Verification Review</h3>
+                <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#d4a853', marginTop: 2 }}>{selected.user?.profile?.displayName || selected.user?.email}</p>
+              </div>
+              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#3a5068', cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <div style={{ padding: '20px 24px' }}>
+              {/* Evidence */}
+              <p style={{ ...S.label, display: 'block', marginBottom: 6 }}>Verification Recording ({selected.evidenceUrls?.length || 0} file{selected.evidenceUrls?.length !== 1 ? 's' : ''})</p>
+              <p style={{ fontSize: 10, color: '#6b7280', marginBottom: 10 }}>
+                ⚠ Video evidence is permanently deleted from secure storage immediately after you approve or reject. Download before deciding if needed.
+              </p>
+              {(selected.evidenceUrls?.length > 0) ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 22 }}>
+                  {selected.evidenceUrls.map((url: string, i: number) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: '#0a1420', border: '1px solid #1a2636', borderRadius: 6, color: '#7ab3d4', fontSize: 12 }}>
+                      <FileText size={12} /> Recording {i + 1}
+                    </a>
+                  ))}
                 </div>
-              </div>
+              ) : <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#f87171', marginBottom: 20 }}>No documents uploaded</p>}
 
-              <div className="mt-6 flex justify-end space-x-3">
-                <button
-                  onClick={() => {
-                    setSelectedRequest(null);
-                    setRejectionReason('');
-                  }}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-900"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleReject(selectedRequest.id)}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-                >
-                  Reject
-                </button>
-                <button
-                  onClick={() => handleApprove(selectedRequest.id)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                >
-                  Approve
-                </button>
-              </div>
+              {selected.status === 'PENDING' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div style={{ padding: 16, background: '#34d39910', border: '1px solid #34d39930', borderRadius: 8 }}>
+                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#34d399', letterSpacing: 2, marginBottom: 10 }}>APPROVE</p>
+                    <label style={{ ...S.label, display: 'block', marginBottom: 5 }}>Notes (optional)</label>
+                    <textarea value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)}
+                      placeholder="Internal notes..." rows={3} style={{ ...S.textarea, marginBottom: 12 }} />
+                    <button onClick={handleApprove} disabled={saving}
+                      style={{ ...S.btn('#34d399'), width: '100%', justifyContent: 'center', padding: '9px' }}>
+                      <Check size={13} /> Approve
+                    </button>
+                  </div>
+                  <div style={{ padding: 16, background: '#f8717110', border: '1px solid #f8717130', borderRadius: 8 }}>
+                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#f87171', letterSpacing: 2, marginBottom: 10 }}>REJECT</p>
+                    <label style={{ ...S.label, display: 'block', marginBottom: 5 }}>Reason (required)</label>
+                    <textarea value={rejectionReason} onChange={e => setRejectionReason(e.target.value)}
+                      placeholder="Why were docs rejected?" rows={3} style={{ ...S.textarea, marginBottom: 12 }} />
+                    <button onClick={handleReject} disabled={saving || !rejectionReason.trim()}
+                      style={{ ...S.btn('#f87171'), width: '100%', justifyContent: 'center', padding: '9px', opacity: !rejectionReason.trim() ? 0.5 : 1 }}>
+                      <X size={13} /> Reject
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: 16, background: '#111c2e', borderRadius: 8 }}>
+                  <p style={{ ...S.label, marginBottom: 8 }}>Decision</p>
+                  <span style={S.badge(statusColor[selected.status])}>{selected.status}</span>
+                  {(selected.rejectionReason || selected.notes) && (
+                    <p style={{ fontSize: 13, color: '#7a9bb5', marginTop: 10 }}>{selected.rejectionReason || selected.notes}</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

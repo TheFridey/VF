@@ -7,7 +7,6 @@ import {
   Shield,
   Check,
   Loader2,
-  Sparkles,
   ArrowRight,
   Lock,
   Info,
@@ -18,6 +17,7 @@ import {
   Briefcase,
   Video,
   BookOpen,
+  Award,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '@/lib/api';
@@ -26,7 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
 
-interface Subscription {
+interface Membership {
   id: string;
   tier: string;
   status: string;
@@ -35,31 +35,29 @@ interface Subscription {
 }
 
 const PRICING = {
-  bia: {
-    basic: { monthly: 6.99, annual: 55.99 },
-    plus: { monthly: 14.99, annual: 119.99 },
-  },
+  basic: { monthly: 6.99, annual: 55.99 },
+  plus:  { monthly: 14.99, annual: 119.99 },
 };
 
 const BIA_FEATURES = {
   basic: [
-    { icon: Users, text: 'Brothers in Arms reconnection network' },
+    { icon: Users,        text: 'Brothers in Arms reconnection network' },
     { icon: MessageSquare, text: 'Private veteran community forums' },
-    { icon: Shield, text: 'Verified veteran profile badge' },
-    { icon: Video, text: 'Video chat with your connections' },
+    { icon: Shield,       text: 'Verified veteran profile badge' },
+    { icon: Video,        text: 'Video calls with your connections' },
   ],
   plus: [
-    { icon: BookOpen, text: 'The Bunker premium forums' },
-    { icon: Building2, text: 'Veteran business directory access' },
+    { icon: BookOpen,     text: 'The Bunker — premium veteran forums' },
+    { icon: Building2,    text: 'Veteran business directory' },
     { icon: GraduationCap, text: 'Mentorship tools and guidance' },
-    { icon: Briefcase, text: 'Career resources and opportunities' },
+    { icon: Briefcase,    text: 'Career resources and opportunities' },
   ],
 };
 
 function FloatingParticles() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {[...Array(12)].map((_, i) => (
+      {[...Array(10)].map((_, i) => (
         <motion.div
           key={i}
           className="absolute w-2 h-2 bg-primary/20 rounded-full"
@@ -78,31 +76,16 @@ function FloatingParticles() {
 }
 
 function PricingCard({
-  title,
-  subtitle,
-  price,
-  originalPrice,
-  period,
-  features,
-  includedFeatures,
-  popular,
-  disabled,
-  disabledMessage,
-  onSelect,
-  loading,
+  title, subtitle, price, originalPrice, period,
+  features, includedFeatures, popular,
+  disabled, disabledMessage, onSelect, loading,
 }: {
-  title: string;
-  subtitle: string;
-  price: number;
-  originalPrice?: number;
-  period: string;
+  title: string; subtitle: string; price: number;
+  originalPrice?: number; period: string;
   features: { icon: any; text: string }[];
-  includedFeatures?: string;
-  popular?: boolean;
-  disabled?: boolean;
-  disabledMessage?: string;
-  onSelect: () => void;
-  loading?: boolean;
+  includedFeatures?: string; popular?: boolean;
+  disabled?: boolean; disabledMessage?: string;
+  onSelect: () => void; loading?: boolean;
 }) {
   return (
     <motion.div
@@ -111,7 +94,7 @@ function PricingCard({
       className={cn(
         'relative rounded-2xl border-2 p-6 transition-all',
         popular ? 'border-primary' : 'border-border',
-        disabled ? 'opacity-60 grayscale' : 'hover:shadow-lg'
+        disabled ? 'opacity-60 grayscale' : 'hover:shadow-lg',
       )}
     >
       {popular && (
@@ -154,10 +137,10 @@ function PricingCard({
         )}
 
         <ul className="space-y-3 mb-6">
-          {features.map((feature, i) => (
+          {features.map((f, i) => (
             <li key={i} className="flex items-center gap-3 text-sm">
-              <feature.icon className="h-4 w-4 text-primary flex-shrink-0" />
-              <span>{feature.text}</span>
+              <f.icon className="h-4 w-4 text-primary flex-shrink-0" />
+              <span>{f.text}</span>
             </li>
           ))}
         </ul>
@@ -177,39 +160,35 @@ function PricingCard({
   );
 }
 
-export default function PremiumPage() {
+export default function MembershipPage() {
   const { user } = useAuthStore();
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('annual');
 
-  const { data: subscription, isLoading: subscriptionLoading } = useQuery<Subscription>({
-    queryKey: ['subscription'],
+  const { data: membership, isLoading } = useQuery<Membership>({
+    queryKey: ['membership'],
     queryFn: () => api.getSubscription(),
   });
 
   const checkoutMutation = useMutation({
     mutationFn: (priceId: string) => api.createCheckoutSession(priceId),
     onSuccess: (data) => {
-      if (data.url) {
-        window.location.href = data.url;
-      }
+      if (data.url) window.location.href = data.url;
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to create checkout session');
+      toast.error(error.response?.data?.message || 'Failed to start checkout');
     },
   });
 
-  const isVerifiedVeteran = user?.role === 'VETERAN_VERIFIED' || user?.role === 'VETERAN_PAID';
+  const isVerifiedVeteran = user?.role === 'VETERAN_VERIFIED' || user?.role === 'VETERAN_MEMBER';
   const period = billingPeriod === 'monthly' ? 'month' : 'year';
 
-  const getDisplayPrice = (monthly: number, annual: number) => {
-    return billingPeriod === 'monthly' ? monthly : annual;
-  };
+  const getPrice = (monthly: number, annual: number) =>
+    billingPeriod === 'monthly' ? monthly : annual;
 
-  const getOriginalPrice = (monthly: number) => {
-    return billingPeriod === 'annual' ? monthly * 12 : undefined;
-  };
+  const getOriginalPrice = (monthly: number) =>
+    billingPeriod === 'annual' ? monthly * 12 : undefined;
 
-  if (subscriptionLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -228,17 +207,18 @@ export default function PremiumPage() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-10"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-yellow-400/20 to-yellow-600/20 border border-yellow-500/30 mb-6">
-            <Sparkles className="h-4 w-4 text-yellow-500" />
-            <span className="text-sm font-medium text-yellow-600">7-Day Free Trial on Veteran Plans</span>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
+            <Award className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium text-primary">7-Day Free Trial on all BIA Plans</span>
           </div>
 
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">Choose Your BIA Plan</h1>
+          <h1 className="text-4xl md:text-5xl font-bold mb-4">Brothers in Arms Membership</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Upgrade your veteran reconnection tools with full Brothers in Arms access.
+            Unlock the full veteran community experience — reconnect, network, and access exclusive veteran resources.
           </p>
         </motion.div>
 
+        {/* Billing toggle */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -252,7 +232,7 @@ export default function PremiumPage() {
                 'px-6 py-2.5 rounded-full text-sm font-medium transition-all',
                 billingPeriod === 'monthly'
                   ? 'bg-background shadow text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
               )}
             >
               Monthly
@@ -263,7 +243,7 @@ export default function PremiumPage() {
                 'px-6 py-2.5 rounded-full text-sm font-medium transition-all relative',
                 billingPeriod === 'annual'
                   ? 'bg-background shadow text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
               )}
             >
               Annual
@@ -274,6 +254,7 @@ export default function PremiumPage() {
           </div>
         </motion.div>
 
+        {/* Verification notice */}
         {!isVerifiedVeteran && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -282,11 +263,16 @@ export default function PremiumPage() {
           >
             <Info className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-medium text-orange-800">Verification Required</p>
+              <p className="font-medium text-orange-800">Veteran Verification Required</p>
               <p className="text-sm text-orange-700 mt-1">
-                Brothers in Arms plans are only available to verified veterans. Submit your service documents in settings.
+                BIA membership is available exclusively to verified veterans. Submit your service documents in Settings to get verified.
               </p>
-              <Button variant="outline" size="sm" className="mt-3" onClick={() => (window.location.href = '/app/settings')}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={() => (window.location.href = '/app/settings')}
+              >
                 Submit Verification Documents
               </Button>
             </div>
@@ -296,27 +282,29 @@ export default function PremiumPage() {
         <div className="grid md:grid-cols-2 gap-6">
           <PricingCard
             title="BIA"
-            subtitle="Core veteran reconnection and community tools"
-            price={getDisplayPrice(PRICING.bia.basic.monthly, PRICING.bia.basic.annual)}
-            originalPrice={getOriginalPrice(PRICING.bia.basic.monthly)}
+            subtitle="Core veteran reconnection and community access"
+            price={getPrice(PRICING.basic.monthly, PRICING.basic.annual)}
+            originalPrice={getOriginalPrice(PRICING.basic.monthly)}
             period={period}
             features={BIA_FEATURES.basic}
+            popular
             disabled={!isVerifiedVeteran}
             disabledMessage="Verified veteran status required"
             onSelect={() =>
               checkoutMutation.mutate(
-                billingPeriod === 'monthly' ? 'price_bia_basic_monthly' : 'price_bia_basic_annual'
+                billingPeriod === 'monthly'
+                  ? 'price_bia_basic_monthly'
+                  : 'price_bia_basic_annual',
               )
             }
             loading={checkoutMutation.isPending}
-            popular
           />
 
           <PricingCard
             title="BIA+"
-            subtitle="Full veteran benefits suite"
-            price={getDisplayPrice(PRICING.bia.plus.monthly, PRICING.bia.plus.annual)}
-            originalPrice={getOriginalPrice(PRICING.bia.plus.monthly)}
+            subtitle="Full veteran benefits and premium tools"
+            price={getPrice(PRICING.plus.monthly, PRICING.plus.annual)}
+            originalPrice={getOriginalPrice(PRICING.plus.monthly)}
             period={period}
             features={BIA_FEATURES.plus}
             includedFeatures="BIA"
@@ -324,7 +312,9 @@ export default function PremiumPage() {
             disabledMessage="Verified veteran status required"
             onSelect={() =>
               checkoutMutation.mutate(
-                billingPeriod === 'monthly' ? 'price_bia_plus_monthly' : 'price_bia_plus_annual'
+                billingPeriod === 'monthly'
+                  ? 'price_bia_plus_monthly'
+                  : 'price_bia_plus_annual',
               )
             }
             loading={checkoutMutation.isPending}
@@ -349,14 +339,14 @@ export default function PremiumPage() {
               <p className="text-sm text-muted-foreground">No lock-in contracts</p>
             </div>
             <div className="p-4 rounded-lg bg-muted/50">
-              <Sparkles className="h-8 w-8 mx-auto mb-2 text-primary" />
+              <Award className="h-8 w-8 mx-auto mb-2 text-primary" />
               <h4 className="font-semibold">7-Day Free Trial</h4>
-              <p className="text-sm text-muted-foreground">Try before you pay</p>
+              <p className="text-sm text-muted-foreground">Try before you commit</p>
             </div>
           </div>
 
           <p className="text-sm text-muted-foreground">
-            All prices shown in GBP (£). Annual plans are billed yearly.
+            All prices shown in GBP (£). Annual plans are billed once per year.
           </p>
         </motion.section>
       </div>

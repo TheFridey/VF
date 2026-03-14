@@ -1,282 +1,169 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import {
-  Users,
-  Shield,
-  Heart,
-  Flag,
-  TrendingUp,
-  TrendingDown,
-  Activity,
-  CheckCircle,
-  Clock,
-  AlertTriangle,
-  Database,
-  Server,
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Spinner } from '@/components/ui/spinner';
+import { Users, Shield, Flag, Activity, Clock, Database, Server, Zap, TrendingUp, TrendingDown, MessageSquare } from 'lucide-react';
 import { adminApi } from '@/lib/admin-api';
-import { formatRelativeTime, cn } from '@/lib/utils';
+import Link from 'next/link';
 
-interface StatCardProps {
-  title: string;
-  value: string | number;
-  change?: number;
-  changeLabel?: string;
-  icon: React.ElementType;
-  iconColor?: string;
+const S = {
+  label: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#3a5068', letterSpacing: 2, textTransform: 'uppercase' as const, marginBottom: 6 },
+  val: { fontFamily: "'JetBrains Mono', monospace", fontSize: 28, fontWeight: 500, color: '#dce8f5', lineHeight: 1, letterSpacing: -1 },
+  card: { background: '#0d1524', border: '1px solid #1a2636', borderRadius: 8, padding: '20px 22px' },
+  section: { marginBottom: 28 },
+  h2: { fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600, fontSize: 13, color: '#7a9bb5', letterSpacing: 2, textTransform: 'uppercase' as const, marginBottom: 14 },
+};
+
+function MetricCard({ label, value, sub, accent, icon: Icon, href, trend }: any) {
+  const inner = (
+    <div style={{ ...S.card, position: 'relative', overflow: 'hidden', cursor: href ? 'pointer' : 'default',
+      transition: 'border-color 0.15s', borderColor: '#1a2636' }}
+      onMouseEnter={e => href && ((e.currentTarget as HTMLDivElement).style.borderColor = '#d4a853')}
+      onMouseLeave={e => href && ((e.currentTarget as HTMLDivElement).style.borderColor = '#1a2636')}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${accent}40, ${accent}10)` }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <p style={S.label}>{label}</p>
+          <p style={{ ...S.val, color: accent || '#dce8f5' }}>{value ?? '—'}</p>
+          {sub && <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#3a5068', marginTop: 8 }}>{sub}</p>}
+          {trend !== undefined && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8 }}>
+              {trend >= 0 ? <TrendingUp size={10} color="#34d399" /> : <TrendingDown size={10} color="#f87171" />}
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: trend >= 0 ? '#34d399' : '#f87171' }}>
+                {trend >= 0 ? '+' : ''}{trend}% vs last week
+              </span>
+            </div>
+          )}
+        </div>
+        <div style={{ width: 36, height: 36, background: `${accent}14`, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon size={17} color={accent} />
+        </div>
+      </div>
+    </div>
+  );
+  return href ? <Link href={href} style={{ textDecoration: 'none' }}>{inner}</Link> : inner;
 }
 
-function StatCard({ title, value, change, changeLabel, icon: Icon, iconColor = 'text-primary' }: StatCardProps) {
+function HealthRow({ label, status, latency }: { label: string; status: 'ok' | 'error' | 'warn'; latency?: number }) {
+  const colors = { ok: '#34d399', error: '#f87171', warn: '#fbbf24' };
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">{title}</p>
-            <p className="text-3xl font-bold mt-1">{value}</p>
-            {change !== undefined && (
-              <div className="flex items-center mt-2 text-sm">
-                {change >= 0 ? (
-                  <TrendingUp className="h-4 w-4 text-green-500 mr-1" />
-                ) : (
-                  <TrendingDown className="h-4 w-4 text-red-500 mr-1" />
-                )}
-                <span className={change >= 0 ? 'text-green-500' : 'text-red-500'}>
-                  {change >= 0 ? '+' : ''}{change}%
-                </span>
-                {changeLabel && (
-                  <span className="text-muted-foreground ml-1">{changeLabel}</span>
-                )}
-              </div>
-            )}
-          </div>
-          <div className={cn('p-3 rounded-lg bg-muted', iconColor)}>
-            <Icon className="h-6 w-6" />
-          </div>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #141f2e' }}>
+      <span style={{ fontSize: 13, color: '#7a9bb5' }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {latency && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#3a5068' }}>{latency}ms</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: colors[status], display: 'inline-block', animation: status === 'ok' ? 'pulse-dot 2.5s ease infinite' : 'none' }} />
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: colors[status], letterSpacing: 1 }}>{status.toUpperCase()}</span>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
+  );
+}
+
+function ActionRow({ label, count, href, urgency }: { label: string; count: number; href: string; urgency: 'high' | 'med' | 'low' }) {
+  const colors = { high: '#f87171', med: '#fbbf24', low: '#34d399' };
+  return (
+    <Link href={href} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', borderBottom: '1px solid #141f2e', textDecoration: 'none', transition: 'background 0.1s' }}
+      onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(212,168,83,0.04)'}
+      onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'}>
+      <span style={{ fontSize: 13, color: '#7a9bb5' }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: count > 0 ? colors[urgency] : '#2d3f55' }}>{count}</span>
+        {count > 0 && <span style={{ width: 6, height: 6, borderRadius: '50%', background: colors[urgency], display: 'inline-block' }} />}
+      </div>
+    </Link>
   );
 }
 
 export default function AdminDashboardPage() {
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['admin-dashboard'],
-    queryFn: () => adminApi.getDashboardStats(),
-    refetchInterval: 60000,
-  });
+  const { data: stats, isLoading } = useQuery({ queryKey: ['admin-dashboard'], queryFn: () => adminApi.getDashboardStats(), refetchInterval: 60000 });
+  const { data: health } = useQuery({ queryKey: ['system-health'], queryFn: () => adminApi.getSystemHealth(), refetchInterval: 30000 });
+  const { data: modStats } = useQuery({ queryKey: ['moderation-stats'], queryFn: () => adminApi.getModerationStats() });
 
-  const { data: health, isLoading: healthLoading } = useQuery({
-    queryKey: ['system-health'],
-    queryFn: () => adminApi.getSystemHealth(),
-    refetchInterval: 30000,
-  });
-
-  const { data: moderationStats } = useQuery({
-    queryKey: ['moderation-stats'],
-    queryFn: () => adminApi.getModerationStats(),
-  });
-
-  if (statsLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Spinner size="lg" />
-      </div>
-    );
-  }
-
-  const dashboardData = stats || {
-    totalUsers: 0,
-    activeUsers: 0,
-    newUsersToday: 0,
-    newUsersWeek: 0,
-    verifiedVeterans: 0,
-    pendingVerifications: 0,
-    totalMatches: 0,
-    matchesToday: 0,
-    openReports: 0,
-    userGrowth: 0,
-  };
+  const d = stats || {};
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">Overview of your platform</p>
+    <div>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 26, color: '#dce8f5', letterSpacing: 0.5, marginBottom: 4 }}>
+          Command Dashboard
+        </h1>
+        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#3a5068', letterSpacing: 1.5 }}>
+          PLATFORM OVERVIEW — REAL TIME
+        </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Users"
-          value={dashboardData.totalUsers?.toLocaleString() || 0}
-          change={dashboardData.userGrowth}
-          changeLabel="vs last week"
-          icon={Users}
-        />
-        <StatCard
-          title="Verified Veterans"
-          value={dashboardData.verifiedVeterans?.toLocaleString() || 0}
-          icon={Shield}
-          iconColor="text-green-500"
-        />
-        <StatCard
-          title="Total Matches"
-          value={dashboardData.totalMatches?.toLocaleString() || 0}
-          icon={Heart}
-          iconColor="text-pink-500"
-        />
-        <StatCard
-          title="Open Reports"
-          value={dashboardData.openReports || 0}
-          icon={Flag}
-          iconColor={dashboardData.openReports > 10 ? 'text-red-500' : 'text-yellow-500'}
-        />
-      </div>
+      {isLoading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+          {[...Array(4)].map((_, i) => (
+            <div key={i} style={{ ...S.card, height: 100, background: 'linear-gradient(90deg, #0d1524 25%, #111c2e 50%, #0d1524 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' }} />
+          ))}
+        </div>
+      ) : (
+        <>
+          {/* Primary metrics */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 14 }}>
+            <MetricCard label="Total Personnel" value={d.totalUsers?.toLocaleString()} accent="#7ab3d4" icon={Users} href="/admin/users" trend={d.userGrowth} />
+            <MetricCard label="Verified Veterans" value={d.verifiedVeterans?.toLocaleString()} accent="#34d399" icon={Shield} href="/admin/verification" />
+            <MetricCard label="Open Reports" value={d.openReports} accent={d.openReports > 5 ? '#f87171' : '#fbbf24'} icon={Flag} href="/admin/reports" />
+            <MetricCard label="Connections" value={d.totalConnections?.toLocaleString()} accent="#a78bfa" icon={MessageSquare} />
+          </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Pending Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Pending Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Shield className="h-5 w-5 text-primary" />
-                  <span>Verification Requests</span>
+          {/* Secondary metrics */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
+            <MetricCard label="New Today" value={d.newUsersToday} accent="#d4a853" icon={TrendingUp} sub="registered users" />
+            <MetricCard label="New This Week" value={d.newUsersWeek} accent="#d4a853" icon={Activity} />
+            <MetricCard label="Connections Today" value={d.connectionsToday} accent="#7ab3d4" icon={Zap} />
+            <MetricCard label="Pending Verification" value={d.pendingVerifications} accent={d.pendingVerifications > 0 ? '#fbbf24' : '#34d399'} icon={Clock} href="/admin/verification" />
+          </div>
+
+          {/* Lower panels */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+
+            {/* Pending actions */}
+            <div>
+              <p style={S.h2}>Pending Actions</p>
+              <div style={{ ...S.card, padding: 0, overflow: 'hidden' }}>
+                <ActionRow label="Verification Requests" count={d.pendingVerifications || 0} href="/admin/verification" urgency="med" />
+                <ActionRow label="Open Reports" count={d.openReports || 0} href="/admin/reports" urgency="high" />
+                <ActionRow label="Suspended Users" count={d.suspendedUsers || 0} href="/admin/users?status=SUSPENDED" urgency="low" />
+                <div style={{ padding: '11px 14px' }}>
+                  <span style={{ fontSize: 13, color: '#7a9bb5' }}>Pending Deletions</span>
                 </div>
-                <Badge variant={dashboardData.pendingVerifications > 0 ? 'warning' : 'outline'}>
-                  {dashboardData.pendingVerifications || 0}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Flag className="h-5 w-5 text-red-500" />
-                  <span>Open Reports</span>
-                </div>
-                <Badge variant={dashboardData.openReports > 0 ? 'destructive' : 'outline'}>
-                  {dashboardData.openReports || 0}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                <div className="flex items-center gap-3">
-                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                  <span>Suspended Users</span>
-                </div>
-                <Badge variant="outline">
-                  {dashboardData.suspendedUsers || 0}
-                </Badge>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* System Health */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              System Health
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {healthLoading ? (
-              <div className="flex justify-center py-8">
-                <Spinner />
+            {/* System health */}
+            <div>
+              <p style={S.h2}>System Health</p>
+              <div style={{ ...S.card, padding: 0, overflow: 'hidden' }}>
+                <HealthRow label="API Server" status="ok" />
+                <HealthRow label="PostgreSQL" status="ok" latency={health?.database?.latency} />
+                <HealthRow label="Redis Cache" status="ok" latency={health?.redis?.latency} />
+                <HealthRow label="Email (Resend)" status="ok" />
               </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Server className="h-5 w-5" />
-                    <span>API Server</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm text-green-500">Healthy</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Database className="h-5 w-5" />
-                    <span>Database</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm">
-                      {health?.database?.latency ? `${health.database.latency}ms` : 'OK'}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Activity className="h-5 w-5" />
-                    <span>Redis Cache</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm">
-                      {health?.redis?.latency ? `${health.redis.latency}ms` : 'OK'}
-                    </span>
-                  </div>
+            </div>
+
+            {/* Reports by reason */}
+            {modStats && Object.keys(modStats.byReason || {}).length > 0 && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <p style={S.h2}>Reports by Category</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                  {Object.entries(modStats.byReason || {}).map(([reason, count]) => (
+                    <div key={reason} style={{ ...S.card, textAlign: 'center', padding: '16px 14px' }}>
+                      <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 22, fontWeight: 500, color: '#f87171', lineHeight: 1, marginBottom: 8 }}>{count as number}</p>
+                      <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#3a5068', letterSpacing: 1.5, textTransform: 'uppercase' }}>{reason.replace(/_/g, ' ')}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Report Stats */}
-      {moderationStats && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Reports by Reason</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {Object.entries(moderationStats.byReason || {}).map(([reason, count]) => (
-                <div key={reason} className="p-3 bg-muted rounded-lg text-center">
-                  <p className="text-2xl font-bold">{count as number}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {reason.replace(/_/g, ' ')}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </>
       )}
-
-      {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">New Users Today</p>
-            <p className="text-2xl font-bold">{dashboardData.newUsersToday || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">New Users This Week</p>
-            <p className="text-2xl font-bold">{dashboardData.newUsersWeek || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">Matches Today</p>
-            <p className="text-2xl font-bold">{dashboardData.matchesToday || 0}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <style>{`
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+      `}</style>
     </div>
   );
 }

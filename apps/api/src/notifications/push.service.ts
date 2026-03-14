@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as webPush from 'web-push';
 import { PrismaService } from '../common/prisma/prisma.service';
 
-export interface PushSubscription {
+export interface PushSubscriptionDto {
   endpoint: string;
   keys: {
     p256dh: string;
@@ -22,59 +22,42 @@ export class PushNotificationService {
   ) {
     const vapidPublicKey = this.configService.get<string>('VAPID_PUBLIC_KEY');
     const vapidPrivateKey = this.configService.get<string>('VAPID_PRIVATE_KEY');
-    const vapidEmail = this.configService.get<string>('VAPID_EMAIL', 'mailto:hello@veteranfinder.com');
+    const vapidEmail = this.configService.get<string>('VAPID_EMAIL', 'mailto:hello@veteranfinder.co.uk');
 
     if (vapidPublicKey && vapidPrivateKey) {
       webPush.setVapidDetails(vapidEmail, vapidPublicKey, vapidPrivateKey);
       this.isConfigured = true;
       this.logger.log('Push notifications configured');
     } else {
-      this.logger.warn('VAPID keys not configured - push notifications disabled');
+      this.logger.warn('VAPID keys not configured — push notifications disabled');
     }
   }
 
-  /**
-   * Subscribe a user to push notifications
-   */
-  async subscribe(userId: string, subscription: PushSubscription) {
-    // Store subscription in database (we'd need to add a PushSubscription model)
-    // For now, we'll store it in user metadata or a separate collection
-
-    // You could add a new table like:
-    // await this.prisma.pushSubscription.upsert({
-    //   where: { endpoint: subscription.endpoint },
-    //   create: {
-    //     userId,
-    //     endpoint: subscription.endpoint,
-    //     p256dh: subscription.keys.p256dh,
-    //     auth: subscription.keys.auth,
-    //   },
-    //   update: {
-    //     userId,
-    //     p256dh: subscription.keys.p256dh,
-    //     auth: subscription.keys.auth,
-    //   },
-    // });
-
-    this.logger.log(`User ${userId} subscribed to push notifications`);
+  async subscribe(userId: string, subscription: PushSubscriptionDto) {
+    await this.prisma.pushSubscription.upsert({
+      where: { endpoint: subscription.endpoint },
+      create: {
+        userId,
+        endpoint: subscription.endpoint,
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth,
+      },
+      update: {
+        userId,
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth,
+      },
+    });
     return { success: true };
   }
 
-  /**
-   * Unsubscribe a user from push notifications
-   */
   async unsubscribe(userId: string, endpoint: string) {
-    // await this.prisma.pushSubscription.deleteMany({
-    //   where: { userId, endpoint },
-    // });
-
-    this.logger.log(`User ${userId} unsubscribed from push notifications`);
+    await this.prisma.pushSubscription.deleteMany({
+      where: { userId, endpoint },
+    });
     return { success: true };
   }
 
-  /**
-   * Send push notification to a user
-   */
   async sendToUser(userId: string, payload: {
     title: string;
     body: string;
@@ -84,76 +67,74 @@ export class PushNotificationService {
     tag?: string;
     data?: any;
   }) {
-    if (!this.isConfigured) {
-      this.logger.warn('Push notifications not configured');
-      return;
+    if (!this.isConfigured) return;
+
+    const subscriptions = await this.prisma.pushSubscription.findMany({
+      where: { userId },
+    });
+
+    if (!subscriptions.length) return;
+
+    const message = JSON.stringify({
+      title: payload.title,
+      body: payload.body,
+      icon: payload.icon ?? '/icons/icon-192x192.png',
+      badge: payload.badge ?? '/icons/badge-72x72.png',
+      tag: payload.tag,
+      data: { url: payload.url, ...payload.data },
+    });
+
+    for (const sub of subscriptions) {
+      try {
+        await webPush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          message,
+        );
+      } catch (err: any) {
+        // 410 Gone / 404 = subscription expired, clean it up
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          await this.prisma.pushSubscription.delete({ where: { id: sub.id } });
+          this.logger.log(`Removed expired push subscription for user ${userId}`);
+        } else {
+          this.logger.error(`Push failed for user ${userId}: ${err.message}`);
+        }
+      }
     }
-
-    // Get user's push subscriptions
-    // const subscriptions = await this.prisma.pushSubscription.findMany({
-    //   where: { userId },
-    // });
-
-    // For now, just log the notification
-    this.logger.log(`Push notification to ${userId}: ${payload.title}`);
-
-    // In production:
-    // for (const sub of subscriptions) {
-    //   try {
-    //     await webPush.sendNotification(
-    //       {
-    //         endpoint: sub.endpoint,
-    //         keys: {
-    //           p256dh: sub.p256dh,
-    //           auth: sub.auth,
-    //         },
-    //       },
-    //       JSON.stringify(payload),
-    //     );
-    //   } catch (error) {
-    //     if (error.statusCode === 410 || error.statusCode === 404) {
-    //       // Subscription expired or invalid, remove it
-    //       await this.prisma.pushSubscription.delete({ where: { id: sub.id } });
-    //     }
-    //     this.logger.error(`Failed to send push: ${error.message}`);
-    //   }
-    // }
   }
 
-  /**
-   * Send notification for new message
-   */
-  async notifyNewMessage(userId: string, senderName: string, matchId: string, preview: string) {
+  async notifyNewMessage(userId: string, senderName: string, connectionId: string, preview: string) {
     await this.sendToUser(userId, {
       title: `New message from ${senderName}`,
       body: preview,
-      icon: '/icons/icon-192x192.png',
-      badge: '/icons/badge-72x72.png',
-      url: `/app/messages/${matchId}`,
-      tag: `message-${matchId}`,
-      data: { type: 'message', matchId },
+      url: `/app/messages/${connectionId}`,
+      tag: `message-${connectionId}`,
+      data: { type: 'message', connectionId },
     });
   }
 
-  /**
-   * Send notification for new match
-   */
-  async notifyNewMatch(userId: string, matchedUserName: string, matchId: string) {
+  async notifyNewConnection(userId: string, connectedUserName: string, connectionId: string) {
     await this.sendToUser(userId, {
-      title: 'New connection established',
-      body: `You are now connected with ${matchedUserName}.`,
-      icon: '/icons/icon-192x192.png',
-      badge: '/icons/badge-72x72.png',
-      url: `/app/messages/${matchId}`,
-      tag: `match-${matchId}`,
-      data: { type: 'match', matchId },
+      title: 'New connection',
+      body: `You are now connected with ${connectedUserName}`,
+      url: `/app/messages/${connectionId}`,
+      tag: `connection-${connectionId}`,
+      data: { type: 'connection', connectionId },
     });
   }
 
-  /**
-   * Get VAPID public key for client
-   */
+  async notifyVerificationUpdate(userId: string, approved: boolean) {
+    await this.sendToUser(userId, {
+      title: approved ? 'Verification approved ✓' : 'Verification update',
+      body: approved
+        ? 'Your veteran status is verified. Full access is now unlocked.'
+        : 'Your verification needs attention. Check your settings.',
+      url: approved ? '/app/brothers' : '/app/settings',
+      tag: 'verification-update',
+      data: { type: 'verification', approved },
+    });
+  }
+
   getPublicKey(): string {
-    return this.configService.get<string>('VAPID_PUBLIC_KEY') || '';
+    return this.configService.get<string>('VAPID_PUBLIC_KEY') ?? '';
   }
 }

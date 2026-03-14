@@ -30,7 +30,7 @@ export class SubscriptionsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current user subscription' })
   async getMySubscription(@CurrentUser() user: User) {
-    return this.subscriptionsService.getOrCreateSubscription(user.id);
+    return this.subscriptionsService.getOrCreateMembership(user.id);
   }
 
   @Get('prices')
@@ -113,7 +113,7 @@ export class SubscriptionsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cancel subscription at period end' })
   async cancelSubscription(@CurrentUser() user: User) {
-    return this.subscriptionsService.cancelSubscription(user.id);
+    return this.subscriptionsService.cancelMembership(user.id);
   }
 
   @Post('webhook')

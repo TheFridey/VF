@@ -1,164 +1,122 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { MatchStatus, MatchType } from '@prisma/client';
+import { ConnectionStatus, ConnectionType } from '../common/enums/connection.enum';
 
 @Injectable()
 export class MatchesService {
   constructor(private prisma: PrismaService) {}
 
   async getMatches(userId: string) {
-    const where = {
-      OR: [{ user1Id: userId }, { user2Id: userId }],
-      status: MatchStatus.ACTIVE,
-      matchType: MatchType.BROTHERS,
-    };
-
-    const matches = await this.prisma.match.findMany({
-      where,
+    const connections = await this.prisma.connection.findMany({
+      where: {
+        OR: [{ user1Id: userId }, { user2Id: userId }],
+        status: ConnectionStatus.ACTIVE,
+      },
       include: {
-        user1: {
-          select: {
-            id: true,
-            profile: true,
-            veteranDetails: true,
-          },
-        },
-        user2: {
-          select: {
-            id: true,
-            profile: true,
-            veteranDetails: true,
-          },
-        },
-        messages: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
+        user1: { select: { id: true, profile: true, veteranDetails: true } },
+        user2: { select: { id: true, profile: true, veteranDetails: true } },
+        messages: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
       orderBy: { lastMessageAt: 'desc' },
     });
 
-    return matches.map(match => this.formatMatch(match, userId));
+    return connections.map(c => this.formatConnection(c, userId));
   }
 
-  async getMatch(matchId: string, userId: string) {
-    const match = await this.prisma.match.findUnique({
-      where: { id: matchId },
+  async getMatch(connectionId: string, userId: string) {
+    const connection = await this.prisma.connection.findUnique({
+      where: { id: connectionId },
       include: {
         user1: {
           select: {
-            id: true,
-            role: true,
-            profile: true,
-            veteranDetails: {
-              include: { servicePeriods: true },
-            },
+            id: true, role: true, profile: true,
+            veteranDetails: { include: { servicePeriods: true } },
           },
         },
         user2: {
           select: {
-            id: true,
-            role: true,
-            profile: true,
-            veteranDetails: {
-              include: { servicePeriods: true },
-            },
+            id: true, role: true, profile: true,
+            veteranDetails: { include: { servicePeriods: true } },
           },
         },
-        messages: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
+        messages: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
     });
 
-    if (!match) throw new NotFoundException('Match not found');
-    if (match.matchType !== MatchType.BROTHERS) {
-      throw new ForbiddenException('Only Brothers in Arms connections are supported');
+    if (!connection) throw new NotFoundException('Connection not found');
+    if (connection.user1Id !== userId && connection.user2Id !== userId) {
+      throw new ForbiddenException('Not authorised to view this connection');
     }
 
-    // Verify user is participant
-    if (match.user1Id !== userId && match.user2Id !== userId) {
-      throw new ForbiddenException('Not authorized to view this match');
-    }
-
-    return this.formatMatchDetail(match, userId);
+    return this.formatConnectionDetail(connection, userId);
   }
 
-  async unmatch(matchId: string, userId: string) {
-    const match = await this.prisma.match.findUnique({
-      where: { id: matchId },
-    });
+  async unmatch(connectionId: string, userId: string) {
+    const connection = await this.prisma.connection.findUnique({ where: { id: connectionId } });
 
-    if (!match) throw new NotFoundException('Match not found');
-    if (match.matchType !== MatchType.BROTHERS) {
-      throw new ForbiddenException('Only Brothers in Arms connections are supported');
+    if (!connection) throw new NotFoundException('Connection not found');
+    if (connection.user1Id !== userId && connection.user2Id !== userId) {
+      throw new ForbiddenException('Not authorised');
+    }
+    if (connection.status !== ConnectionStatus.ACTIVE) {
+      throw new ForbiddenException('Connection is not active');
     }
 
-    if (match.user1Id !== userId && match.user2Id !== userId) {
-      throw new ForbiddenException('Not authorized');
-    }
-
-    if (match.status !== MatchStatus.ACTIVE) {
-      throw new ForbiddenException('Match is not active');
-    }
-
-    return this.prisma.match.update({
-      where: { id: matchId },
-      data: { status: MatchStatus.CANCELLED },
+    return this.prisma.connection.update({
+      where: { id: connectionId },
+      data: { status: ConnectionStatus.CANCELLED },
     });
   }
 
   async getMatchStats() {
-    const [total, active] = await Promise.all([
-      this.prisma.match.count({ where: { matchType: MatchType.BROTHERS } }),
-      this.prisma.match.count({
-        where: { matchType: MatchType.BROTHERS, status: MatchStatus.ACTIVE },
-      }),
+    const [total, active, bia] = await Promise.all([
+      this.prisma.connection.count(),
+      this.prisma.connection.count({ where: { status: ConnectionStatus.ACTIVE } }),
+      this.prisma.connection.count({ where: { connectionType: ConnectionType.BROTHERS_IN_ARMS } }),
     ]);
 
-    return { total, active };
+    return { total, active, brothersInArms: bia };
   }
 
-  private formatMatch(match: any, currentUserId: string) {
-    const otherUser = match.user1Id === currentUserId ? match.user2 : match.user1;
-    const lastMessage = match.messages[0];
+  private formatConnection(connection: any, currentUserId: string) {
+    const otherUser = connection.user1Id === currentUserId ? connection.user2 : connection.user1;
+    const lastMessage = connection.messages[0];
 
     return {
-      id: match.id,
-      matchType: match.matchType,
-      status: match.status,
-      overlapScore: match.overlapScore,
-      createdAt: match.createdAt,
-      lastMessageAt: match.lastMessageAt,
+      id:             connection.id,
+      connectionType: connection.connectionType,
+      status:         connection.status,
+      overlapScore:   connection.overlapScore,
+      createdAt:      connection.createdAt,
+      lastMessageAt:  connection.lastMessageAt,
       otherUser: {
-        id: otherUser.id,
-        displayName: otherUser.profile?.displayName,
+        id:              otherUser.id,
+        displayName:     otherUser.profile?.displayName,
         profileImageUrl: otherUser.profile?.profileImageUrl,
-        lastActiveAt: otherUser.profile?.lastActiveAt,
+        lastActiveAt:    otherUser.profile?.lastActiveAt,
       },
       lastMessage: lastMessage ? {
-        preview: '[Message]', // Don't decrypt here
-        createdAt: lastMessage.createdAt,
-        isFromMe: lastMessage.senderId === currentUserId,
+        preview:    '[Message]',
+        createdAt:  lastMessage.createdAt,
+        isFromMe:   lastMessage.senderId === currentUserId,
       } : null,
     };
   }
 
-  private formatMatchDetail(match: any, currentUserId: string) {
-    const otherUser = match.user1Id === currentUserId ? match.user2 : match.user1;
+  private formatConnectionDetail(connection: any, currentUserId: string) {
+    const otherUser = connection.user1Id === currentUserId ? connection.user2 : connection.user1;
 
     return {
-      id: match.id,
-      matchType: match.matchType,
-      status: match.status,
-      overlapScore: match.overlapScore,
-      createdAt: match.createdAt,
+      id:             connection.id,
+      connectionType: connection.connectionType,
+      status:         connection.status,
+      overlapScore:   connection.overlapScore,
+      createdAt:      connection.createdAt,
       otherUser: {
-        id: otherUser.id,
-        role: otherUser.role,
-        profile: otherUser.profile,
-        veteranDetails: match.matchType === MatchType.BROTHERS ? otherUser.veteranDetails : null,
+        id:             otherUser.id,
+        role:           otherUser.role,
+        profile:        otherUser.profile,
+        veteranDetails: otherUser.veteranDetails,
       },
     };
   }

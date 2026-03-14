@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -21,8 +20,7 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
-  const router = useRouter();
-  const { setUser, setTokens } = useAuthStore();
+  const { setUser } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
 
   const {
@@ -37,10 +35,14 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const response = await api.login(data);
-      setTokens(response.accessToken, response.refreshToken);
+      // Tokens are set as HttpOnly cookies by the server — JavaScript never
+      // touches them.  We only store the non-sensitive user profile in Zustand.
       setUser(response.user);
       toast.success('Welcome back!');
-      router.push('/app/brothers');
+      // Hard navigate so Next.js middleware reads the fresh HttpOnly cookie
+      // New users (no display name yet) go to onboarding first
+      const needsOnboarding = !response.user?.profile?.displayName;
+      window.location.href = needsOnboarding ? '/app/onboarding' : '/app/brothers';
     } catch (error: any) {
       const message = error.response?.data?.message || 'Login failed. Please try again.';
       toast.error(message);
@@ -50,52 +52,51 @@ export default function LoginPage() {
   };
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Welcome Back</CardTitle>
-        <CardDescription>Sign in to your VeteranFinder account</CardDescription>
-      </CardHeader>
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <CardContent className="space-y-4">
-          <Input
-            {...register('email')}
-            type="email"
-            label="Email"
-            placeholder="you@example.com"
-            error={errors.email?.message}
-            autoComplete="email"
-          />
-          <div>
-            <Input
-              {...register('password')}
-              type="password"
-              label="Password"
-              placeholder="••••••••"
-              error={errors.password?.message}
-              autoComplete="current-password"
-            />
-            <div className="mt-2 text-right">
-              <Link
-                href="/auth/forgot-password"
-                className="text-sm text-primary hover:underline"
-              >
-                Forgot password?
-              </Link>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">Welcome Back</CardTitle>
+          <CardDescription>Sign in to your VeteranFinder account</CardDescription>
+        </CardHeader>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Email</label>
+              <Input
+                type="email"
+                placeholder="john.doe@example.com"
+                {...register('email')}
+              />
+              {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
             </div>
-          </div>
-        </CardContent>
-        <CardFooter className="flex flex-col space-y-4">
-          <Button type="submit" className="w-full" isLoading={isLoading}>
-            Sign In
-          </Button>
-          <p className="text-sm text-muted-foreground text-center">
-            Don&apos;t have an account?{' '}
-            <Link href="/auth/register" className="text-primary hover:underline">
-              Create one
-            </Link>
-          </p>
-        </CardFooter>
-      </form>
-    </Card>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Password</label>
+              <Input
+                type="password"
+                placeholder="••••••••••••"
+                {...register('password')}
+              />
+              {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+              <div className="text-right">
+                <Link href="/auth/forgot-password" className="text-sm text-primary hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter className="flex flex-col gap-4">
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? 'Signing in...' : 'Sign In'}
+            </Button>
+            <p className="text-sm text-center text-muted-foreground">
+              Don&apos;t have an account?{' '}
+              <Link href="/auth/register" className="text-primary hover:underline">
+                Create one
+              </Link>
+            </p>
+          </CardFooter>
+        </form>
+      </Card>
+    </div>
   );
 }

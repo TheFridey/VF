@@ -10,7 +10,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
-import { PushNotificationService, PushSubscription } from './push.service';
+import { PushNotificationService, PushSubscriptionDto } from './push.service';
 
 @ApiTags('notifications')
 @Controller('notifications')
@@ -29,7 +29,7 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Subscribe to push notifications' })
   async subscribe(
     @CurrentUser() user: User,
-    @Body() subscription: PushSubscription,
+    @Body() subscription: PushSubscriptionDto,
   ) {
     return this.pushService.subscribe(user.id, subscription);
   }
