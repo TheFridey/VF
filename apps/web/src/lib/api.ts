@@ -374,7 +374,7 @@ class ApiClient {
   // ── Verification ──────────────────────────────────────────────────────────────
   async submitVerification(files: File[]) {
     const formData = new FormData();
-    files.forEach((file) => formData.append('evidence', file));
+    files.forEach((file) => formData.append('files', file));
     const response = await this.client.post('/verification/submit', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });

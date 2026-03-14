@@ -8,9 +8,9 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'VeteranFinder - Connect with Fellow Veterans',
-  description: 'Veteran reconnection platform to find old colleagues, comrades, and trusted military community support.',
-  keywords: ['veterans', 'military', 'brothers in arms', 'reconnection', 'service history'],
+  title: 'VeteranFinder | Veteran Reconnection and Verified Community Access',
+  description: 'A trust-first platform for veterans to reconnect, verify their status, and access moderated community spaces.',
+  keywords: ['veterans', 'reconnection', 'verification', 'community', 'regiment forums'],
 };
 
 export default function RootLayout({

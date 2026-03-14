@@ -19,6 +19,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { Request } from 'express';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('verification')
 @ApiBearerAuth()
@@ -34,6 +35,7 @@ export class VerificationController {
   }
 
   @Post('submit')
+  @Throttle({ default: { limit: 3, ttl: 3600000 } })
   @ApiOperation({ summary: 'Submit verification request with evidence files' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({

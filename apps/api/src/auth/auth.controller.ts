@@ -212,6 +212,7 @@ export class AuthController {
   @Public()
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 3600000 } })
   @ApiOperation({ summary: 'Reset password using token' })
   async resetPassword(
     @Body('token') token: string,

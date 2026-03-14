@@ -7,50 +7,41 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-gray-800 bg-gray-950/80 mt-auto">
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
-
-          {/* Brand */}
+    <footer className="mt-auto border-t border-slate-200 bg-white">
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="grid gap-8 sm:grid-cols-3">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Shield className="h-5 w-5 text-green-500" />
-              <span className="font-bold text-white">VeteranFinder</span>
+            <div className="mb-3 flex items-center gap-2">
+              <Shield className="h-5 w-5 text-emerald-700" />
+              <span className="font-semibold text-slate-950">VeteranFinder</span>
             </div>
-            <p className="text-xs text-gray-500 leading-relaxed">
-              A trusted space for the UK veteran community — built by veterans, for veterans.
+            <p className="text-sm leading-6 text-slate-600">
+              A trust-first veteran reconnection platform focused on verification, privacy, moderation, and useful
+              community access.
             </p>
           </div>
-
-          {/* Legal */}
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Legal &amp; Compliance</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Legal</p>
             <ul className="space-y-2">
-              <li><Link href="/privacy"  className="text-xs text-gray-500 hover:text-green-400 transition-colors">Privacy Policy</Link></li>
-              <li><Link href="/terms"    className="text-xs text-gray-500 hover:text-green-400 transition-colors">Terms of Service</Link></li>
-              <li><Link href="/cookies"  className="text-xs text-gray-500 hover:text-green-400 transition-colors">Cookie Policy</Link></li>
-              <li><Link href="/dpia"     className="text-xs text-gray-500 hover:text-green-400 transition-colors">Data Protection (DPIA)</Link></li>
+              <li><Link href="/privacy" className="text-sm text-slate-600 transition-colors hover:text-slate-950">Privacy Policy</Link></li>
+              <li><Link href="/terms" className="text-sm text-slate-600 transition-colors hover:text-slate-950">Terms of Service</Link></li>
+              <li><Link href="/cookies" className="text-sm text-slate-600 transition-colors hover:text-slate-950">Cookie Policy</Link></li>
+              <li><Link href="/dpia" className="text-sm text-slate-600 transition-colors hover:text-slate-950">Data Protection (DPIA)</Link></li>
             </ul>
           </div>
-
-          {/* Company */}
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Company</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Platform</p>
             <ul className="space-y-2">
-              <li><Link href="/about"   className="text-xs text-gray-500 hover:text-green-400 transition-colors">About Us</Link></li>
-              <li><Link href="/contact" className="text-xs text-gray-500 hover:text-green-400 transition-colors">Contact</Link></li>
-              <li><Link href="/app/premium" className="text-xs text-gray-500 hover:text-green-400 transition-colors">BIA Membership</Link></li>
+              <li><Link href="/about" className="text-sm text-slate-600 transition-colors hover:text-slate-950">About</Link></li>
+              <li><Link href="/contact" className="text-sm text-slate-600 transition-colors hover:text-slate-950">Contact</Link></li>
+              <li><Link href="/app/premium" className="text-sm text-slate-600 transition-colors hover:text-slate-950">BIA Membership</Link></li>
             </ul>
           </div>
         </div>
 
-        <div className="border-t border-gray-800 pt-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="text-xs text-gray-600">
-            © {year} VeteranFinder Ltd. All rights reserved. Registered in England &amp; Wales.
-          </p>
-          <p className="text-xs text-gray-600">
-            Regulated under UK GDPR · ICO registered · Data processed lawfully
-          </p>
+        <div className="mt-8 flex flex-col gap-2 border-t border-slate-200 pt-5 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <p>&copy; {year} VeteranFinder Ltd. All rights reserved.</p>
+          <p>Built for a calmer, more accountable veteran community experience.</p>
         </div>
       </div>
     </footer>

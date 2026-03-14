@@ -3,12 +3,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 ARG NEXT_PUBLIC_API_URL=http://localhost:3000
-ARG NEXT_PUBLIC_SITE_URL=http://localhost:3001
-ARG NEXT_PUBLIC_ADMIN_APP_URL=http://localhost:3002
-
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
-ENV NEXT_PUBLIC_ADMIN_APP_URL=$NEXT_PUBLIC_ADMIN_APP_URL
 ENV NODE_OPTIONS="--max-old-space-size=1536"
 
 COPY package.json package-lock.json ./
@@ -36,8 +31,8 @@ RUN chown -R nextjs:nodejs /app
 
 USER nextjs
 
-EXPOSE 3001
-ENV PORT=3001
+EXPOSE 3002
+ENV PORT=3002
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]

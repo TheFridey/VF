@@ -11,10 +11,10 @@ import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
 import { ConnectionType } from '../common/enums/connection.enum';
+import { MessageCrypto, parseEncryptionKeyFallbacks } from './message-crypto';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -33,7 +33,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private readonly logger = new Logger(ChatGateway.name);
   private connectedUsers: Map<string, string[]> = new Map(); // userId -> socketIds
-  private encryptionKey: Buffer;
+  private readonly messageCrypto: MessageCrypto;
 
   private readonly WS_RATE_LIMIT = 10;
   private readonly WS_RATE_WINDOW = 60;
@@ -44,41 +44,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private prisma: PrismaService,
     private redisService: RedisService,
   ) {
-    const key = this.configService.get('ENCRYPTION_KEY', 'default-dev-encryption-key-32ch');
-    this.encryptionKey = crypto.scryptSync(key, 'salt', 32);
+    this.messageCrypto = new MessageCrypto(
+      this.configService.get('ENCRYPTION_KEY', 'default-dev-encryption-key-32ch'),
+      parseEncryptionKeyFallbacks(this.configService.get('ENCRYPTION_KEY_FALLBACKS')),
+    );
   }
 
   private encryptMessage(content: string): { encrypted: string; iv: string; authTag: string } {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
-    
-    let encrypted = cipher.update(content, 'utf8', 'base64');
-    encrypted += cipher.final('base64');
-    const authTag = cipher.getAuthTag().toString('base64');
-
+    const { encryptedContent, iv, authTag } = this.messageCrypto.encryptMessage(content);
     return {
-      encrypted,
-      iv: iv.toString('base64'),
+      encrypted: encryptedContent,
+      iv,
       authTag,
     };
   }
 
   private decryptMessage(encrypted: string, iv: string, authTag: string): string {
-    try {
-      const decipher = crypto.createDecipheriv(
-        'aes-256-gcm',
-        this.encryptionKey,
-        Buffer.from(iv, 'base64'),
-      );
-      decipher.setAuthTag(Buffer.from(authTag, 'base64'));
-
-      let decrypted = decipher.update(encrypted, 'base64', 'utf8');
-      decrypted += decipher.final('utf8');
-
-      return decrypted;
-    } catch {
-      return '[Unable to decrypt message]';
-    }
+    return this.messageCrypto.decryptMessage(encrypted, iv, authTag);
   }
 
   async handleConnection(socket: AuthenticatedSocket) {

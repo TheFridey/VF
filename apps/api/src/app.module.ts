@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
+import { validateEnv } from './config/env.validation';
 
 // Core modules
 import { PrismaModule } from './common/prisma/prisma.module';
@@ -38,6 +39,7 @@ import { ThrottlerGuard } from '@nestjs/throttler';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
+      validate: validateEnv,
     }),
 
     // Core infrastructure

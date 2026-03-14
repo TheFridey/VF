@@ -6,11 +6,11 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copy package files first for better layer caching
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 
 # Install all dependencies (including dev — needed for nest build)
-RUN npm install --legacy-peer-deps
+RUN npm ci
 
 # Generate Prisma client
 RUN npx prisma generate
@@ -34,10 +34,10 @@ RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001
 
 # Copy package files and install production-only dependencies
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 
-RUN npm install --omit=dev --legacy-peer-deps && \
+RUN npm ci --omit=dev && \
     npx prisma generate && \
     npm cache clean --force
 

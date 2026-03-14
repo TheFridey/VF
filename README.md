@@ -61,9 +61,9 @@ vf/
 There are currently two admin entry points in the repo:
 
 - `apps/admin` is the dedicated admin console on port `3002`.
-- `apps/web/src/app/admin/*` is an embedded admin route set inside the main web app.
+- `apps/web/src/app/admin/*` is now a transitional redirect layer inside the main web app.
 
-Both now use the same cookie-based auth model, but `apps/admin` is the cleaner isolated surface for day-to-day admin work.
+The long-term direction is `apps/admin`. Embedded `/admin/*` routes inside `apps/web` are intentionally being kept only so older links do not hard-break during the transition.
 
 ## Requirements
 
@@ -148,6 +148,8 @@ Copy-Item apps\web\.env.example apps\web\.env.local
 
 `apps/admin` typically only needs `NEXT_PUBLIC_API_URL` if you are not using the default local API URL.
 
+`apps/web/.env.example` now also includes `NEXT_PUBLIC_ADMIN_APP_URL` so the transitional admin redirect can send operators to the dedicated admin app.
+
 ### 4. Generate Prisma client and seed the database
 
 ```powershell
@@ -209,6 +211,27 @@ From the repo root:
 +-------------------+-----------------------------------------------+
 ```
 
+## Frontend Testing
+
+Frontend quality gates now live in `apps/web`:
+
+```powershell
+cd apps\web
+npm run test:unit
+npm run test:e2e:install
+npm run test:e2e
+```
+
+Current coverage focuses on high-risk user journeys:
+
+- login
+- signup into onboarding
+- protected route access
+- settings and verification start flow
+- BIA/forums navigation
+
+These tests are mocked at the browser boundary so they stay useful without depending on seeded API state.
+
 ## Makefile Targets
 
 For Linux, macOS, and WSL users:
@@ -265,6 +288,8 @@ The current seed file creates these useful starter accounts:
 | Veteran        | sarah.smith@example.com     | Password123!     |
 +----------------+-----------------------------+------------------+
 ```
+
+These credentials are for local development only. Do not reuse them for staging, demos with real users, or production-like environments.
 
 If you change the seed logic, treat `apps/api/prisma/seed.ts` as the source of truth.
 

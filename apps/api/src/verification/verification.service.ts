@@ -130,8 +130,8 @@ export class VerificationService {
       throw new BadRequestException('Please upload your HM Armed Forces Veteran Card or supporting documentation.');
     }
 
-    if (files.length > 3) {
-      throw new BadRequestException('Maximum 3 files per submission.');
+    if (files.length > 5) {
+      throw new BadRequestException('Maximum 5 files per submission.');
     }
 
     const evidenceUrls: string[] = [];
