@@ -1,28 +1,37 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
-  MessageSquare, Rocket, Heart, Shield, Users,
-  ChevronRight, Clock, ArrowLeft, Lock, UserPlus,
+  ArrowLeft,
+  ChevronRight,
+  Clock,
+  Lock,
+  MessageSquare,
+  Shield,
+  Swords,
+  UserPlus,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { Card, CardContent } from '@/components/ui/card';
-import { Spinner } from '@/components/ui/spinner';
 import { Badge } from '@/components/ui/badge';
+import { Spinner } from '@/components/ui/spinner';
+import { ForumPanel, ForumShell, ForumStage } from '@/components/bia/forum-shell';
 import { REGIMENT_BRANCH_LABELS, type RegimentBranch } from '@/lib/regiments';
-import { formatRelativeTime, cn } from '@/lib/utils';
+import { cn, formatRelativeTime } from '@/lib/utils';
 
 const ICON_MAP: Record<string, any> = {
-  MessageSquare, Rocket, Heart, Shield, Users,
+  MessageSquare,
+  Shield,
+  Clock,
+  Swords,
 };
 
 const BRANCH_COLOURS: Record<string, string> = {
-  BRITISH_ARMY:    'text-green-400 border-green-500/40',
-  ROYAL_MARINES:   'text-red-400 border-red-500/40',
-  ROYAL_NAVY:      'text-blue-400 border-blue-500/40',
-  ROYAL_AIR_FORCE: 'text-sky-400 border-sky-500/40',
-  RESERVE_FORCES:  'text-amber-400 border-amber-500/40',
+  BRITISH_ARMY: 'border-emerald-300/25 bg-emerald-400/10 text-emerald-100',
+  ROYAL_MARINES: 'border-rose-300/25 bg-rose-400/10 text-rose-100',
+  ROYAL_NAVY: 'border-sky-300/25 bg-sky-400/10 text-sky-100',
+  ROYAL_AIR_FORCE: 'border-cyan-300/25 bg-cyan-400/10 text-cyan-100',
+  RESERVE_FORCES: 'border-amber-300/25 bg-amber-400/10 text-amber-100',
 };
 
 export default function RegimentForumPage() {
@@ -32,124 +41,186 @@ export default function RegimentForumPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['regiment-forums', slug],
     queryFn: () => api.getRegimentForumCategories(slug),
-    retry: false, // don't retry 403s
+    retry: false,
   });
 
-  if (isLoading) return (
-    <div className="flex items-center justify-center h-64">
-      <Spinner className="w-8 h-8 text-green-500" />
-    </div>
-  );
+  if (isLoading) {
+    return (
+      <ForumStage>
+        <div className="flex h-64 items-center justify-center">
+          <Spinner className="h-8 w-8 text-emerald-400" />
+        </div>
+      </ForumStage>
+    );
+  }
 
-  // Access denied — user is not in this regiment
   if (error) {
     return (
-      <div className="max-w-2xl mx-auto p-6">
-        <button
-          onClick={() => router.push('/app/bia/forums/regiments')}
-          className="flex items-center gap-1.5 text-slate-400 hover:text-white text-sm mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> All Regiments
-        </button>
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center mx-auto mb-4">
-            <Lock className="w-8 h-8 text-slate-400" />
-          </div>
-          <h2 className="text-lg font-semibold text-white mb-2">Regiment Members Only</h2>
-          <p className="text-slate-400 text-sm mb-6">
-            This forum is private — only veterans of this regiment can access it.
-            To join, update your regiment in your profile settings.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+      <ForumStage>
+        <ForumShell className="max-w-4xl">
+          <ForumPanel className="p-6 sm:p-8">
             <button
-              onClick={() => router.push('/app/settings')}
-              className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
-            >
-              <UserPlus className="w-4 h-4" /> Update My Regiment
-            </button>
-            <button
+              type="button"
               onClick={() => router.push('/app/bia/forums/regiments')}
-              className="flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
+              className="inline-flex items-center gap-2 text-sm text-slate-400 transition-colors hover:text-white"
             >
-              View All Regiments
+              <ArrowLeft className="h-4 w-4" />
+              <span>All regiments</span>
             </button>
-          </div>
-        </div>
-      </div>
+
+            <div className="mt-6 flex gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+                <Lock className="h-6 w-6 text-slate-300" />
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Private access</p>
+                  <h1 className="mt-2 text-2xl font-semibold text-white">This regiment forum is members only</h1>
+                </div>
+                <p className="max-w-2xl text-sm leading-7 text-slate-300">
+                  Access is restricted to veterans whose profile is linked to this regiment. Update your regiment in settings to unlock the right unit space.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => router.push('/app/settings')}
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-2.5 text-sm font-medium text-slate-950 transition-colors hover:bg-emerald-300"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Update my regiment
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push('/app/bia/forums/regiments')}
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/10"
+                  >
+                    View all regiments
+                  </button>
+                </div>
+              </div>
+            </div>
+          </ForumPanel>
+        </ForumShell>
+      </ForumStage>
     );
   }
 
   const regiment = data?.regiment;
   const categories = data?.categories ?? [];
-  const branchColour = BRANCH_COLOURS[regiment?.branch ?? ''] ?? 'text-green-400 border-green-500/40';
+  const totalThreads = categories.reduce((sum: number, category: any) => sum + (category.threadCount ?? 0), 0);
+  const latestActivity = categories
+    .map((category: any) => category.latestThread?.lastPostAt)
+    .filter(Boolean)
+    .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime())[0];
+  const branchClass = BRANCH_COLOURS[regiment?.branch ?? ''] ?? 'border-emerald-300/25 bg-emerald-400/10 text-emerald-100';
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <button
-          onClick={() => router.push('/app/bia/forums/regiments')}
-          className="flex items-center gap-1.5 text-slate-400 hover:text-white text-sm mb-4 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> All Regiments
-        </button>
+    <ForumStage>
+      <ForumShell>
+        <ForumPanel className="overflow-hidden border-emerald-300/15">
+          <div className="grid gap-8 p-6 sm:p-8 xl:grid-cols-[1.15fr_0.85fr]">
+            <div className="space-y-5">
+              <button
+                type="button"
+                onClick={() => router.push('/app/bia/forums/regiments')}
+                className="inline-flex items-center gap-2 text-sm text-slate-400 transition-colors hover:text-white"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>All regiments</span>
+              </button>
 
-        <div className="flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <h1 className="text-xl font-bold text-white">{regiment?.name}</h1>
-              {regiment?.branch && (
-                <Badge variant="outline" className={cn('text-xs', branchColour)}>
-                  {REGIMENT_BRANCH_LABELS[regiment.branch as RegimentBranch]}
-                </Badge>
-              )}
-            </div>
-            <p className="text-sm text-slate-400">
-              Private forums for {regiment?.name} veterans · {categories.length} discussion areas
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Forum categories */}
-      <div className="space-y-1.5">
-        {categories.map((cat: any) => {
-          const Icon = ICON_MAP[cat.icon] ?? MessageSquare;
-          return (
-            <div
-              key={cat.id}
-              className="bg-slate-800 border border-slate-700 hover:border-green-500/60 hover:bg-slate-750 rounded-xl transition-all cursor-pointer group"
-              onClick={() => router.push(`/app/bia/forums/${cat.slug}`)}
-            >
-              <div className="p-4 flex items-center gap-4">
-                <div className="w-11 h-11 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0 group-hover:bg-green-500/20 transition-colors">
-                  <Icon className="w-5 h-5 text-green-400" />
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className={cn('border', branchClass)}>
+                    {REGIMENT_BRANCH_LABELS[regiment?.branch as RegimentBranch]}
+                  </Badge>
+                  <Badge variant="outline" className="border-white/10 text-slate-300">
+                    5 tailored rooms
+                  </Badge>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-slate-100 group-hover:text-green-300 transition-colors text-sm">
-                    {cat.name}
-                  </h3>
-                  <p className="text-sm text-slate-400 truncate mt-0.5">{cat.description}</p>
-                  {cat.latestThread ? (
-                    <div className="flex items-center gap-1.5 mt-1.5 text-xs text-slate-500">
-                      <Clock className="w-3 h-3" />
-                      <span className="truncate">Latest: {cat.latestThread.title}</span>
-                      <span>· {formatRelativeTime(cat.latestThread.lastPostAt)}</span>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-500 mt-1.5">No threads yet — be the first to post.</p>
-                  )}
-                </div>
-                <div className="text-right shrink-0 hidden sm:block mr-1">
-                  <p className="text-sm font-semibold text-slate-200">{cat.threadCount ?? 0}</p>
-                  <p className="text-xs text-slate-500">threads</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-green-400 transition-colors" />
+                <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+                  {regiment?.name}
+                </h1>
+                <p className="max-w-3xl text-base leading-7 text-slate-300">
+                  A private unit space for heritage, reunions, support, and operational conversation. Each room is seeded
+                  with tailored starter threads so the section feels alive from the first visit.
+                </p>
               </div>
             </div>
-          );
-        })}
-      </div>
-    </div>
+
+            <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
+              {[
+                { label: 'Rooms', value: categories.length, helper: 'General, history, reunions, support, ops' },
+                { label: 'Threads', value: totalThreads, helper: 'Seeded across the regiment space' },
+                { label: 'Latest', value: latestActivity ? formatRelativeTime(latestActivity) : 'Now', helper: 'Most recent activity' },
+              ].map(({ label, value, helper }) => (
+                <div key={label} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{label}</p>
+                  <p className="mt-4 text-3xl font-semibold text-white">{value}</p>
+                  <p className="mt-2 text-sm text-slate-400">{helper}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </ForumPanel>
+
+        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          {categories.map((category: any) => {
+            const Icon = ICON_MAP[category.icon] ?? MessageSquare;
+
+            return (
+              <ForumPanel key={category.id} className="group cursor-pointer overflow-hidden p-0 transition-all duration-300 hover:-translate-y-1 hover:border-emerald-300/35">
+                <button
+                  type="button"
+                  onClick={() => router.push(`/app/bia/forums/${category.slug}`)}
+                  className="block w-full text-left"
+                >
+                  <div className="border-b border-white/10 bg-white/[0.04] px-5 py-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-400/10 text-emerald-100">
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <h2 className="text-lg font-semibold text-white">{category.name}</h2>
+                          <p className="mt-1 text-sm text-slate-400">{category.description}</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-500 transition-colors group-hover:text-white" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 px-5 py-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Threads</p>
+                        <p className="mt-2 text-2xl font-semibold text-white">{category.threadCount ?? 0}</p>
+                      </div>
+                    </div>
+
+                    {category.latestThread ? (
+                      <div className="rounded-[20px] border border-white/10 bg-black/20 p-4">
+                        <div className="flex items-center gap-2 text-xs uppercase tracking-[0.24em] text-slate-500">
+                          <Clock className="h-3.5 w-3.5" />
+                          <span>Latest thread</span>
+                        </div>
+                        <p className="mt-3 text-sm font-medium text-slate-100">{category.latestThread.title}</p>
+                        <p className="mt-2 text-xs text-slate-400">
+                          {formatRelativeTime(category.latestThread.lastPostAt)} by {category.latestThread.author?.profile?.displayName || 'Unknown'}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="rounded-[20px] border border-white/10 bg-black/20 p-4 text-sm text-slate-400">
+                        No activity yet. Open the room and start the first thread.
+                      </div>
+                    )}
+                  </div>
+                </button>
+              </ForumPanel>
+            );
+          })}
+        </div>
+      </ForumShell>
+    </ForumStage>
   );
 }

@@ -70,6 +70,748 @@ function encryptMessage(text: string): { encryptedContent: string; iv: string; a
   };
 }
 
+const STANDARD_FORUM_CATEGORIES = [
+  {
+    slug: 'getting-started',
+    name: 'Getting Started',
+    description: 'New to VeteranFinder BIA? Start here.',
+    icon: 'Rocket',
+    sortOrder: 1,
+    tier: 'BIA',
+  },
+  {
+    slug: 'introduce-yourself',
+    name: 'Introduce Yourself',
+    description: 'Tell the community who you are and where you served.',
+    icon: 'Hand',
+    sortOrder: 2,
+    tier: 'BIA',
+  },
+  {
+    slug: 'veterans-support',
+    name: 'Veterans Support',
+    description: 'Share experiences, advice and support one another.',
+    icon: 'Heart',
+    sortOrder: 3,
+    tier: 'BIA',
+  },
+  {
+    slug: 'general-discussion',
+    name: 'General Discussion',
+    description: 'Anything and everything - keep it clean, keep it real.',
+    icon: 'MessageSquare',
+    sortOrder: 4,
+    tier: 'BIA',
+  },
+  {
+    slug: 'bunker-general',
+    name: 'The Bunker',
+    description: 'BIA+ exclusive - unrestricted discussion.',
+    icon: 'Shield',
+    sortOrder: 5,
+    tier: 'BIA_PLUS',
+  },
+  {
+    slug: 'ops-room',
+    name: 'Ops Room',
+    description: 'Tactical career and business discussions.',
+    icon: 'Briefcase',
+    sortOrder: 6,
+    tier: 'BIA_PLUS',
+  },
+  {
+    slug: 'classified',
+    name: 'Classified',
+    description: 'BIA+ members only - the inner circle.',
+    icon: 'Lock',
+    sortOrder: 7,
+    tier: 'BIA_PLUS',
+  },
+] as const;
+
+const REGIMENT_FORUM_TEMPLATES = [
+  { suffix: 'general',  name: 'General Discussion',      icon: 'MessageSquare', description: (r: string) => `General chat and announcements for ${r} veterans` },
+  { suffix: 'history',  name: 'History & Heritage',      icon: 'Shield',        description: (r: string) => `${r} history, traditions, battle honours and proud moments` },
+  { suffix: 'reunions', name: 'Reunions & Events',       icon: 'Users',         description: (r: string) => `Upcoming ${r} reunions, regimental dinners and veteran meetups` },
+  { suffix: 'support',  name: 'Veterans Support',        icon: 'Heart',         description: (r: string) => `Mental health resources, transition advice and mutual support for ${r} veterans` },
+  { suffix: 'ops',      name: 'Operations & Deployments', icon: 'Rocket',       description: (r: string) => `Stories, memories and discussions from ${r} operations and tours of duty` },
+] as const;
+
+const REGIMENT_BRANCH_CONTEXT: Record<string, {
+  serviceLabel: string;
+  environment: string;
+  culture: string;
+  transitionFocus: string;
+  historyFocus: string;
+}> = {
+  BRITISH_ARMY: {
+    serviceLabel: 'Army',
+    environment: 'battalion life, exercises, postings, and tours',
+    culture: 'regimental identity, soldiering stories, and the culture of the mess',
+    transitionFocus: 'leadership, operations, logistics, and practical civilian careers',
+    historyFocus: 'battle honours, campaigns, and long regimental lineages',
+  },
+  ROYAL_MARINES: {
+    serviceLabel: 'Royal Marines',
+    environment: 'commando training, winter deployments, detachments, and amphibious operations',
+    culture: 'green lid standards, detachment humour, and commando pride',
+    transitionFocus: 'high-performance teams, security, resilience, and specialist operations roles',
+    historyFocus: 'commando traditions, specialist tasks, and notable deployments',
+  },
+  ROYAL_NAVY: {
+    serviceLabel: 'Royal Navy',
+    environment: 'ship life, watches, ports, deployments, and life alongside',
+    culture: 'shipboard routines, branch banter, and life in the fleet',
+    transitionFocus: 'engineering, maritime operations, systems work, and leadership afloat or ashore',
+    historyFocus: 'ships, squadrons, sea service heritage, and fleet milestones',
+  },
+  ROYAL_AIR_FORCE: {
+    serviceLabel: 'Royal Air Force',
+    environment: 'stations, squadrons, flight line routines, and operational support',
+    culture: 'squadron identity, station life, and professional trade mastery',
+    transitionFocus: 'technical trades, aviation, engineering, project delivery, and command support',
+    historyFocus: 'squadron records, station heritage, and operational achievements',
+  },
+  RESERVE_FORCES: {
+    serviceLabel: 'Reserve Forces',
+    environment: 'balancing civilian life, training weekends, mobilisation, and specialist support',
+    culture: 'part-time service commitment, adaptability, and strong small-team bonds',
+    transitionFocus: 'blending civilian careers with service experience and veteran networking',
+    historyFocus: 'reserve contribution, mobilisation stories, and unit continuity',
+  },
+};
+
+type SeedForumCategory = {
+  id: string;
+  slug: string;
+  name: string;
+  tier: string;
+  regiment?: string | null;
+};
+
+type SeedForumThread = {
+  title: string;
+  content: string;
+  daysAgo: number;
+  isPinned?: boolean;
+  isLocked?: boolean;
+  viewCount?: number;
+};
+
+function buildStandardForumThreads(category: SeedForumCategory): SeedForumThread[] {
+  switch (category.slug) {
+    case 'getting-started':
+      return [
+        {
+          title: 'Welcome to the BIA forums - start here',
+          content: 'This is the best place to get your bearings. Share which branch you served in, what you want from the community, and what kind of introductions or support would help most.',
+          daysAgo: 28,
+          isPinned: true,
+          viewCount: 74,
+        },
+        {
+          title: 'How to get the most out of VeteranFinder',
+          content: 'Use this thread to swap practical tips for using the forums, finding your regiment space, and making the most of mentorship, business listings, and member introductions.',
+          daysAgo: 21,
+          viewCount: 49,
+        },
+        {
+          title: 'What brought you to the community?',
+          content: 'Some members are here to reconnect, some are here for support, and some just want solid company. Let us know what brought you in and what you hope to find.',
+          daysAgo: 15,
+          viewCount: 41,
+        },
+        {
+          title: 'First-week checklist for new members',
+          content: 'Introduce yourself, complete your profile, explore your regiment forums, and say hello in a thread that matches your interests. If you are new, this is a good place to ask quick questions.',
+          daysAgo: 9,
+          viewCount: 33,
+        },
+      ];
+    case 'introduce-yourself':
+      return [
+        {
+          title: 'Roll call: tell us where you served',
+          content: 'Introduce yourself with your branch, regiment or unit, where you are based now, and what you are getting up to in civvy street.',
+          daysAgo: 26,
+          isPinned: true,
+          viewCount: 67,
+        },
+        {
+          title: 'What is your story since leaving service?',
+          content: 'Whether you went into business, family life, study, or a completely different trade, share how life has changed since leaving the forces.',
+          daysAgo: 20,
+          viewCount: 44,
+        },
+        {
+          title: 'Hobby and interests check-in',
+          content: 'Let the community know what keeps you busy outside work. It might be fitness, gaming, fishing, motorsport, volunteering, or something totally unexpected.',
+          daysAgo: 12,
+          viewCount: 35,
+        },
+        {
+          title: 'Who are you hoping to reconnect with?',
+          content: 'If you are looking for old oppos, shipmates, detachment mates, or people from a particular tour or posting, post the details here and let others point you in the right direction.',
+          daysAgo: 7,
+          viewCount: 29,
+        },
+      ];
+    case 'veterans-support':
+      return [
+        {
+          title: 'Weekly check-in thread',
+          content: 'Use this space for an honest check-in. If things are going well, say so. If the week has been rough, you do not need to carry it on your own.',
+          daysAgo: 24,
+          isPinned: true,
+          viewCount: 58,
+        },
+        {
+          title: 'Best advice for transition to civilian life',
+          content: 'What genuinely helped when you left service? Share lessons on routine, work, family life, identity, and the small habits that made a difference.',
+          daysAgo: 19,
+          viewCount: 46,
+        },
+        {
+          title: 'Charities, services, and support that actually helped',
+          content: 'Recommend organisations, local groups, or practical services that have been useful for mental health, housing, finance, or family support.',
+          daysAgo: 11,
+          viewCount: 39,
+        },
+        {
+          title: 'Staying connected after service',
+          content: 'Isolation can creep in quietly. Share what helps you stay connected, whether that is meetups, messaging old mates, volunteering, training, or just having a regular brew with someone.',
+          daysAgo: 5,
+          viewCount: 31,
+        },
+      ];
+    case 'general-discussion':
+      return [
+        {
+          title: 'What is everyone focused on this month?',
+          content: 'Use this thread for a proper general catch-up. Work projects, family wins, training goals, travel plans, or anything else worth sharing is welcome here.',
+          daysAgo: 23,
+          isPinned: true,
+          viewCount: 52,
+        },
+        {
+          title: 'Best books, podcasts, or documentaries lately',
+          content: 'Recommend something worth watching, reading, or listening to. Veteran stories, history, comedy, business, or completely random suggestions all count.',
+          daysAgo: 17,
+          viewCount: 38,
+        },
+        {
+          title: 'Fitness routines that still keep you honest',
+          content: 'What training are you sticking with nowadays? Share routines, injuries to work around, or simple ways to stay disciplined without a PTI breathing down your neck.',
+          daysAgo: 10,
+          viewCount: 34,
+        },
+        {
+          title: 'Small wins worth celebrating',
+          content: 'Promotion, new job, house move, better sleep, first 5k back, or just getting through a hard week. Drop your wins here so the rest of the community can raise a glass.',
+          daysAgo: 4,
+          viewCount: 27,
+        },
+      ];
+    case 'bunker-general':
+      return [
+        {
+          title: 'BIA+ members lounge',
+          content: 'This is a relaxed space for BIA+ members to talk more freely, make introductions, and start conversations that do not fit neatly anywhere else.',
+          daysAgo: 22,
+          isPinned: true,
+          viewCount: 61,
+        },
+        {
+          title: 'What are you building or planning right now?',
+          content: 'Business ideas, side projects, training plans, relocation plans, or a fresh start after service - talk through what you are working toward.',
+          daysAgo: 16,
+          viewCount: 43,
+        },
+        {
+          title: 'High-trust networking thread',
+          content: 'If you are open to introductions, collaborations, or swapping specialist knowledge, post what you do and what sort of people you would like to connect with.',
+          daysAgo: 8,
+          viewCount: 36,
+        },
+        {
+          title: 'What topics do you want more of in The Bunker?',
+          content: 'Tell us which discussions would make this space more valuable, from leadership and investing to entrepreneurship, resilience, and long-form Q and A threads.',
+          daysAgo: 3,
+          viewCount: 25,
+        },
+      ];
+    case 'ops-room':
+      return [
+        {
+          title: 'Business owners and operators roll call',
+          content: 'If you run a business, freelance, lead a team, or are building something from scratch, introduce yourself and say what sector you are in.',
+          daysAgo: 21,
+          isPinned: true,
+          viewCount: 55,
+        },
+        {
+          title: 'Hiring, interviews, and career moves',
+          content: 'Share roles you are hiring for, industries that are opening up, or practical interview advice for veterans moving into leadership and operations work.',
+          daysAgo: 14,
+          viewCount: 42,
+        },
+        {
+          title: 'Remote work, consulting, and contract opportunities',
+          content: 'This thread is for swapping leads, lessons, and warnings on remote work, consulting gigs, and contract roles that suit a veteran skill set.',
+          daysAgo: 9,
+          viewCount: 33,
+        },
+        {
+          title: 'What business skill was hardest to learn after service?',
+          content: 'Finance, sales, networking, delegation, marketing, or something else entirely - talk through the civilian business skills that took time to build.',
+          daysAgo: 2,
+          viewCount: 24,
+        },
+      ];
+    case 'classified':
+      return [
+        {
+          title: 'Trusted introductions thread',
+          content: 'Use this for thoughtful, high-trust introductions between members. Include enough context so people know what you are working on and where a useful connection could help.',
+          daysAgo: 18,
+          isPinned: true,
+          viewCount: 47,
+        },
+        {
+          title: 'Accountability thread for serious goals',
+          content: 'Post one goal you are committed to this quarter and what support, challenge, or accountability would keep you moving.',
+          daysAgo: 13,
+          viewCount: 37,
+        },
+        {
+          title: 'Resources worth sharing with the inner circle',
+          content: 'If you have a genuinely useful template, process, reading list, tool, or introduction strategy, share it here so the rest of the group can benefit.',
+          daysAgo: 6,
+          viewCount: 28,
+        },
+        {
+          title: 'Mentors, specialists, and quiet professionals',
+          content: 'This is a space to flag up the kinds of expertise you can offer or the kind you are looking for, especially when discretion matters.',
+          daysAgo: 1,
+          viewCount: 20,
+        },
+      ];
+    default:
+      return [];
+  }
+}
+
+function buildRegimentForumThreads(category: SeedForumCategory): SeedForumThread[] {
+  const regimentInfo = UK_REGIMENTS.find((regiment) => regiment.slug === category.regiment);
+  const regimentName = regimentInfo?.name ?? 'this regiment';
+
+  if (category.slug.endsWith('-general')) {
+    return [
+      {
+        title: `${regimentName} roll call`,
+        content: `If you served with ${regimentName}, introduce yourself here. Let everyone know when you served, where you are based now, and what you would like to see from this forum.`,
+        daysAgo: 27,
+        isPinned: true,
+        viewCount: 45,
+      },
+      {
+        title: `Where did ${regimentName} take you?`,
+        content: `Share the postings, exercises, deployments, and unexpected places your time with ${regimentName} took you. The details are often what spark old connections.`,
+        daysAgo: 19,
+        viewCount: 31,
+      },
+      {
+        title: `Photos, kit, and keepsakes from ${regimentName}`,
+        content: `Whether it is a beret badge, a battered notebook, a course photo, or a funny bit of issued kit, tell the story behind the items you still have.`,
+        daysAgo: 10,
+        viewCount: 22,
+      },
+      {
+        title: `What is everyone doing after ${regimentName}?`,
+        content: `Use this thread to catch up on what life looks like after service: work, family, projects, study, travel, or anything else members are getting stuck into.`,
+        daysAgo: 4,
+        viewCount: 18,
+      },
+    ];
+  }
+
+  if (category.slug.endsWith('-history')) {
+    return [
+      {
+        title: `Proudest moments in ${regimentName} history`,
+        content: `Which moments, campaigns, traditions, or battle honours stand out most when you think about ${regimentName}? Share the stories and reasons they still matter.`,
+        daysAgo: 25,
+        isPinned: true,
+        viewCount: 34,
+      },
+      {
+        title: `Traditions and customs worth preserving`,
+        content: `From mess traditions to parade details and nicknames only insiders understand, this is a place to capture the culture that made ${regimentName} distinctive.`,
+        daysAgo: 17,
+        viewCount: 26,
+      },
+      {
+        title: `Best books, museums, and archives for ${regimentName}`,
+        content: `Recommend the books, museum collections, associations, or archive resources that do the best job of telling the ${regimentName} story.`,
+        daysAgo: 8,
+        viewCount: 19,
+      },
+      {
+        title: `Stories passed down from older hands`,
+        content: `Many of the best regimental stories are the ones told in person. Share the ones you heard from older veterans and why they stuck with you.`,
+        daysAgo: 3,
+        viewCount: 16,
+      },
+    ];
+  }
+
+  if (category.slug.endsWith('-reunions')) {
+    return [
+      {
+        title: `Next ${regimentName} reunion - who is up for it?`,
+        content: `Use this thread to sound out interest for the next reunion, dinner, or informal get-together for ${regimentName} veterans.`,
+        daysAgo: 24,
+        isPinned: true,
+        viewCount: 30,
+      },
+      {
+        title: `Regional meetups for ${regimentName} veterans`,
+        content: `Not everyone can make a national event, so use this space to organise smaller local meetups by region, city, or county.`,
+        daysAgo: 15,
+        viewCount: 24,
+      },
+      {
+        title: `Ideas for reunion venues and formats`,
+        content: `What actually makes a good veteran event for ${regimentName}? Share venue ideas, formats, dates, and ways to make events easy for more people to attend.`,
+        daysAgo: 7,
+        viewCount: 17,
+      },
+      {
+        title: `Who is willing to help organise?`,
+        content: `If you are happy to help with venues, contacts, ticketing, notices, or just rallying the troops, drop your name here and coordinate with others.`,
+        daysAgo: 2,
+        viewCount: 12,
+      },
+    ];
+  }
+
+  if (category.slug.endsWith('-support')) {
+    return [
+      {
+        title: `${regimentName} welfare and support check-in`,
+        content: `This thread is here for practical support and a bit of mutual watchfulness. If you need a steer, or if you have experience that could help someone else, speak up.`,
+        daysAgo: 23,
+        isPinned: true,
+        viewCount: 29,
+      },
+      {
+        title: `Transition advice from former ${regimentName} veterans`,
+        content: `Share the lessons that helped when leaving service, especially around routine, work, identity, and staying connected after life in ${regimentName}.`,
+        daysAgo: 16,
+        viewCount: 21,
+      },
+      {
+        title: `Employment and networking leads for the regiment`,
+        content: `If you know of good employers, veteran-friendly teams, or networking groups that fellow ${regimentName} veterans should know about, add them here.`,
+        daysAgo: 9,
+        viewCount: 18,
+      },
+      {
+        title: `How do we look after our own better?`,
+        content: `Talk through what practical support, outreach, or signposting would make this space genuinely useful for current and former members of ${regimentName}.`,
+        daysAgo: 3,
+        viewCount: 14,
+      },
+    ];
+  }
+
+  if (category.slug.endsWith('-ops')) {
+    return [
+      {
+        title: `${regimentName} tours and deployment memories`,
+        content: `Use this thread for stories, reflections, and memories from operations, exercises, or deployments with ${regimentName}. Keep it respectful and use judgment with details.`,
+        daysAgo: 22,
+        isPinned: true,
+        viewCount: 32,
+      },
+      {
+        title: `Hardest exercise or tour with ${regimentName}`,
+        content: `What tested you the most during your time with ${regimentName}, and what did it teach you about the unit, the job, or yourself?`,
+        daysAgo: 14,
+        viewCount: 24,
+      },
+      {
+        title: `Lessons learned that still stick today`,
+        content: `Share the professional habits, fieldcraft, leadership lessons, or bits of wisdom from ${regimentName} that you still carry into civilian life.`,
+        daysAgo: 6,
+        viewCount: 17,
+      },
+      {
+        title: `Training serials and moments nobody forgets`,
+        content: `Every regiment has the training stories people tell years later. Add the exercises, ranges, inspections, or mad moments that still get talked about.`,
+        daysAgo: 1,
+        viewCount: 13,
+      },
+    ];
+  }
+
+  return [
+    {
+      title: `${category.name} starter thread`,
+      content: `Welcome to ${category.name}. Use this thread to get conversations started and help shape this forum into something useful for the community.`,
+      daysAgo: 7,
+      isPinned: true,
+      viewCount: 12,
+    },
+    {
+      title: `What would you like to discuss in ${category.name}?`,
+      content: `If there are topics this forum should cover, post them here so other members can jump in and build the conversation.`,
+      daysAgo: 4,
+      viewCount: 8,
+    },
+    {
+      title: `Helpful resources for ${category.name}`,
+      content: 'Share links, recommendations, and practical information that would make this part of the forum more useful.',
+      daysAgo: 2,
+      viewCount: 6,
+    },
+    {
+      title: `Community check-in`,
+      content: 'Say hello, share what you are focused on, and let others know what kind of conversations would be most helpful here.',
+      daysAgo: 1,
+      viewCount: 5,
+    },
+  ];
+}
+
+function buildSignatureForumThread(category: SeedForumCategory): SeedForumThread | null {
+  if (category.tier === 'REGIMENT') {
+    const regimentInfo = UK_REGIMENTS.find((regiment) => regiment.slug === category.regiment);
+    if (!regimentInfo) return null;
+
+    const context = REGIMENT_BRANCH_CONTEXT[regimentInfo.branch] ?? {
+      serviceLabel: 'service',
+      environment: 'service life, postings, and deployments',
+      culture: 'unit identity and the stories people carry forward',
+      transitionFocus: 'practical next steps after service',
+      historyFocus: 'heritage, milestones, and shared memory',
+    };
+
+    if (category.slug.endsWith('-general')) {
+      return {
+        title: `${regimentInfo.name}: life, culture, and identity`,
+        content: `For veterans from ${regimentInfo.name}, this thread is about the small details that made the unit feel like home: ${context.environment}, ${context.culture}, and the people who made the hardest days manageable. If you served in ${regimentInfo.category}, add the routines, sayings, personalities, and moments that still define ${regimentInfo.name} for you.`,
+        daysAgo: 2,
+        viewCount: 15,
+      };
+    }
+
+    if (category.slug.endsWith('-history')) {
+      return {
+        title: `Resources that tell the ${regimentInfo.name} story properly`,
+        content: `This forum should become a useful archive for ${regimentInfo.name}. Share books, museums, old journals, association newsletters, memorial sites, photo collections, and oral histories that best capture ${context.historyFocus}. If a source gets the detail wrong, say that too and help point people toward better material.`,
+        daysAgo: 1,
+        viewCount: 14,
+      };
+    }
+
+    if (category.slug.endsWith('-reunions')) {
+      return {
+        title: `${regimentInfo.name} calendar: dinners, association events, and annual gatherings`,
+        content: `Use this thread to keep one practical running list of events for ${regimentInfo.name}: reunions, remembrance parades, regimental association meetings, charity fundraisers, and informal local get-togethers. Include dates, locations, dress or ticket details, and whether new attendees or families are welcome.`,
+        daysAgo: 1,
+        viewCount: 12,
+      };
+    }
+
+    if (category.slug.endsWith('-support')) {
+      return {
+        title: `${regimentInfo.name} careers, welfare, and trusted contacts`,
+        content: `For many veterans, the most valuable support is specific and practical. If you know welfare contacts, association reps, veteran-friendly employers, training schemes, or reliable peer-support routes that help former ${regimentInfo.name} personnel, add them here. Advice tied to ${context.transitionFocus} is especially useful.`,
+        daysAgo: 1,
+        viewCount: 13,
+      };
+    }
+
+    if (category.slug.endsWith('-ops')) {
+      return {
+        title: `${regimentInfo.name} lessons, leadership, and professional standards`,
+        content: `Beyond the stories themselves, what professional habits from ${regimentInfo.name} still stand out? Talk about leadership, field standards, tradecraft, humour under pressure, and the lessons that carried from ${context.serviceLabel} service into later life. This is the place for thoughtful reflections rather than just war stories.`,
+        daysAgo: 1,
+        viewCount: 14,
+      };
+    }
+  }
+
+  switch (category.slug) {
+    case 'getting-started':
+      return {
+        title: 'Questions new members often ask in their first week',
+        content: 'If you were new to the BIA space, what would you want explained clearly on day one? Use this thread to post the practical questions members actually have about memberships, regiment access, introductions, posting etiquette, and how to find the most useful conversations quickly.',
+        daysAgo: 3,
+        viewCount: 26,
+      };
+    case 'introduce-yourself':
+      return {
+        title: 'Service background, current mission, next chapter',
+        content: 'A strong introduction often covers three things: where you served, what life looks like now, and where you want to head next. If you are unsure what to write in your introduction, use this thread as a prompt and give people enough context to connect properly.',
+        daysAgo: 2,
+        viewCount: 23,
+      };
+    case 'veterans-support':
+      return {
+        title: 'Support that felt practical rather than performative',
+        content: 'Veterans usually know the difference between advice that sounds good and advice that actually helps. Share the routines, conversations, services, and habits that genuinely moved the needle for you or someone close to you.',
+        daysAgo: 2,
+        viewCount: 24,
+      };
+    case 'general-discussion':
+      return {
+        title: 'What should the wider BIA community talk about more?',
+        content: 'This thread is for steering the overall tone of the forums. If there are conversations missing from the community, or subjects that deserve more thoughtful discussion, post them here and help shape the direction of the section.',
+        daysAgo: 1,
+        viewCount: 18,
+      };
+    case 'general':
+      return {
+        title: 'Open floor: what deserves more conversation here?',
+        content: 'Use this as a true general room thread for anything that does not quite fit another forum but still matters to the veteran community. Good posts here usually bring a clear topic, a bit of context, and enough detail to draw in the right people.',
+        daysAgo: 1,
+        viewCount: 18,
+      };
+    case 'mental-health':
+      return {
+        title: 'What helped when you were not ready to ask for help yet?',
+        content: 'This thread is for practical insight rather than polished slogans. If there were habits, people, routines, services, or warning signs that made a real difference before or during a difficult period, share them here in a way that might help someone else recognise their own next step.',
+        daysAgo: 1,
+        viewCount: 19,
+      };
+    case 'ops-and-tours':
+      return {
+        title: 'Operations, tours, and the things that stayed with you',
+        content: 'Not every memory from deployment is dramatic, and not every lesson arrives in the moment. This is the place for reflections on tours, leadership, tempo, humour, standards, and the details that stayed with you after coming home.',
+        daysAgo: 1,
+        viewCount: 17,
+      };
+    case 'the-bunker':
+      return {
+        title: 'What should make this premium room genuinely different?',
+        content: 'If The Bunker is going to feel worth paying for, it should offer a different quality of discussion. Use this thread to suggest the kinds of deeper conversations, access, and trust-driven exchanges that should define the space.',
+        daysAgo: 1,
+        viewCount: 18,
+      };
+    case 'transition':
+      return {
+        title: 'The hardest part of Civvy Street that nobody explained properly',
+        content: 'This thread is for honest, practical transition advice. Whether the difficulty was identity, money, routine, family life, applications, confidence, or simply feeling out of place, share what caught you off guard and what helped you get traction again.',
+        daysAgo: 1,
+        viewCount: 20,
+      };
+    case 'bunker-general':
+      return {
+        title: 'Where should The Bunker go next?',
+        content: 'BIA+ members can help define the premium side of the community here. Suggest the kinds of deeper conversations, roundtables, introductions, or expert-led threads that would make The Bunker feel genuinely worth returning to.',
+        daysAgo: 1,
+        viewCount: 19,
+      };
+    case 'ops-room':
+      return {
+        title: 'Operator to operator: what strategic advice matters most now?',
+        content: 'Use this thread for the higher-level advice that helps veterans build strong second careers: positioning, networks, reputation, pricing, leadership, business development, and spotting the difference between busy work and progress.',
+        daysAgo: 1,
+        viewCount: 17,
+      };
+    case 'classified':
+      return {
+        title: 'Quiet asks, trusted help, and serious introductions',
+        content: 'If you need a high-trust introduction, a discreet sense check, or experienced eyes on a serious decision, this is the thread to explain the context clearly and ask for support from the inner circle.',
+        daysAgo: 1,
+        viewCount: 16,
+      };
+    default:
+      return null;
+  }
+}
+
+function getForumThreadsForCategory(category: SeedForumCategory): SeedForumThread[] {
+  const baseThreads = category.tier === 'REGIMENT'
+    ? buildRegimentForumThreads(category)
+    : buildStandardForumThreads(category);
+
+  const fallbackThreads = [
+    {
+      title: `Welcome to ${category.name}`,
+      content: `Use this thread to kick off discussion in ${category.name} and help set the tone for the forum.`,
+      daysAgo: 7,
+      isPinned: true,
+      viewCount: 12,
+    },
+    {
+      title: `Best conversations for ${category.name}`,
+      content: 'Share the kinds of questions, stories, and discussions you would most like to see here.',
+      daysAgo: 4,
+      viewCount: 9,
+    },
+    {
+      title: `Useful advice and resources`,
+      content: 'Add anything practical that would help this community forum become more valuable over time.',
+      daysAgo: 2,
+      viewCount: 7,
+    },
+    {
+      title: `Open discussion`,
+      content: 'A simple open thread for members to post updates, questions, and ideas related to this forum.',
+      daysAgo: 1,
+      viewCount: 5,
+    },
+  ];
+
+  const signatureThread = buildSignatureForumThread(category);
+  const resolvedThreads = baseThreads.length > 0 ? baseThreads : fallbackThreads;
+
+  return signatureThread
+    ? [...resolvedThreads, signatureThread]
+    : resolvedThreads;
+}
+
+async function ensureForumThread(categoryId: string, authorId: string, thread: SeedForumThread): Promise<boolean> {
+  const existing = await prisma.forumThread.findFirst({
+    where: {
+      categoryId,
+      authorId,
+      title: thread.title,
+    },
+    select: { id: true },
+  });
+
+  if (existing) return false;
+
+  const createdAt = new Date(Date.now() - (thread.daysAgo * 24 * 60 * 60 * 1000));
+
+  await prisma.forumThread.create({
+    data: {
+      categoryId,
+      authorId,
+      title: thread.title,
+      isPinned: thread.isPinned ?? false,
+      isLocked: thread.isLocked ?? false,
+      viewCount: thread.viewCount ?? 0,
+      postCount: 1,
+      lastPostAt: createdAt,
+      createdAt,
+      posts: {
+        create: {
+          authorId,
+          content: thread.content,
+          createdAt,
+        },
+      },
+    },
+  });
+
+  return true;
+}
+
 async function main() {
   console.log('🌱 Seeding database with comprehensive test data...');
   console.log('');
@@ -95,10 +837,23 @@ async function main() {
       emailVerified: true,
       profile: {
         create: {
-          displayName: 'System Admin',
+          displayName: 'Admin',
           bio: 'Platform administrator',
         },
       },
+    },
+  });
+  await prisma.profile.upsert({
+    where: { userId: admin.id },
+    update: {
+      displayName: 'Admin',
+      bio: 'Platform administrator',
+    },
+    create: {
+      userId: admin.id,
+      displayName: 'Admin',
+      bio: 'Platform administrator',
+      isVisible: true,
     },
   });
   console.log('✅ Admin:', admin.email);
@@ -893,15 +1648,32 @@ async function main() {
 
   // ============ REGIMENT FORUMS ============
   console.log('');
-  console.log('🪖 Seeding regiment forum categories...');
+  console.log('🪖 Seeding forum categories...');
 
-  const REGIMENT_FORUM_TEMPLATES = [
-    { suffix: 'general',  name: 'General Discussion',      icon: 'MessageSquare', description: (r: string) => `General chat and announcements for ${r} veterans` },
-    { suffix: 'history',  name: 'History & Heritage',       icon: 'Shield',        description: (r: string) => `${r} history, traditions, battle honours and proud moments` },
-    { suffix: 'reunions', name: 'Reunions & Events',        icon: 'Users',         description: (r: string) => `Upcoming ${r} reunions, regimental dinners and veteran meetups` },
-    { suffix: 'support',  name: 'Veterans Support',         icon: 'Heart',         description: (r: string) => `Mental health resources, transition advice and mutual support for ${r} veterans` },
-    { suffix: 'ops',      name: 'Operations & Deployments', icon: 'Rocket',        description: (r: string) => `Stories, memories and discussions from ${r} operations and tours of duty` },
-  ];
+  for (const category of STANDARD_FORUM_CATEGORIES) {
+    await (prisma as any).forumCategory.upsert({
+      where: { slug: category.slug },
+      update: {
+        name: category.name,
+        description: category.description,
+        icon: category.icon,
+        tier: category.tier,
+        sortOrder: category.sortOrder,
+        isActive: true,
+        regiment: null,
+      },
+      create: {
+        slug: category.slug,
+        name: category.name,
+        description: category.description,
+        icon: category.icon,
+        tier: category.tier,
+        sortOrder: category.sortOrder,
+        isActive: true,
+      },
+    });
+  }
+  console.log(`✅ ${STANDARD_FORUM_CATEGORIES.length} standard forum categories ready`);
 
   let regimentCategoriesCreated = 0;
   for (const regiment of UK_REGIMENTS) {
@@ -909,7 +1681,15 @@ async function main() {
       const tpl = REGIMENT_FORUM_TEMPLATES[i];
       await (prisma as any).forumCategory.upsert({
         where: { slug: `${regiment.slug}-${tpl.suffix}` },
-        update: {},
+        update: {
+          name: tpl.name,
+          description: tpl.description(regiment.name),
+          icon: tpl.icon,
+          tier: 'REGIMENT',
+          regiment: regiment.slug,
+          sortOrder: i,
+          isActive: true,
+        },
         create: {
           slug: `${regiment.slug}-${tpl.suffix}`,
           name: tpl.name,
@@ -925,6 +1705,35 @@ async function main() {
     }
   }
   console.log(`✅ ${regimentCategoriesCreated} regiment forum categories created (${UK_REGIMENTS.length} regiments × 5 forums)`);
+
+  console.log('');
+  console.log('🧵 Seeding starter forum threads from Admin...');
+
+  const forumCategories = await (prisma as any).forumCategory.findMany({
+    where: { isActive: true },
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      tier: true,
+      regiment: true,
+    },
+    orderBy: [
+      { tier: 'asc' },
+      { sortOrder: 'asc' },
+      { name: 'asc' },
+    ],
+  });
+
+  let starterThreadsCreated = 0;
+  for (const category of forumCategories as SeedForumCategory[]) {
+    const starterThreads = getForumThreadsForCategory(category);
+    for (const starterThread of starterThreads) {
+      const created = await ensureForumThread(category.id, admin.id, starterThread);
+      if (created) starterThreadsCreated++;
+    }
+  }
+  console.log(`✅ ${starterThreadsCreated} Admin starter threads created across ${forumCategories.length} forums`);
 
   // ============ ASSIGN REGIMENTS TO EXISTING USERS ============
   console.log('');

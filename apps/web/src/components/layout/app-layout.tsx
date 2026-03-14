@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth-store';
 import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { Navbar } from './navbar';
 import { Loader2 } from 'lucide-react';
 
@@ -69,10 +70,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (!user) return null;
 
+  const isForumRoute = pathname.startsWith('/app/bia/forums');
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container mx-auto px-4 py-6">
+      <main className={cn(
+        isForumRoute
+          ? 'w-full max-w-none px-0 py-0'
+          : 'container mx-auto px-4 py-6',
+      )}>
         {children}
       </main>
     </div>
