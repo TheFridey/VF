@@ -1,222 +1,479 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { adminApi } from '@/lib/api';
-import { Shield, Check, X, Eye, FileText, Clock } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Check, Clock3, Eye, FileText, Shield, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { adminApi } from '@/lib/api';
+import { usePersistedAdminState } from '@/lib/use-persisted-admin-state';
+import {
+  AdminBulkActionBar,
+  AdminCard,
+  AdminEmptyState,
+  AdminFilterBar,
+  AdminPageHeader,
+  AdminSelect,
+  AdminStatusChip,
+  AdminTableCell,
+  AdminTableHeadCell,
+  AdminTableShell,
+  adminActionButtonStyle,
+  adminTextareaStyle,
+  adminTheme,
+} from '@/components/admin-ui';
 
-const S = {
-  card: { background: '#0d1524', border: '1px solid #1a2636', borderRadius: 8 },
-  label: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#3a5068', letterSpacing: 2, textTransform: 'uppercase' as const },
-  h1: { fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 28, color: '#dce8f5', letterSpacing: 0.5 },
-  select: { background: '#060c17', border: '1px solid #1a2636', borderRadius: 6, padding: '8px 12px', color: '#c8d6e5', fontSize: 12, fontFamily: "'JetBrains Mono', monospace", outline: 'none', cursor: 'pointer' },
-  textarea: { background: '#060c17', border: '1px solid #1a2636', borderRadius: 6, padding: '9px 12px', color: '#c8d6e5', fontSize: 13, outline: 'none', width: '100%', resize: 'none' as const, fontFamily: "'Barlow', sans-serif" },
-  th: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#2d4055', letterSpacing: 2, padding: '11px 16px', textAlign: 'left' as const, borderBottom: '1px solid #141f2e', fontWeight: 500 },
-  td: { padding: '14px 16px', borderBottom: '1px solid #0d1524', fontSize: 13, color: '#7a9bb5', verticalAlign: 'middle' as const },
-  btn: (c: string) => ({ background: `${c}14`, border: `1px solid ${c}30`, color: c, borderRadius: 5, padding: '5px 10px', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 500 }),
-  badge: (c: string) => ({ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: 1.5, padding: '3px 8px', borderRadius: 3, background: `${c}18`, color: c, border: `1px solid ${c}30` }),
+const statusColors: Record<string, string> = {
+  PENDING: adminTheme.warning,
+  APPROVED: adminTheme.success,
+  REJECTED: adminTheme.danger,
 };
 
-const statusColor: Record<string, string> = { PENDING: '#fbbf24', APPROVED: '#34d399', REJECTED: '#f87171' };
+function getSlaLabel(sla?: { urgency?: string; hoursElapsed?: number; targetHours?: number }) {
+  if (!sla) {
+    return null;
+  }
+
+  if (sla.urgency === 'breached') {
+    return { label: 'Breached', color: adminTheme.danger };
+  }
+
+  if (sla.urgency === 'urgent') {
+    return { label: 'Urgent', color: adminTheme.warning };
+  }
+
+  return { label: 'On track', color: adminTheme.success };
+}
 
 export default function VerificationPage() {
+  const [filters, setFilters, filtersHydrated] = usePersistedAdminState('vf-admin-verification-filters', {
+    status: 'PENDING',
+  });
   const [requests, setRequests] = useState<any[]>([]);
-  const [statusFilter, setStatusFilter] = useState('PENDING');
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<any>(null);
-  const [approvalNotes, setApprovalNotes] = useState('');
-  const [rejectionReason, setRejectionReason] = useState('');
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkMode, setBulkMode] = useState<'APPROVE' | 'REJECT' | null>(null);
+  const [decisionNotes, setDecisionNotes] = useState('');
   const [saving, setSaving] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
+  const [queueSummary, setQueueSummary] = useState({ normal: 0, urgent: 0, breached: 0 });
 
-  const fetch = async () => {
+  const fetchRequests = async () => {
     setLoading(true);
     try {
-      const data = await adminApi.getPendingVerifications();
-      // API returns array of pending, or paginated object
-      const arr = Array.isArray(data) ? data : (data.requests || data.data || []);
-      if (statusFilter === 'PENDING' || !statusFilter) {
-        setRequests(arr.filter((r: any) => !statusFilter || r.status === statusFilter));
+      const data = await adminApi.getPendingVerifications({
+        status: filters.status || undefined,
+        limit: 50,
+      });
+      const nextRequests = Array.isArray(data) ? data : (data.requests || data.data || []);
+      setRequests(nextRequests);
+      setQueueSummary(data.slaSummary || { normal: 0, urgent: 0, breached: 0 });
+      setSelectedIds((current) => current.filter((id) => nextRequests.some((request: any) => request.id === id)));
+    } catch {
+      toast.error('Failed to load verifications');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!filtersHydrated) {
+      return;
+    }
+
+    fetchRequests().catch(console.error);
+  }, [filters.status, filtersHydrated]);
+
+  const pendingCount = useMemo(
+    () => requests.filter((request) => request.status === 'PENDING').length,
+    [requests],
+  );
+
+  const selectableCount = requests.filter((request) => request.status === 'PENDING').length;
+  const allSelectableSelected =
+    selectableCount > 0 &&
+    requests.filter((request) => request.status === 'PENDING').every((request) => selectedIds.includes(request.id));
+
+  const applySingleDecision = async (decision: 'APPROVE' | 'REJECT') => {
+    if (!selectedRequest) {
+      return;
+    }
+
+    if (decision === 'REJECT' && !decisionNotes.trim()) {
+      toast.error('A rejection reason is required');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (decision === 'APPROVE') {
+        await adminApi.approveVerification(selectedRequest.id, decisionNotes);
+        toast.success('Verification approved');
       } else {
-        setRequests(arr.filter((r: any) => r.status === statusFilter));
+        await adminApi.rejectVerification(selectedRequest.id, decisionNotes);
+        toast.success('Verification rejected');
       }
-      setPendingCount(arr.filter((r: any) => r.status === 'PENDING').length);
-    } catch { toast.error('Failed to load verifications'); }
-    finally { setLoading(false); }
+
+      setSelectedRequest(null);
+      setDecisionNotes('');
+      await fetchRequests();
+    } catch {
+      toast.error('Unable to save decision');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  useEffect(() => { fetch(); }, [statusFilter]);
+  const applyBulkDecision = async () => {
+    if (!bulkMode || selectedIds.length === 0) {
+      return;
+    }
 
-  const handleApprove = async () => {
-    if (!selected) return;
+    if (bulkMode === 'REJECT' && !decisionNotes.trim()) {
+      toast.error('A rejection reason is required');
+      return;
+    }
+
     setSaving(true);
     try {
-      await adminApi.approveVerification(selected.id, approvalNotes);
-      toast.success('Approved — email sent to veteran');
-      setSelected(null); setApprovalNotes(''); fetch();
-    } catch { toast.error('Failed to approve'); }
-    finally { setSaving(false); }
+      const result = await adminApi.bulkReviewVerifications({
+        requestIds: selectedIds,
+        decision: bulkMode,
+        notes: decisionNotes,
+      });
+
+      toast.success(
+        `${result.updatedCount || 0} request${result.updatedCount === 1 ? '' : 's'} ${
+          bulkMode === 'APPROVE' ? 'approved' : 'rejected'
+        }`,
+      );
+      if (result.skippedCount) {
+        toast(`${result.skippedCount} request${result.skippedCount === 1 ? '' : 's'} skipped`, {
+          icon: 'i',
+        });
+      }
+
+      setSelectedIds([]);
+      setBulkMode(null);
+      setDecisionNotes('');
+      await fetchRequests();
+    } catch {
+      toast.error('Bulk review failed');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleReject = async () => {
-    if (!selected || !rejectionReason.trim()) { toast.error('Rejection reason required'); return; }
-    setSaving(true);
-    try {
-      await adminApi.rejectVerification(selected.id, rejectionReason);
-      toast.success('Rejected — email sent to veteran');
-      setSelected(null); setRejectionReason(''); fetch();
-    } catch { toast.error('Failed to reject'); }
-    finally { setSaving(false); }
+  const openReview = (request: any) => {
+    setSelectedRequest(request);
+    setDecisionNotes(request.notes || request.rejectionReason || '');
   };
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div>
-          <h1 style={S.h1}>Verification Queue</h1>
-          <p style={{ ...S.label, marginTop: 5 }}>Review veteran identity documents</p>
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {pendingCount > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: '#fbbf2414', border: '1px solid #fbbf2430', borderRadius: 6 }}>
-              <Clock size={13} color="#fbbf24" />
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#fbbf24' }}>{pendingCount} AWAITING</span>
-            </div>
-          )}
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={S.select}>
-            <option value="PENDING">Pending</option>
-            <option value="APPROVED">Approved</option>
-            <option value="REJECTED">Rejected</option>
-            <option value="">All</option>
-          </select>
-        </div>
+      <AdminPageHeader
+        eyebrow="Trust operations"
+        title="Verification Queue"
+        description="Review documents, watch SLA pressure, and clear the queue without losing audit clarity."
+        actions={
+          <>
+            <AdminStatusChip
+              label={`${pendingCount} awaiting review`}
+              color={pendingCount > 0 ? adminTheme.warning : adminTheme.success}
+            />
+            <AdminSelect value={filters.status} onChange={(value) => setFilters((current) => ({ ...current, status: value }))}>
+              <option value="PENDING">Pending</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="">All statuses</option>
+            </AdminSelect>
+          </>
+        }
+      />
+
+      <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 16 }}>
+        {[
+          { label: 'Pending', value: pendingCount, color: adminTheme.warning },
+          { label: 'Urgent SLA', value: queueSummary.urgent, color: adminTheme.warning },
+          { label: 'Breached SLA', value: queueSummary.breached, color: adminTheme.danger },
+          { label: 'On track', value: queueSummary.normal, color: adminTheme.success },
+        ].map((item) => (
+          <AdminCard key={item.label} style={{ padding: '16px 18px' }}>
+            <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
+              {item.label}
+            </p>
+            <p style={{ color: item.color, fontSize: 28, fontWeight: 700, marginTop: 10 }}>{item.value}</p>
+          </AdminCard>
+        ))}
       </div>
 
-      <div style={S.card}>
+      <AdminBulkActionBar count={selectedIds.length}>
+        <button type="button" onClick={() => { setBulkMode('APPROVE'); setDecisionNotes(''); }} style={adminActionButtonStyle(adminTheme.success, true)}>
+          <Check size={13} />
+          Bulk approve
+        </button>
+        <button type="button" onClick={() => { setBulkMode('REJECT'); setDecisionNotes(''); }} style={adminActionButtonStyle(adminTheme.danger, true)}>
+          <X size={13} />
+          Bulk reject
+        </button>
+        <button type="button" onClick={() => setSelectedIds([])} style={adminActionButtonStyle(adminTheme.textMuted, true)}>
+          Clear
+        </button>
+      </AdminBulkActionBar>
+
+      <AdminFilterBar>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: adminTheme.textMuted, fontSize: 12 }}>
+          <input
+            type="checkbox"
+            checked={allSelectableSelected}
+            onChange={(event) => {
+              setSelectedIds(
+                event.target.checked
+                  ? requests.filter((request) => request.status === 'PENDING').map((request) => request.id)
+                  : [],
+              );
+            }}
+          />
+          Select all pending requests
+        </label>
+      </AdminFilterBar>
+
+      <AdminTableShell>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr>{['Veteran', 'Branch / Unit', 'Docs', 'Status', 'Submitted', 'SLA', 'Action'].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+            <tr>
+              <AdminTableHeadCell>Select</AdminTableHeadCell>
+              <AdminTableHeadCell>Veteran</AdminTableHeadCell>
+              <AdminTableHeadCell>Service context</AdminTableHeadCell>
+              <AdminTableHeadCell>Evidence</AdminTableHeadCell>
+              <AdminTableHeadCell>Status</AdminTableHeadCell>
+              <AdminTableHeadCell>Submitted</AdminTableHeadCell>
+              <AdminTableHeadCell>SLA</AdminTableHeadCell>
+              <AdminTableHeadCell>Action</AdminTableHeadCell>
+            </tr>
           </thead>
           <tbody>
-            {loading ? [...Array(5)].map((_, i) => <tr key={i}>{[160,100,50,70,70,80].map((w,j)=><td key={j} style={S.td}><div style={{height:13,background:'#111c2e',borderRadius:3,width:w}}/></td>)}</tr>)
-            : requests.length === 0 ? (
-              <tr><td colSpan={6} style={{ ...S.td, textAlign: 'center', padding: 56 }}>
-                <Shield size={36} color="#1a2636" style={{ margin: '0 auto 14px' }} />
-                <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#2d4055', letterSpacing: 2 }}>
-                  {statusFilter === 'PENDING' ? 'QUEUE CLEAR' : 'NO RECORDS'}
-                </p>
-              </td></tr>
-            ) : requests.map((r: any) => (
-              <tr key={r.id}
-                onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = 'rgba(212,168,83,0.03)'}
-                onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'}
-                style={{ transition: 'background 0.1s' }}>
-                <td style={S.td}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#b8ccd8' }}>{r.user?.profile?.displayName || '—'}</p>
-                  <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#3a5068' }}>{r.user?.email}</p>
-                </td>
-                <td style={{ ...S.td, fontSize: 12 }}>
-                  {r.user?.profile?.branch || '—'}
-                  {r.user?.profile?.unit && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#3a5068', display: 'block' }}>{r.user.profile.unit}</span>}
-                </td>
-                <td style={S.td}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <FileText size={13} color="#3a5068" />
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>{r.evidenceUrls?.length || 0}</span>
-                  </div>
-                </td>
-                <td style={S.td}><span style={S.badge(statusColor[r.status] || '#7a9bb5')}>{r.status}</span></td>
-                <td style={{ ...S.td, fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>
-                  {r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}
-                </td>
-                <td style={S.td}>
-                  {r.sla ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span style={S.badge(
-                        r.sla.urgency === 'breached' ? '#f87171' :
-                        r.sla.urgency === 'urgent' ? '#fbbf24' : '#34d399'
-                      )}>
-                        {r.sla.urgency === 'breached' ? '🔴 BREACHED' :
-                         r.sla.urgency === 'urgent' ? '🟡 URGENT' : '🟢 ON TRACK'}
-                      </span>
-                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#3a5068', marginTop: 2 }}>
-                        {r.sla.hoursElapsed}h / {r.sla.targetHours}h
-                      </span>
-                    </div>
-                  ) : '—'}
-                </td>
-                <td style={S.td}>
-                  <button onClick={() => { setSelected(r); setApprovalNotes(''); setRejectionReason(''); }}
-                    style={S.btn('#d4a853')}><Eye size={11} /> Review</button>
+            {loading ? (
+              [...Array(6)].map((_, index) => (
+                <tr key={index}>
+                  {[40, 180, 180, 80, 80, 90, 100, 90].map((width, cellIndex) => (
+                    <AdminTableCell key={cellIndex}>
+                      <div style={{ height: 13, width, background: '#111c2e', borderRadius: 4 }} />
+                    </AdminTableCell>
+                  ))}
+                </tr>
+              ))
+            ) : requests.length === 0 ? (
+              <tr>
+                <td colSpan={8}>
+                  <AdminEmptyState
+                    title={filters.status === 'PENDING' ? 'QUEUE CLEAR' : 'NO RECORDS'}
+                    hint={filters.status === 'PENDING' ? 'No verification cases are waiting right now.' : 'Try widening the status filter.'}
+                    icon={<Shield size={36} color={adminTheme.panelBorder} />}
+                  />
                 </td>
               </tr>
-            ))}
+            ) : (
+              requests.map((request) => {
+                const slaMeta = getSlaLabel(request.sla);
+                const isPending = request.status === 'PENDING';
+
+                return (
+                  <tr key={request.id}>
+                    <AdminTableCell>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(request.id)}
+                        disabled={!isPending}
+                        onChange={(event) => {
+                          setSelectedIds((current) =>
+                            event.target.checked
+                              ? [...current, request.id]
+                              : current.filter((id) => id !== request.id),
+                          );
+                        }}
+                      />
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <p style={{ color: adminTheme.textStrong, fontSize: 13, fontWeight: 600 }}>
+                        {request.user?.profile?.displayName || 'Unknown veteran'}
+                      </p>
+                      <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, marginTop: 4 }}>
+                        {request.user?.email}
+                      </p>
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <p style={{ color: adminTheme.textMuted, fontSize: 12 }}>{request.user?.profile?.branch || 'Not provided'}</p>
+                      <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, marginTop: 4 }}>
+                        {request.user?.profile?.unit || request.user?.veteranDetails?.regiment || 'Unit not provided'}
+                      </p>
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <FileText size={14} color={adminTheme.textSoft} />
+                        <span style={{ color: adminTheme.textStrong, fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>
+                          {request.evidenceUrls?.length || 0}
+                        </span>
+                      </div>
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <AdminStatusChip label={request.status} color={statusColors[request.status] || adminTheme.textMuted} />
+                    </AdminTableCell>
+                    <AdminTableCell style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>
+                      {request.createdAt
+                        ? new Date(request.createdAt).toLocaleDateString('en-GB', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })
+                        : '-'}
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      {slaMeta ? (
+                        <div style={{ display: 'grid', gap: 6 }}>
+                          <AdminStatusChip label={slaMeta.label} color={slaMeta.color} />
+                          <span style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>
+                            {request.sla.hoursElapsed}h / {request.sla.targetHours}h
+                          </span>
+                        </div>
+                      ) : (
+                        <span style={{ color: adminTheme.textSoft, fontSize: 12 }}>-</span>
+                      )}
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <button type="button" onClick={() => openReview(request)} style={adminActionButtonStyle(adminTheme.accent, true)}>
+                        <Eye size={13} />
+                        Review
+                      </button>
+                    </AdminTableCell>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
-      </div>
+      </AdminTableShell>
 
-      {/* Review modal */}
-      {selected && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.87)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: '#0d1524', border: '1px solid #1a2636', borderRadius: 10, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid #141f2e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {(selectedRequest || bulkMode) && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.84)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+            zIndex: 100,
+          }}
+        >
+          <AdminCard style={{ width: '100%', maxWidth: 620, overflow: 'hidden' }}>
+            <div style={{ padding: '20px 24px', borderBottom: `1px solid ${adminTheme.panelInset}`, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
               <div>
-                <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600, fontSize: 20, color: '#dce8f5' }}>Verification Review</h3>
-                <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#d4a853', marginTop: 2 }}>{selected.user?.profile?.displayName || selected.user?.email}</p>
+                <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
+                  {bulkMode ? 'Bulk review' : 'Verification review'}
+                </p>
+                <h2 style={{ color: adminTheme.textStrong, fontSize: 22, marginTop: 8 }}>
+                  {bulkMode
+                    ? `${bulkMode === 'APPROVE' ? 'Approve' : 'Reject'} ${selectedIds.length} request${selectedIds.length === 1 ? '' : 's'}`
+                    : selectedRequest?.user?.profile?.displayName || selectedRequest?.user?.email}
+                </h2>
               </div>
-              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#3a5068', cursor: 'pointer' }}><X size={18} /></button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRequest(null);
+                  setBulkMode(null);
+                  setDecisionNotes('');
+                }}
+                style={adminActionButtonStyle(adminTheme.textMuted, true)}
+              >
+                <X size={13} />
+                Close
+              </button>
             </div>
-            <div style={{ padding: '20px 24px' }}>
-              {/* Evidence */}
-              <p style={{ ...S.label, display: 'block', marginBottom: 6 }}>Verification Recording ({selected.evidenceUrls?.length || 0} file{selected.evidenceUrls?.length !== 1 ? 's' : ''})</p>
-              <p style={{ fontSize: 10, color: '#6b7280', marginBottom: 10 }}>
-                ⚠ Video evidence is permanently deleted from secure storage immediately after you approve or reject. Download before deciding if needed.
-              </p>
-              {(selected.evidenceUrls?.length > 0) ? (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 22 }}>
-                  {selected.evidenceUrls.map((url: string, i: number) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: '#0a1420', border: '1px solid #1a2636', borderRadius: 6, color: '#7ab3d4', fontSize: 12 }}>
-                      <FileText size={12} /> Recording {i + 1}
-                    </a>
-                  ))}
-                </div>
-              ) : <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#f87171', marginBottom: 20 }}>No documents uploaded</p>}
 
-              {selected.status === 'PENDING' ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                  <div style={{ padding: 16, background: '#34d39910', border: '1px solid #34d39930', borderRadius: 8 }}>
-                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#34d399', letterSpacing: 2, marginBottom: 10 }}>APPROVE</p>
-                    <label style={{ ...S.label, display: 'block', marginBottom: 5 }}>Notes (optional)</label>
-                    <textarea value={approvalNotes} onChange={e => setApprovalNotes(e.target.value)}
-                      placeholder="Internal notes..." rows={3} style={{ ...S.textarea, marginBottom: 12 }} />
-                    <button onClick={handleApprove} disabled={saving}
-                      style={{ ...S.btn('#34d399'), width: '100%', justifyContent: 'center', padding: '9px' }}>
-                      <Check size={13} /> Approve
-                    </button>
+            <div style={{ padding: '20px 24px' }}>
+              {selectedRequest && !bulkMode ? (
+                <div style={{ display: 'grid', gap: 14 }}>
+                  <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+                    <AdminCard style={{ padding: '14px 16px' }}>
+                      <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
+                        Evidence files
+                      </p>
+                      <p style={{ color: adminTheme.textStrong, fontSize: 24, fontWeight: 700, marginTop: 10 }}>
+                        {selectedRequest.evidenceUrls?.length || 0}
+                      </p>
+                    </AdminCard>
+                    <AdminCard style={{ padding: '14px 16px' }}>
+                      <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
+                        SLA status
+                      </p>
+                      <div style={{ marginTop: 10 }}>
+                        {getSlaLabel(selectedRequest.sla) ? (
+                          <AdminStatusChip
+                            label={getSlaLabel(selectedRequest.sla)!.label}
+                            color={getSlaLabel(selectedRequest.sla)!.color}
+                          />
+                        ) : (
+                          <span style={{ color: adminTheme.textMuted }}>No SLA data</span>
+                        )}
+                      </div>
+                    </AdminCard>
                   </div>
-                  <div style={{ padding: 16, background: '#f8717110', border: '1px solid #f8717130', borderRadius: 8 }}>
-                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#f87171', letterSpacing: 2, marginBottom: 10 }}>REJECT</p>
-                    <label style={{ ...S.label, display: 'block', marginBottom: 5 }}>Reason (required)</label>
-                    <textarea value={rejectionReason} onChange={e => setRejectionReason(e.target.value)}
-                      placeholder="Why were docs rejected?" rows={3} style={{ ...S.textarea, marginBottom: 12 }} />
-                    <button onClick={handleReject} disabled={saving || !rejectionReason.trim()}
-                      style={{ ...S.btn('#f87171'), width: '100%', justifyContent: 'center', padding: '9px', opacity: !rejectionReason.trim() ? 0.5 : 1 }}>
-                      <X size={13} /> Reject
-                    </button>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {(selectedRequest.evidenceUrls || []).map((url: string, index: number) => (
+                      <a
+                        key={url}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          ...adminActionButtonStyle(adminTheme.info, true),
+                          textDecoration: 'none',
+                        }}
+                      >
+                        <FileText size={13} />
+                        Evidence {index + 1}
+                      </a>
+                    ))}
                   </div>
                 </div>
-              ) : (
-                <div style={{ padding: 16, background: '#111c2e', borderRadius: 8 }}>
-                  <p style={{ ...S.label, marginBottom: 8 }}>Decision</p>
-                  <span style={S.badge(statusColor[selected.status])}>{selected.status}</span>
-                  {(selected.rejectionReason || selected.notes) && (
-                    <p style={{ fontSize: 13, color: '#7a9bb5', marginTop: 10 }}>{selected.rejectionReason || selected.notes}</p>
-                  )}
-                </div>
-              )}
+              ) : null}
+
+              <div style={{ marginTop: 18 }}>
+                <label style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
+                  {bulkMode === 'REJECT' || selectedRequest?.status === 'PENDING' ? 'Decision notes / reason' : 'Decision notes'}
+                </label>
+                <textarea
+                  value={decisionNotes}
+                  onChange={(event) => setDecisionNotes(event.target.value)}
+                  rows={4}
+                  placeholder={bulkMode === 'REJECT' ? 'Explain why the evidence is being rejected.' : 'Optional notes for the audit trail.'}
+                  style={adminTextareaStyle({ minHeight: 110 })}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
+                {bulkMode ? (
+                  <button type="button" onClick={applyBulkDecision} disabled={saving} style={adminActionButtonStyle(bulkMode === 'APPROVE' ? adminTheme.success : adminTheme.danger)}>
+                    {bulkMode === 'APPROVE' ? <Check size={14} /> : <X size={14} />}
+                    {saving ? 'Saving...' : bulkMode === 'APPROVE' ? 'Approve selected' : 'Reject selected'}
+                  </button>
+                ) : selectedRequest?.status === 'PENDING' ? (
+                  <>
+                    <button type="button" onClick={() => applySingleDecision('APPROVE')} disabled={saving} style={adminActionButtonStyle(adminTheme.success)}>
+                      <Check size={14} />
+                      {saving ? 'Saving...' : 'Approve'}
+                    </button>
+                    <button type="button" onClick={() => applySingleDecision('REJECT')} disabled={saving} style={adminActionButtonStyle(adminTheme.danger)}>
+                      <X size={14} />
+                      {saving ? 'Saving...' : 'Reject'}
+                    </button>
+                  </>
+                ) : null}
+              </div>
             </div>
-          </div>
+          </AdminCard>
         </div>
       )}
     </div>

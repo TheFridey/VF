@@ -1,66 +1,76 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { adminApi } from '@/lib/api';
-import { Flag, Eye, Check, X, AlertTriangle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Check, Eye, Flag, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { adminApi } from '@/lib/api';
+import { usePersistedAdminState } from '@/lib/use-persisted-admin-state';
+import {
+  AdminBulkActionBar,
+  AdminCard,
+  AdminEmptyState,
+  AdminFilterBar,
+  AdminPageHeader,
+  AdminSelect,
+  AdminStatusChip,
+  AdminTableCell,
+  AdminTableHeadCell,
+  AdminTableShell,
+  adminActionButtonStyle,
+  adminTextareaStyle,
+  adminTheme,
+} from '@/components/admin-ui';
 
-const S = {
-  card: { background: '#0d1524', border: '1px solid #1a2636', borderRadius: 8 },
-  label: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#3a5068', letterSpacing: 2, textTransform: 'uppercase' as const },
-  h1: { fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 28, color: '#dce8f5', letterSpacing: 0.5 },
-  select: { background: '#060c17', border: '1px solid #1a2636', borderRadius: 6, padding: '8px 12px', color: '#c8d6e5', fontSize: 12, fontFamily: "'JetBrains Mono', monospace", outline: 'none', cursor: 'pointer' },
-  textarea: { background: '#060c17', border: '1px solid #1a2636', borderRadius: 6, padding: '9px 12px', color: '#c8d6e5', fontSize: 13, outline: 'none', width: '100%', resize: 'none' as const, fontFamily: "'Barlow', sans-serif" },
-  th: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#2d4055', letterSpacing: 2, padding: '11px 16px', textAlign: 'left' as const, borderBottom: '1px solid #141f2e', fontWeight: 500 },
-  td: { padding: '13px 16px', borderBottom: '1px solid #0d1524', fontSize: 13, color: '#7a9bb5', verticalAlign: 'middle' as const },
-  btn: (c: string) => ({ background: `${c}14`, border: `1px solid ${c}30`, color: c, borderRadius: 5, padding: '5px 10px', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 500 }),
-  badge: (c: string) => ({ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: 1.5, padding: '3px 8px', borderRadius: 3, background: `${c}18`, color: c, border: `1px solid ${c}30` }),
-};
-
-type ResolutionChoice = {
+type ResolveChoice = {
   label: string;
   status: 'DISMISSED' | 'ACTION_TAKEN';
   userAction?: 'WARNING' | 'SUSPEND_7_DAYS' | 'SUSPEND_30_DAYS' | 'PERMANENT_BAN';
 };
 
-const reasonColor: Record<string, string> = {
-  HARASSMENT: '#f87171',
-  FAKE_PROFILE: '#fbbf24',
+const reasonColors: Record<string, string> = {
+  HARASSMENT: adminTheme.danger,
+  FAKE_PROFILE: adminTheme.warning,
   SPAM: '#f97316',
   INAPPROPRIATE_CONTENT: '#fb7185',
-  SCAM: '#f87171',
-  IMPERSONATION: '#fbbf24',
-  OTHER: '#7a9bb5',
+  SCAM: adminTheme.danger,
+  IMPERSONATION: adminTheme.warning,
+  OTHER: adminTheme.textMuted,
 };
 
-const statusColor: Record<string, string> = {
-  PENDING: '#fbbf24',
-  DISMISSED: '#7a9bb5',
-  ACTION_TAKEN: '#a78bfa',
+const statusColors: Record<string, string> = {
+  PENDING: adminTheme.warning,
+  DISMISSED: adminTheme.textMuted,
+  ACTION_TAKEN: adminTheme.violet,
 };
 
-const resolutionChoices: Record<string, ResolutionChoice> = {
+const resolutionChoices: Record<string, ResolveChoice> = {
   DISMISSED: { label: 'Dismissed - no action', status: 'DISMISSED' },
   WARNING: { label: 'Warning issued', status: 'ACTION_TAKEN', userAction: 'WARNING' },
-  SUSPEND_7_DAYS: { label: 'Suspend for 7 days', status: 'ACTION_TAKEN', userAction: 'SUSPEND_7_DAYS' },
-  SUSPEND_30_DAYS: { label: 'Suspend for 30 days', status: 'ACTION_TAKEN', userAction: 'SUSPEND_30_DAYS' },
+  SUSPEND_7_DAYS: { label: 'Suspend 7 days', status: 'ACTION_TAKEN', userAction: 'SUSPEND_7_DAYS' },
+  SUSPEND_30_DAYS: { label: 'Suspend 30 days', status: 'ACTION_TAKEN', userAction: 'SUSPEND_30_DAYS' },
   PERMANENT_BAN: { label: 'Permanent ban', status: 'ACTION_TAKEN', userAction: 'PERMANENT_BAN' },
 };
 
 export default function ReportsPage() {
+  const [filters, setFilters, hydrated] = usePersistedAdminState('vf-admin-reports-filters', {
+    status: 'PENDING',
+  });
   const [reports, setReports] = useState<any[]>([]);
-  const [statusFilter, setStatusFilter] = useState('PENDING');
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<any>(null);
-  const [resolution, setResolution] = useState('');
+  const [selectedReport, setSelectedReport] = useState<any | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [resolveChoice, setResolveChoice] = useState<keyof typeof resolutionChoices>('DISMISSED');
+  const [resolution, setResolution] = useState('');
+  const [bulkResolveOpen, setBulkResolveOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const fetchReports = async () => {
     setLoading(true);
     try {
-      const data = await adminApi.getReports({ status: statusFilter || undefined });
-      setReports(Array.isArray(data) ? data : (data.reports || data.data || []));
+      const data = await adminApi.getReports({ status: filters.status || undefined });
+      const nextReports = Array.isArray(data) ? data : (data.reports || data.data || []);
+      setReports(nextReports);
+      setSelectedIds((current) => current.filter((id) => nextReports.some((report: any) => report.id === id)));
     } catch {
       toast.error('Failed to load reports');
     } finally {
@@ -69,155 +79,316 @@ export default function ReportsPage() {
   };
 
   useEffect(() => {
-    fetchReports();
-  }, [statusFilter]);
-
-  const handleResolve = async () => {
-    if (!selected || !resolution.trim()) {
+    if (!hydrated) {
       return;
     }
 
+    fetchReports().catch(console.error);
+  }, [filters.status, hydrated]);
+
+  const openCount = useMemo(
+    () => reports.filter((report) => report.status === 'PENDING').length,
+    [reports],
+  );
+
+  const allPendingSelected =
+    reports.filter((report) => report.status === 'PENDING').length > 0 &&
+    reports.filter((report) => report.status === 'PENDING').every((report) => selectedIds.includes(report.id));
+
+  const submitResolution = async (bulk = false) => {
+    if (!resolution.trim()) {
+      toast.error('Resolution notes are required');
+      return;
+    }
+
+    const choice = resolutionChoices[resolveChoice];
     setSaving(true);
     try {
-      const choice = resolutionChoices[resolveChoice];
-      await adminApi.resolveReport(selected.id, {
-        status: choice.status,
-        resolution,
-        userAction: choice.userAction,
-      });
-      toast.success('Report resolved');
-      setSelected(null);
+      if (bulk) {
+        const result = await adminApi.bulkResolveReports({
+          reportIds: selectedIds,
+          status: choice.status,
+          resolution,
+          userAction: choice.userAction,
+        });
+        toast.success(`${result.updatedCount || 0} reports resolved`);
+        setSelectedIds([]);
+        setBulkResolveOpen(false);
+      } else if (selectedReport) {
+        await adminApi.resolveReport(selectedReport.id, {
+          status: choice.status,
+          resolution,
+          userAction: choice.userAction,
+        });
+        toast.success('Report resolved');
+        setSelectedReport(null);
+      }
+
       setResolution('');
       setResolveChoice('DISMISSED');
-      fetchReports();
+      await fetchReports();
     } catch {
-      toast.error('Failed to resolve');
+      toast.error('Unable to resolve report');
     } finally {
       setSaving(false);
     }
   };
 
-  const openCount = reports.filter((report) => report.status === 'PENDING').length;
-
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div>
-          <h1 style={S.h1}>Reports</h1>
-          <p style={{ ...S.label, marginTop: 5 }}>User-submitted conduct reports</p>
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {openCount > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: '#f8717114', border: '1px solid #f8717130', borderRadius: 6 }}>
-              <AlertTriangle size={13} color="#f87171" />
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#f87171' }}>{openCount} OPEN</span>
-            </div>
-          )}
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={S.select}>
-            <option value="PENDING">Pending</option>
-            <option value="DISMISSED">Dismissed</option>
-            <option value="ACTION_TAKEN">Action Taken</option>
-            <option value="">All</option>
-          </select>
-        </div>
-      </div>
+      <AdminPageHeader
+        eyebrow="Moderation"
+        title="Reports"
+        description="Work through conduct reports with saved filters, clearer status chips, and bulk resolution when the outcome is consistent."
+        actions={
+          <>
+            <AdminStatusChip label={`${openCount} open`} color={openCount > 0 ? adminTheme.danger : adminTheme.success} />
+            <AdminSelect value={filters.status} onChange={(value) => setFilters((current) => ({ ...current, status: value }))}>
+              <option value="PENDING">Pending</option>
+              <option value="DISMISSED">Dismissed</option>
+              <option value="ACTION_TAKEN">Action taken</option>
+              <option value="">All statuses</option>
+            </AdminSelect>
+          </>
+        }
+      />
 
-      <div style={S.card}>
+      <AdminBulkActionBar count={selectedIds.length}>
+        <button type="button" onClick={() => { setBulkResolveOpen(true); setResolution(''); setResolveChoice('DISMISSED'); }} style={adminActionButtonStyle(adminTheme.warning, true)}>
+          <Check size={13} />
+          Bulk resolve
+        </button>
+        <button type="button" onClick={() => setSelectedIds([])} style={adminActionButtonStyle(adminTheme.textMuted, true)}>
+          Clear
+        </button>
+      </AdminBulkActionBar>
+
+      <AdminFilterBar>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: adminTheme.textMuted, fontSize: 12 }}>
+          <input
+            type="checkbox"
+            checked={allPendingSelected}
+            onChange={(event) => {
+              setSelectedIds(
+                event.target.checked
+                  ? reports.filter((report) => report.status === 'PENDING').map((report) => report.id)
+                  : [],
+              );
+            }}
+          />
+          Select all pending reports
+        </label>
+      </AdminFilterBar>
+
+      <AdminTableShell>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr>{['Reporter', 'Reported', 'Reason', 'Status', 'Date', 'Action'].map((heading) => <th key={heading} style={S.th}>{heading}</th>)}</tr>
+            <tr>
+              <AdminTableHeadCell>Select</AdminTableHeadCell>
+              <AdminTableHeadCell>Reporter</AdminTableHeadCell>
+              <AdminTableHeadCell>Reported user</AdminTableHeadCell>
+              <AdminTableHeadCell>Reason</AdminTableHeadCell>
+              <AdminTableHeadCell>Status</AdminTableHeadCell>
+              <AdminTableHeadCell>Date</AdminTableHeadCell>
+              <AdminTableHeadCell>Action</AdminTableHeadCell>
+            </tr>
           </thead>
           <tbody>
-            {loading ? [...Array(6)].map((_, rowIndex) => (
-              <tr key={rowIndex}>
-                {[120, 120, 90, 70, 70, 80].map((width, columnIndex) => (
-                  <td key={columnIndex} style={S.td}>
-                    <div style={{ height: 13, background: '#111c2e', borderRadius: 3, width }} />
-                  </td>
-                ))}
+            {loading ? (
+              [...Array(6)].map((_, index) => (
+                <tr key={index}>
+                  {[30, 150, 150, 90, 90, 80, 90].map((width, cellIndex) => (
+                    <AdminTableCell key={cellIndex}>
+                      <div style={{ height: 13, width, background: '#111c2e', borderRadius: 4 }} />
+                    </AdminTableCell>
+                  ))}
+                </tr>
+              ))
+            ) : reports.length === 0 ? (
+              <tr>
+                <td colSpan={7}>
+                  <AdminEmptyState
+                    title={filters.status === 'PENDING' ? 'NO OPEN REPORTS' : 'NO RECORDS'}
+                    hint="Reports will appear here as members raise concerns."
+                    icon={<Flag size={36} color={adminTheme.panelBorder} />}
+                  />
+                </td>
               </tr>
-            ))
-              : reports.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ ...S.td, textAlign: 'center', padding: 56 }}>
-                    <Flag size={36} color="#1a2636" style={{ margin: '0 auto 14px' }} />
-                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#2d4055', letterSpacing: 2 }}>
-                      {statusFilter === 'PENDING' ? 'NO OPEN REPORTS' : 'NO RECORDS'}
+            ) : (
+              reports.map((report) => (
+                <tr key={report.id}>
+                  <AdminTableCell>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(report.id)}
+                      disabled={report.status !== 'PENDING'}
+                      onChange={(event) => {
+                        setSelectedIds((current) =>
+                          event.target.checked
+                            ? [...current, report.id]
+                            : current.filter((id) => id !== report.id),
+                        );
+                      }}
+                    />
+                  </AdminTableCell>
+                  <AdminTableCell>
+                    <p style={{ color: adminTheme.textStrong, fontSize: 13, fontWeight: 600 }}>
+                      {report.reporter?.profile?.displayName || report.reporter?.email || '-'}
                     </p>
-                  </td>
+                  </AdminTableCell>
+                  <AdminTableCell>
+                    <p style={{ color: adminTheme.textStrong, fontSize: 13, fontWeight: 600 }}>
+                      {report.reportedUser?.profile?.displayName || report.reportedUser?.email || '-'}
+                    </p>
+                  </AdminTableCell>
+                  <AdminTableCell>
+                    <AdminStatusChip
+                      label={(report.reason || 'OTHER').replace(/_/g, ' ')}
+                      color={reasonColors[report.reason] || adminTheme.textMuted}
+                    />
+                  </AdminTableCell>
+                  <AdminTableCell>
+                    <AdminStatusChip label={report.status || 'UNKNOWN'} color={statusColors[report.status] || adminTheme.textMuted} />
+                  </AdminTableCell>
+                  <AdminTableCell style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>
+                    {report.createdAt
+                      ? new Date(report.createdAt).toLocaleDateString('en-GB', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      : '-'}
+                  </AdminTableCell>
+                  <AdminTableCell>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedReport(report);
+                        setResolveChoice('DISMISSED');
+                        setResolution('');
+                      }}
+                      style={adminActionButtonStyle(adminTheme.accent, true)}
+                    >
+                      <Eye size={13} />
+                      Review
+                    </button>
+                  </AdminTableCell>
                 </tr>
-              ) : reports.map((report: any) => (
-                <tr
-                  key={report.id}
-                  onMouseEnter={(event) => {
-                    event.currentTarget.style.background = 'rgba(212,168,83,0.03)';
-                  }}
-                  onMouseLeave={(event) => {
-                    event.currentTarget.style.background = 'transparent';
-                  }}
-                  style={{ transition: 'background 0.1s' }}
-                >
-                  <td style={S.td}><p style={{ fontSize: 12, fontWeight: 500, color: '#b8ccd8' }}>{report.reporter?.profile?.displayName || report.reporter?.email || '-'}</p></td>
-                  <td style={S.td}><p style={{ fontSize: 12, fontWeight: 500, color: '#b8ccd8' }}>{report.reportedUser?.profile?.displayName || report.reportedUser?.email || '-'}</p></td>
-                  <td style={S.td}><span style={S.badge(reasonColor[report.reason] || '#7a9bb5')}>{report.reason?.replace(/_/g, ' ')}</span></td>
-                  <td style={S.td}><span style={S.badge(statusColor[report.status] || '#7a9bb5')}>{report.status}</span></td>
-                  <td style={{ ...S.td, fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>
-                    {report.createdAt ? new Date(report.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'}
-                  </td>
-                  <td style={S.td}>
-                    <button onClick={() => { setSelected(report); setResolveChoice('DISMISSED'); setResolution(''); }} style={S.btn('#d4a853')}><Eye size={11} /> Review</button>
-                  </td>
-                </tr>
-              ))}
+              ))
+            )}
           </tbody>
         </table>
-      </div>
+      </AdminTableShell>
 
-      {selected && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.87)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: '#0d1524', border: '1px solid #1a2636', borderRadius: 10, width: '100%', maxWidth: 500 }}>
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid #141f2e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600, fontSize: 20, color: '#dce8f5' }}>Report Review</h3>
-              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#3a5068', cursor: 'pointer' }}><X size={18} /></button>
+      {(selectedReport || bulkResolveOpen) && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.84)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+            zIndex: 100,
+          }}
+        >
+          <AdminCard style={{ width: '100%', maxWidth: 560, overflow: 'hidden' }}>
+            <div style={{ padding: '20px 24px', borderBottom: `1px solid ${adminTheme.panelInset}`, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
+                  {bulkResolveOpen ? 'Bulk resolution' : 'Report review'}
+                </p>
+                <h2 style={{ color: adminTheme.textStrong, fontSize: 22, marginTop: 8 }}>
+                  {bulkResolveOpen ? `${selectedIds.length} selected report${selectedIds.length === 1 ? '' : 's'}` : 'Moderation decision'}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedReport(null);
+                  setBulkResolveOpen(false);
+                  setResolution('');
+                }}
+                style={adminActionButtonStyle(adminTheme.textMuted, true)}
+              >
+                <X size={13} />
+                Close
+              </button>
             </div>
+
             <div style={{ padding: '20px 24px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
-                {[['Reporter', selected.reporter?.profile?.displayName || selected.reporter?.email], ['Reported', selected.reportedUser?.profile?.displayName || selected.reportedUser?.email]].map(([label, value]) => (
-                  <div key={label} style={{ padding: 12, background: '#0a1420', borderRadius: 7, border: '1px solid #141f2e' }}>
-                    <p style={{ ...S.label, marginBottom: 5 }}>{label}</p>
-                    <p style={{ fontSize: 13, color: '#b8ccd8' }}>{value || '-'}</p>
+              {selectedReport && !bulkResolveOpen ? (
+                <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 14 }}>
+                  <AdminCard style={{ padding: '14px 16px' }}>
+                    <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
+                      Reporter
+                    </p>
+                    <p style={{ color: adminTheme.textStrong, marginTop: 8 }}>
+                      {selectedReport.reporter?.profile?.displayName || selectedReport.reporter?.email || '-'}
+                    </p>
+                  </AdminCard>
+                  <AdminCard style={{ padding: '14px 16px' }}>
+                    <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
+                      Reported user
+                    </p>
+                    <p style={{ color: adminTheme.textStrong, marginTop: 8 }}>
+                      {selectedReport.reportedUser?.profile?.displayName || selectedReport.reportedUser?.email || '-'}
+                    </p>
+                  </AdminCard>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <AdminStatusChip
+                      label={(selectedReport.reason || 'OTHER').replace(/_/g, ' ')}
+                      color={reasonColors[selectedReport.reason] || adminTheme.textMuted}
+                    />
+                    {selectedReport.description ? (
+                      <p style={{ color: adminTheme.textMuted, fontSize: 13, lineHeight: 1.7, marginTop: 10 }}>
+                        {selectedReport.description}
+                      </p>
+                    ) : null}
                   </div>
-                ))}
-              </div>
-              <div style={{ padding: 12, background: '#0a1420', borderRadius: 7, border: '1px solid #141f2e', marginBottom: 18 }}>
-                <p style={{ ...S.label, marginBottom: 6 }}>Reason</p>
-                <span style={S.badge(reasonColor[selected.reason] || '#7a9bb5')}>{selected.reason?.replace(/_/g, ' ')}</span>
-                {selected.description && <p style={{ fontSize: 13, color: '#7a9bb5', marginTop: 10, lineHeight: 1.6 }}>{selected.description}</p>}
-              </div>
-              {selected.status === 'PENDING' ? (
-                <>
-                  <label style={{ ...S.label, display: 'block', marginBottom: 6 }}>Action</label>
-                  <select value={resolveChoice} onChange={(event) => setResolveChoice(event.target.value as keyof typeof resolutionChoices)} style={{ ...S.select, display: 'block', width: '100%', marginBottom: 12 }}>
-                    {Object.entries(resolutionChoices).map(([key, choice]) => (
-                      <option key={key} value={key}>
-                        {choice.label}
-                      </option>
-                    ))}
-                  </select>
-                  <label style={{ ...S.label, display: 'block', marginBottom: 6 }}>Notes</label>
-                  <textarea value={resolution} onChange={(event) => setResolution(event.target.value)} rows={3} placeholder="Resolution details..." style={{ ...S.textarea, marginBottom: 16 }} />
-                  <button onClick={handleResolve} disabled={saving || !resolution.trim()} style={{ ...S.btn('#34d399'), width: '100%', justifyContent: 'center', padding: '10px', fontSize: 13, opacity: !resolution.trim() ? 0.6 : 1 }}>
-                    <Check size={13} /> Submit Resolution
-                  </button>
-                </>
-              ) : (
-                <div style={{ padding: 12, background: '#111c2e', borderRadius: 7 }}>
-                  <span style={S.badge(statusColor[selected.status])}>{selected.status}</span>
-                  {selected.resolution && <p style={{ fontSize: 13, color: '#7a9bb5', marginTop: 10 }}>{selected.resolution}</p>}
                 </div>
-              )}
+              ) : null}
+
+              <div>
+                <label style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
+                  Outcome
+                </label>
+                <AdminSelect value={resolveChoice} onChange={(value) => setResolveChoice(value as keyof typeof resolutionChoices)} style={{ width: '100%' }}>
+                  {Object.entries(resolutionChoices).map(([key, value]) => (
+                    <option key={key} value={key}>
+                      {value.label}
+                    </option>
+                  ))}
+                </AdminSelect>
+              </div>
+
+              <div style={{ marginTop: 14 }}>
+                <label style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
+                  Resolution notes
+                </label>
+                <textarea
+                  value={resolution}
+                  onChange={(event) => setResolution(event.target.value)}
+                  rows={4}
+                  placeholder="Document the moderation outcome clearly."
+                  style={adminTextareaStyle({ minHeight: 110 })}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+                <button
+                  type="button"
+                  onClick={() => submitResolution(Boolean(bulkResolveOpen))}
+                  disabled={saving}
+                  style={adminActionButtonStyle(resolveChoice === 'DISMISSED' ? adminTheme.success : adminTheme.warning)}
+                >
+                  {resolveChoice === 'DISMISSED' ? <Check size={14} /> : <AlertTriangle size={14} />}
+                  {saving ? 'Saving...' : bulkResolveOpen ? 'Resolve selected' : 'Submit resolution'}
+                </button>
+              </div>
             </div>
-          </div>
+          </AdminCard>
         </div>
       )}
     </div>

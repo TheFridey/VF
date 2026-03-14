@@ -108,8 +108,13 @@ export const adminApi = {
     return response.data;
   },
 
-  updateUserStatus: async (userId: string, status: string) => {
-    const response = await api.patch(`/admin/users/${userId}/status`, { status });
+  updateUserStatus: async (userId: string, status: string, reason?: string) => {
+    const response = await api.patch(`/admin/users/${userId}/status`, { status, reason });
+    return response.data;
+  },
+
+  bulkUpdateUserStatus: async (data: { userIds: string[]; status: string; reason?: string }) => {
+    const response = await api.patch('/admin/users/bulk-status', data);
     return response.data;
   },
 
@@ -118,8 +123,8 @@ export const adminApi = {
     return response.data;
   },
 
-  getPendingVerifications: async () => {
-    const response = await api.get('/verification/admin/pending');
+  getPendingVerifications: async (params?: { status?: string; page?: number; limit?: number }) => {
+    const response = await api.get('/verification/admin/pending', { params: cleanParams(params) });
     return response.data;
   },
 
@@ -138,6 +143,11 @@ export const adminApi = {
     return response.data;
   },
 
+  bulkReviewVerifications: async (data: { requestIds: string[]; decision: 'APPROVE' | 'REJECT'; notes?: string }) => {
+    const response = await api.post('/verification/admin/requests/bulk-review', data);
+    return response.data;
+  },
+
   getReports: async (params?: { status?: string }) => {
     const response = await api.get('/moderation/reports', { params: cleanParams(params) });
     return response.data;
@@ -152,6 +162,18 @@ export const adminApi = {
     },
   ) => {
     const response = await api.post(`/moderation/reports/${reportId}/resolve`, data);
+    return response.data;
+  },
+
+  bulkResolveReports: async (
+    data: {
+      reportIds: string[];
+      status: 'DISMISSED' | 'ACTION_TAKEN';
+      resolution: string;
+      userAction?: 'WARNING' | 'SUSPEND_7_DAYS' | 'SUSPEND_30_DAYS' | 'PERMANENT_BAN';
+    },
+  ) => {
+    const response = await api.post('/moderation/reports/bulk-resolve', data);
     return response.data;
   },
 

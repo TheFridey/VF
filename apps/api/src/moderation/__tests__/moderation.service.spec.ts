@@ -169,6 +169,35 @@ describe('ModerationService', () => {
       expect(updateCall.data.resolverId).toBe(MOD_ID);
       expect(updateCall.data.resolvedAt).toBeInstanceOf(Date);
     });
+
+    it('bulk resolves only pending reports', async () => {
+      const svc = makeSvc({
+        report: {
+          create: jest.fn(),
+          update: jest.fn().mockResolvedValue({}),
+          findMany: jest.fn().mockResolvedValue([]),
+          count: jest.fn().mockResolvedValue(0),
+          findUnique: jest
+            .fn()
+            .mockResolvedValueOnce({ id: 'report-1', status: ReportStatus.PENDING, reportedUserId: REPORTED })
+            .mockResolvedValueOnce({ id: 'report-1', status: ReportStatus.PENDING, reportedUserId: REPORTED })
+            .mockResolvedValueOnce({ id: 'report-2', status: ReportStatus.DISMISSED, reportedUserId: REPORTED }),
+        },
+      });
+
+      await expect(
+        svc.bulkResolveReports(MOD_ID, {
+          reportIds: ['report-1', 'report-2'],
+          status: ReportStatus.DISMISSED,
+          resolution: 'Reviewed',
+        } as never),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          updatedCount: 1,
+          skippedCount: 1,
+        }),
+      );
+    });
   });
 
   describe('blockUser', () => {

@@ -19,6 +19,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { PhotosService } from './photos.service';
+import { PHOTO_UPLOAD_FILE_TYPE, PHOTO_UPLOAD_MAX_BYTES } from './upload-validation';
 
 @ApiTags('uploads')
 @Controller('uploads')
@@ -53,8 +54,8 @@ export class UploadsController {
     @UploadedFile(
       new ParseFilePipe({
         validators: [
-          new MaxFileSizeValidator({ maxSize: 10 * 1024 * 1024 }), // 10MB
-          new FileTypeValidator({ fileType: /^image\/(jpeg|png|webp|gif)$/ }),
+          new MaxFileSizeValidator({ maxSize: PHOTO_UPLOAD_MAX_BYTES }),
+          new FileTypeValidator({ fileType: PHOTO_UPLOAD_FILE_TYPE }),
         ],
       }),
     )

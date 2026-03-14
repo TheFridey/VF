@@ -7,14 +7,17 @@
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
-    "install:apps": "npm install --prefix apps/api && npm install --prefix apps/web && npm install --prefix apps/admin",
+    "install:apps": "npm ci --prefix apps/api && npm ci --prefix apps/web && npm ci --prefix apps/admin",
     "dev:api": "npm run dev --prefix apps/api",
     "dev:web": "npm run dev --prefix apps/web",
     "dev:admin": "npm run dev --prefix apps/admin",
     "typecheck": "npm run typecheck --prefix apps/api && npm run typecheck --prefix apps/web && npm run typecheck --prefix apps/admin",
     "lint": "npm run lint --prefix apps/api && npm run lint --prefix apps/web && npm run lint --prefix apps/admin",
     "build": "npm run build --prefix apps/api && npm run build --prefix apps/web && npm run build --prefix apps/admin",
-    "test": "npm run test --prefix apps/api"
+    "test:api": "npm run test:unit --prefix apps/api && npm run test:e2e --prefix apps/api",
+    "test:web": "npm run test:unit --prefix apps/web",
+    "test:e2e": "npm run test:e2e --prefix apps/web && npm run test:e2e --prefix apps/admin",
+    "test": "npm run test:api && npm run test:web && npm run test:e2e"
   },
   "engines": {
     "node": ">=20.0.0"

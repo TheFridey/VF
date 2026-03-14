@@ -17,6 +17,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import {
   GetUsersDto,
   UpdateUserStatusDto,
+  BulkUpdateUserStatusDto,
   UpdateUserRoleDto,
   GetAuditLogsDto,
   UpdateThreadDto,
@@ -67,6 +68,15 @@ export class AdminController {
     @Body() dto: UpdateUserStatusDto,
   ) {
     return this.adminService.updateUserStatus(adminId, userId, dto);
+  }
+
+  @Patch('users/bulk-status')
+  @ApiOperation({ summary: 'Bulk update user statuses' })
+  async bulkUpdateUserStatus(
+    @CurrentUser('id') adminId: string,
+    @Body() dto: BulkUpdateUserStatusDto,
+  ) {
+    return this.adminService.bulkUpdateUserStatus(adminId, dto);
   }
 
   @Patch('users/:userId/role')

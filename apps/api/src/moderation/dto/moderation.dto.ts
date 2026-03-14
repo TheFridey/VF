@@ -74,6 +74,27 @@ export class ResolveReportDto {
   userAction?: UserAction;
 }
 
+export class BulkResolveReportsDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  reportIds: string[];
+
+  @ApiProperty({ enum: ReportStatus })
+  @IsEnum(ReportStatus)
+  status: ReportStatus;
+
+  @ApiProperty({ description: 'Resolution notes' })
+  @IsString()
+  @MaxLength(1000)
+  resolution: string;
+
+  @ApiPropertyOptional({ enum: UserAction, description: 'Action to take against reported users' })
+  @IsOptional()
+  @IsEnum(UserAction)
+  userAction?: UserAction;
+}
+
 export class CreateBlockDto {
   @ApiProperty({ description: 'ID of the user to block' })
   @IsUUID()

@@ -1,11 +1,13 @@
 import { UserRole } from '../common/enums/user-role.enum';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { RedisService } from '../common/redis/redis.service';
 import { AuditService } from '../audit/audit.service';
 import { UserStatus, VerificationStatus, ReportStatus, Prisma } from '@prisma/client';
 import {
   GetUsersDto,
   UpdateUserStatusDto,
+  BulkUpdateUserStatusDto,
   UpdateUserRoleDto,
   GetAuditLogsDto,
 } from './dto/admin.dto';
@@ -19,10 +21,20 @@ export class AdminService {
   constructor(
     private prisma: PrismaService,
     private auditService: AuditService,
+    private redisService: RedisService,
   ) {}
 
   // Dashboard stats
   async getDashboardStats() {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const startOfLastWeek = new Date();
+    startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
+
+    const startOfPreviousWeek = new Date(startOfLastWeek);
+    startOfPreviousWeek.setDate(startOfPreviousWeek.getDate() - 7);
+
     const [
       totalUsers,
       activeUsers,
@@ -30,6 +42,11 @@ export class AdminService {
       pendingVerifications,
       pendingReports,
       totalConnections,
+      newUsersToday,
+      matchesToday,
+      suspendedUsers,
+      usersThisWeek,
+      usersPreviousWeek,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.user.count({ where: { status: UserStatus.ACTIVE } }),
@@ -41,7 +58,26 @@ export class AdminService {
       }),
       this.prisma.report.count({ where: { status: ReportStatus.PENDING } }),
       this.prisma.connection.count(),
+      this.prisma.user.count({ where: { createdAt: { gte: startOfToday } } }),
+      this.prisma.connection.count({ where: { createdAt: { gte: startOfToday } } }),
+      this.prisma.user.count({ where: { status: UserStatus.SUSPENDED } }),
+      this.prisma.user.count({ where: { createdAt: { gte: startOfLastWeek } } }),
+      this.prisma.user.count({
+        where: {
+          createdAt: {
+            gte: startOfPreviousWeek,
+            lt: startOfLastWeek,
+          },
+        },
+      }),
     ]);
+
+    const userGrowth =
+      usersPreviousWeek === 0
+        ? usersThisWeek > 0
+          ? 100
+          : 0
+        : Math.round(((usersThisWeek - usersPreviousWeek) / usersPreviousWeek) * 100);
 
     return {
       totalUsers,
@@ -50,15 +86,42 @@ export class AdminService {
       pendingVerifications,
       pendingReports,
       totalConnections,
+      newUsersToday,
+      matchesToday,
+      suspendedUsers,
+      userGrowth,
     };
   }
 
   async getSystemHealth() {
+    const databaseStartedAt = Date.now();
     try {
       await this.prisma.$queryRaw`SELECT 1`;
-      return { database: 'healthy', status: 'ok' };
+      const databaseLatency = Date.now() - databaseStartedAt;
+      const redisStartedAt = Date.now();
+      let redisStatus: { status: 'ok' | 'error'; latency?: number } = { status: 'error' };
+
+      try {
+        await this.redisService.ping();
+        redisStatus = {
+          status: 'ok',
+          latency: Date.now() - redisStartedAt,
+        };
+      } catch {
+        redisStatus = { status: 'error' };
+      }
+
+      return {
+        status: 'ok',
+        database: { status: 'ok', latency: databaseLatency },
+        redis: redisStatus,
+      };
     } catch {
-      return { database: 'unhealthy', status: 'error' };
+      return {
+        status: 'error',
+        database: { status: 'error' },
+        redis: { status: 'error' },
+      };
     }
   }
 
@@ -219,6 +282,42 @@ export class AdminService {
     });
 
     return { success: true };
+  }
+
+  async bulkUpdateUserStatus(adminId: string, dto: BulkUpdateUserStatusDto) {
+    const uniqueUserIds = [...new Set(dto.userIds.filter(Boolean))];
+    if (uniqueUserIds.length === 0) {
+      throw new BadRequestException('Select at least one user.');
+    }
+
+    const results: Array<{ userId: string; status: 'updated' | 'skipped'; reason?: string }> = [];
+
+    for (const userId of uniqueUserIds) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, status: true },
+      });
+
+      if (!user) {
+        results.push({ userId, status: 'skipped', reason: 'User not found' });
+        continue;
+      }
+
+      if (user.status === dto.status) {
+        results.push({ userId, status: 'skipped', reason: 'Status already set' });
+        continue;
+      }
+
+      await this.updateUserStatus(adminId, userId, dto);
+      results.push({ userId, status: 'updated' });
+    }
+
+    return {
+      success: true,
+      updatedCount: results.filter((result) => result.status === 'updated').length,
+      skippedCount: results.filter((result) => result.status === 'skipped').length,
+      results,
+    };
   }
 
   async updateUserRole(adminId: string, userId: string, dto: UpdateUserRoleDto) {

@@ -9,6 +9,8 @@ const REQUIRED_ENV_VARS = [
   'ADMIN_URL',
 ] as const;
 
+const OPTIONAL_URL_ENV_VARS = ['APP_URL'] as const;
+
 function isNonEmpty(value: string | undefined): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -64,12 +66,63 @@ export function validateEnv(config: Record<string, unknown>) {
     errors.push('ENCRYPTION_KEY must be exactly 32 characters');
   }
 
+  if (
+    isNonEmpty(env.ENCRYPTION_KEY_FALLBACKS) &&
+    env.ENCRYPTION_KEY_FALLBACKS.split(',').some((key) => key.trim().length !== 32)
+  ) {
+    errors.push('Each ENCRYPTION_KEY_FALLBACKS entry must be exactly 32 characters');
+  }
+
   if (!isUrl(env.FRONTEND_URL)) {
     errors.push('FRONTEND_URL must be a valid URL');
   }
 
   if (!isUrl(env.ADMIN_URL)) {
     errors.push('ADMIN_URL must be a valid URL');
+  }
+
+  OPTIONAL_URL_ENV_VARS.forEach((key) => {
+    if (isNonEmpty(env[key]) && !isUrl(env[key])) {
+      errors.push(`${key} must be a valid URL`);
+    }
+  });
+
+  const hasCloudinaryConfig = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET']
+    .some((key) => isNonEmpty(env[key]));
+  if (
+    hasCloudinaryConfig &&
+    !['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'].every((key) => isNonEmpty(env[key]))
+  ) {
+    errors.push('Cloudinary configuration requires CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET together');
+  }
+
+  const hasStripeConfig = ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'].some((key) => isNonEmpty(env[key]));
+  if (hasStripeConfig) {
+    ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'].forEach((key) => {
+      if (!isNonEmpty(env[key])) {
+        errors.push(`${key} is required when Stripe is enabled`);
+      }
+    });
+
+    [
+      'STRIPE_PRICE_BIA_BASIC_MONTHLY',
+      'STRIPE_PRICE_BIA_BASIC_ANNUAL',
+      'STRIPE_PRICE_BIA_PLUS_MONTHLY',
+      'STRIPE_PRICE_BIA_PLUS_ANNUAL',
+    ].forEach((key) => {
+      if (!isNonEmpty(env[key])) {
+        errors.push(`${key} is required when Stripe is enabled`);
+      }
+    });
+  }
+
+  if (isNonEmpty(env.RESEND_API_KEY)) {
+    if (!isNonEmpty(env.FROM_EMAIL)) {
+      errors.push('FROM_EMAIL is required when RESEND_API_KEY is set');
+    }
+    if (!isNonEmpty(env.APP_URL)) {
+      errors.push('APP_URL is required when RESEND_API_KEY is set');
+    }
   }
 
   if (errors.length > 0) {

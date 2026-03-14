@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
-import { ForumPanel, ForumShell, ForumStage } from '@/components/bia/forum-shell';
+import { ForumBreadcrumbs, ForumPanel, ForumShell, ForumStage } from '@/components/bia/forum-shell';
 import { cn, formatRelativeTime } from '@/lib/utils';
 
 function getAccent(tier?: string) {
@@ -91,29 +91,33 @@ export default function ThreadListPage() {
   const latestThread = threads[0];
 
   return (
-    <ForumStage>
-      <ForumShell>
+      <ForumStage>
+        <ForumShell>
+        <ForumBreadcrumbs
+          items={[
+            { label: 'BIA', href: '/app/bia' },
+            { label: 'Forums', href: '/app/bia/forums' },
+            { label: category?.name || 'Room' },
+          ]}
+          className="px-1"
+        />
+
         <ForumPanel className={cn('overflow-hidden', accent.panel)}>
           <div className="grid gap-8 p-6 sm:p-8 xl:grid-cols-[1.2fr_0.8fr]">
             <div className="space-y-5">
-              <button
-                type="button"
-                onClick={() => router.push('/app/bia/forums')}
-                className="inline-flex items-center gap-2 text-sm text-slate-400 transition-colors hover:text-white"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Back to forums</span>
-              </button>
-
               <div className="space-y-3">
                 <div className={cn('inline-flex rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em]', accent.badge)}>
                   {category?.tier === 'BIA_PLUS' ? 'Premium Room' : category?.tier === 'REGIMENT' ? 'Regiment Room' : 'BIA Room'}
                 </div>
                 <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">{category?.name}</h1>
-                <p className="max-w-3xl text-base leading-7 text-slate-300">{category?.description}</p>
+                <p className="max-w-3xl text-base leading-8 text-slate-300">{category?.description}</p>
               </div>
 
               <div className="flex flex-wrap gap-3">
+                <Button variant="outline" onClick={() => router.push('/app/bia/forums')} className="border-white/10 bg-white/5 text-slate-200 hover:bg-white/10">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to forums
+                </Button>
                 <Button onClick={() => setShowNewThread(true)} className={cn('gap-2', accent.button)}>
                   <Plus className="h-4 w-4" />
                   Start a new thread
@@ -127,7 +131,7 @@ export default function ThreadListPage() {
                 { label: 'Replies', value: totalReplies, helper: 'Across this room', icon: Send },
                 { label: 'Views', value: totalViews, helper: latestThread ? `Latest ${formatRelativeTime(latestThread.lastPostAt)}` : 'No activity yet', icon: Eye },
               ].map(({ label, value, helper, icon: Icon }) => (
-                <div key={label} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+                <div key={label} className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
                   <div className="flex items-center justify-between">
                     <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{label}</p>
                     <Icon className={cn('h-4 w-4', accent.subtle)} />
@@ -189,12 +193,12 @@ export default function ThreadListPage() {
                           )}
                         </div>
 
-                        <h2 className="thread-title text-xl font-semibold text-white transition-colors group-hover:text-white/90">
+                        <h2 className="thread-title text-xl font-semibold leading-8 text-white transition-colors group-hover:text-white/90">
                           {thread.title}
                         </h2>
 
                         <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
-                          <span className="font-medium text-slate-200">{thread.author?.profile?.displayName || 'Unknown'}</span>
+                          <span className="font-medium text-slate-100">{thread.author?.profile?.displayName || 'Unknown'}</span>
                           <span className="text-slate-600">/</span>
                           <span className="inline-flex items-center gap-1">
                             <Clock className="h-3.5 w-3.5" />
@@ -223,7 +227,7 @@ export default function ThreadListPage() {
           <div className="space-y-4">
             <ForumPanel className="p-6">
               <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Room Notes</p>
-              <div className="mt-4 space-y-4 text-sm leading-7 text-slate-300">
+              <div className="mt-4 space-y-4 text-sm leading-8 text-slate-300">
                 <p>
                   Threads in this room should stay relevant to <span className="font-medium text-white">{category?.name}</span>.
                   Strong openings tend to include context, a clear question, and enough detail for others to respond thoughtfully.

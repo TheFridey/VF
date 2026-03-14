@@ -62,6 +62,7 @@ services:
     networks: [veteranfinder-network]
 
   api:
+    image: ${VETERANFINDER_IMAGE_REGISTRY:-ghcr.io/veteranfinder}/veteranfinder-api:${VETERANFINDER_IMAGE_TAG:-latest}
     build:
       context: ../../apps/api
       dockerfile: Dockerfile
@@ -120,6 +121,7 @@ services:
     networks: [veteranfinder-network]
 
   web:
+    image: ${VETERANFINDER_IMAGE_REGISTRY:-ghcr.io/veteranfinder}/veteranfinder-web:${VETERANFINDER_IMAGE_TAG:-latest}
     build:
       context: ../../apps/web
       dockerfile: Dockerfile
@@ -149,6 +151,7 @@ services:
     networks: [veteranfinder-network]
 
   admin:
+    image: ${VETERANFINDER_IMAGE_REGISTRY:-ghcr.io/veteranfinder}/veteranfinder-admin:${VETERANFINDER_IMAGE_TAG:-latest}
     build:
       context: ../../apps/admin
       dockerfile: Dockerfile

@@ -211,16 +211,21 @@ export class MessagingService {
   async markAsRead(connectionId: string, userId: string) {
     await this.verifyParticipant(connectionId, userId);
 
-    await this.prisma.message.updateMany({
+    const result = await this.prisma.message.updateMany({
       where: {
         connectionId,
         receiverId: userId,
         readAt: null,
+        deletedAt: null,
       },
       data: { readAt: new Date() },
     });
 
-    return { success: true };
+    return {
+      success: true,
+      updatedCount: result.count,
+      alreadyRead: result.count === 0,
+    };
   }
 
   async deleteMessage(messageId: string, userId: string, ipAddress?: string) {

@@ -19,7 +19,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuthStore } from '@/stores/auth-store';
-import { ForumPanel, ForumShell, ForumStage } from '@/components/bia/forum-shell';
+import { ForumBreadcrumbs, ForumPanel, ForumShell, ForumStage } from '@/components/bia/forum-shell';
 import { cn, formatBranch, formatRelativeTime } from '@/lib/utils';
 
 function getAccent(tier?: string) {
@@ -82,18 +82,19 @@ export default function ThreadViewPage() {
   return (
     <ForumStage>
       <ForumShell>
+        <ForumBreadcrumbs
+          items={[
+            { label: 'BIA', href: '/app/bia' },
+            { label: 'Forums', href: '/app/bia/forums' },
+            category?.slug ? { label: category?.name || 'Room', href: `/app/bia/forums/${category.slug}` } : { label: category?.name || 'Room' },
+            { label: thread?.title || 'Thread' },
+          ]}
+          className="px-1"
+        />
+
         <ForumPanel className={cn('overflow-hidden', accent.outline)}>
           <div className="grid gap-8 p-6 sm:p-8 xl:grid-cols-[1.15fr_0.85fr]">
             <div className="space-y-5">
-              <button
-                type="button"
-                onClick={() => router.push(`/app/bia/forums/${category?.slug}`)}
-                className="inline-flex items-center gap-2 text-sm text-slate-400 transition-colors hover:text-white"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Back to {category?.name}</span>
-              </button>
-
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   {thread?.isPinned && (
@@ -115,10 +116,19 @@ export default function ThreadViewPage() {
                 <h1 className="max-w-4xl text-3xl font-semibold tracking-tight text-white sm:text-5xl">
                   {thread?.title}
                 </h1>
-                <p className="text-sm leading-7 text-slate-300">
+                <p className="text-sm leading-8 text-slate-300">
                   {data?.total} {data?.total === 1 ? 'post' : 'posts'} in this thread. Read through the discussion and reply when you can add something useful.
                 </p>
               </div>
+
+              <button
+                type="button"
+                onClick={() => router.push(`/app/bia/forums/${category?.slug}`)}
+                className="inline-flex items-center gap-2 text-sm text-slate-400 transition-colors hover:text-white"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Back to {category?.name}</span>
+              </button>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
@@ -127,7 +137,7 @@ export default function ThreadViewPage() {
                 { label: 'Views', value: thread?.viewCount || 0, helper: 'Across all visits', icon: Eye },
                 { label: 'Status', value: thread?.isLocked ? 'Locked' : 'Open', helper: thread?.isPinned ? 'Pinned to top' : 'Accepting replies', icon: Clock },
               ].map(({ label, value, helper, icon: Icon }) => (
-                <div key={label} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+                <div key={label} className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
                   <div className="flex items-center justify-between">
                     <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{label}</p>
                     <Icon className={cn('h-4 w-4', accent.highlight)} />
@@ -198,7 +208,7 @@ export default function ThreadViewPage() {
                   </div>
 
                   <div className="px-4 py-5 sm:px-5">
-                    <p className="text-sm leading-7 text-slate-200 whitespace-pre-wrap">{post.content}</p>
+                    <p className="whitespace-pre-wrap text-[15px] leading-8 text-slate-200">{post.content}</p>
                     {index === 0 && (
                       <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-300">
                         Opening post
@@ -254,7 +264,7 @@ export default function ThreadViewPage() {
           <div className="space-y-4">
             <ForumPanel className="p-6">
               <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Thread Context</p>
-              <div className="mt-4 space-y-3 text-sm leading-7 text-slate-300">
+              <div className="mt-4 space-y-3 text-sm leading-8 text-slate-300">
                 <p>
                   This thread lives inside <span className="font-medium text-white">{category?.name}</span>.
                   Keep replies relevant to the room and add detail rather than just agreeing in one line.

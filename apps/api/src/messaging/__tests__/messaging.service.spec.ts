@@ -267,3 +267,32 @@ describe('MessagingService.sendMessage', () => {
     );
   });
 });
+
+describe('MessagingService.markAsRead', () => {
+  it('returns updatedCount for newly read messages', async () => {
+    const svc = makeSvc();
+
+    await expect(svc.markAsRead(C_ID, U_A)).resolves.toEqual({
+      success: true,
+      updatedCount: 2,
+      alreadyRead: false,
+    });
+  });
+
+  it('returns alreadyRead for duplicate read acknowledgements', async () => {
+    const svc = makeSvc({
+      message: {
+        create: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        groupBy: jest.fn().mockResolvedValue([]),
+      },
+    });
+
+    await expect(svc.markAsRead(C_ID, U_A)).resolves.toEqual({
+      success: true,
+      updatedCount: 0,
+      alreadyRead: true,
+    });
+  });
+});

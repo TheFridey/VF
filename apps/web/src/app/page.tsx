@@ -3,6 +3,7 @@ import { CtaSection } from '@/components/home/cta-section';
 import { FeatureGridSection } from '@/components/home/feature-grid';
 import { HeroSection } from '@/components/home/hero-section';
 import { HowItWorksSection } from '@/components/home/how-it-works';
+import { ProofLayerSection } from '@/components/home/proof-layer';
 import { SiteHeader } from '@/components/home/site-header';
 import { TrustBar } from '@/components/home/trust-bar';
 import { UseCasesSection } from '@/components/home/use-cases-section';
@@ -15,6 +16,7 @@ export default function HomePage() {
       <main>
         <HeroSection />
         <TrustBar />
+        <ProofLayerSection />
         <HowItWorksSection />
         <FeatureGridSection />
         <VerificationSection />

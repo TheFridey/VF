@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ModerationService } from './moderation.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -17,6 +18,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import {
   CreateReportDto,
   ResolveReportDto,
+  BulkResolveReportsDto,
   CreateBlockDto,
   GetReportsDto,
 } from './dto/moderation.dto';
@@ -31,6 +33,7 @@ export class ModerationController {
   // ============ USER ENDPOINTS ============
 
   @Post('reports')
+  @Throttle({ default: { limit: 5, ttl: 3600000 } })
   @ApiOperation({ summary: 'Report a user' })
   async createReport(
     @CurrentUser('id') userId: string,
@@ -46,6 +49,7 @@ export class ModerationController {
   }
 
   @Post('blocks')
+  @Throttle({ default: { limit: 10, ttl: 3600000 } })
   @ApiOperation({ summary: 'Block a user' })
   async blockUser(
     @CurrentUser('id') userId: string,
@@ -79,7 +83,20 @@ export class ModerationController {
     return this.moderationService.getPendingReports(dto);
   }
 
+  @Post('reports/bulk-resolve')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @UseGuards(RolesGuard)
+  @Roles('MODERATOR', 'ADMIN')
+  @ApiOperation({ summary: 'Resolve multiple reports (moderator+)' })
+  async bulkResolveReports(
+    @CurrentUser('id') moderatorId: string,
+    @Body() dto: BulkResolveReportsDto,
+  ) {
+    return this.moderationService.bulkResolveReports(moderatorId, dto);
+  }
+
   @Post('reports/:reportId/resolve')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @UseGuards(RolesGuard)
   @Roles('MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Resolve a report (moderator+)' })

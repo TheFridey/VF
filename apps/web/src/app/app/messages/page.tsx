@@ -28,6 +28,7 @@ import { Modal } from '@/components/ui/modal';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
 import { cn, formatRelativeTime } from '@/lib/utils';
+import { getLatestUnreadIncomingMessageId, shouldIssueReadSync } from './read-sync';
 
 interface ConversationUser {
   id: string;
@@ -181,7 +182,7 @@ function VideoCallModal({
 export default function MessagesPage() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [showActions, setShowActions] = useState(false);
   const [showVideoCall, setShowVideoCall] = useState(false);
@@ -189,8 +190,10 @@ export default function MessagesPage() {
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [reportReason, setReportReason] = useState('HARASSMENT');
   const [reportDescription, setReportDescription] = useState('');
-  const [blockConfirmed, setBlockConfirmed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const readSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inFlightReadConnectionsRef = useRef(new Set<string>());
+  const syncedReadKeysRef = useRef(new Map<string, string>());
 
   const { data: conversationsData, isLoading: conversationsLoading } = useQuery({
     queryKey: ['conversations'],
@@ -204,9 +207,9 @@ export default function MessagesPage() {
     isLoading: messagesLoading,
     refetch: refetchMessages,
   } = useQuery({
-    queryKey: ['messages', selectedConversation?.connectionId],
-    queryFn: () => api.getMessages(selectedConversation!.connectionId),
-    enabled: !!user?.id && !!selectedConversation,
+    queryKey: ['messages', selectedConversationId],
+    queryFn: () => api.getMessages(selectedConversationId!),
+    enabled: !!user?.id && !!selectedConversationId,
     refetchInterval: 5000,
   });
 
@@ -230,7 +233,7 @@ export default function MessagesPage() {
     onSuccess: () => {
       toast.success(`${selectedConversation?.user.displayName} has been blocked`);
       setShowBlockModal(false);
-      setSelectedConversation(null);
+      setSelectedConversationId(null);
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
     onError: () => toast.error('Failed to block user'),
@@ -251,23 +254,103 @@ export default function MessagesPage() {
 
   const markAsReadMutation = useMutation({
     mutationFn: (connectionId: string) => api.markMessagesAsRead(connectionId),
-    onSuccess: () => {
+    onSuccess: (_result, connectionId) => {
+      inFlightReadConnectionsRef.current.delete(connectionId);
       queryClient.invalidateQueries({ queryKey: ['unreadCounts'] });
+      queryClient.setQueryData(['conversations'], (current: any) => {
+        if (!current?.conversations) {
+          return current;
+        }
+
+        return {
+          ...current,
+          conversations: current.conversations.map((conversation: Conversation) =>
+            conversation.connectionId === connectionId
+              ? { ...conversation, unreadCount: 0 }
+              : conversation,
+          ),
+        };
+      });
+      queryClient.setQueryData(['messages', connectionId], (current: any) => {
+        if (!current?.messages) {
+          return current;
+        }
+
+        return {
+          ...current,
+          messages: current.messages.map((message: Message) =>
+            message.connectionId === connectionId && !message.isFromMe && !message.readAt
+              ? { ...message, readAt: new Date().toISOString() }
+              : message,
+          ),
+        };
+      });
+    },
+    onError: (_error, connectionId) => {
+      inFlightReadConnectionsRef.current.delete(connectionId);
     },
   });
 
   const conversationList: Conversation[] = conversationsData?.conversations || [];
   const messageList = useMemo<Message[]>(() => messagesData?.messages || [], [messagesData]);
+  const selectedConversation = useMemo(
+    () => conversationList.find((conversation) => conversation.connectionId === selectedConversationId) || null,
+    [conversationList, selectedConversationId],
+  );
+  const latestUnreadIncomingMessageId = useMemo(
+    () => getLatestUnreadIncomingMessageId(messageList),
+    [messageList],
+  );
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messageList]);
 
   useEffect(() => {
-    if (user?.id && selectedConversation?.connectionId) {
-      markAsReadMutation.mutate(selectedConversation.connectionId);
+    const connectionId = selectedConversation?.connectionId ?? null;
+
+    if (!user?.id || !connectionId) {
+      return;
     }
-  }, [markAsReadMutation, selectedConversation, user?.id]);
+
+    const { shouldSync, syncKey } = shouldIssueReadSync({
+      connectionId,
+      unreadCount: selectedConversation?.unreadCount ?? 0,
+      latestUnreadMessageId: latestUnreadIncomingMessageId,
+      inFlight: inFlightReadConnectionsRef.current.has(connectionId),
+      lastSyncedKey: syncedReadKeysRef.current.get(connectionId) ?? null,
+    });
+
+    if (!shouldSync || !syncKey) {
+      return;
+    }
+
+    if (readSyncTimeoutRef.current) {
+      clearTimeout(readSyncTimeoutRef.current);
+    }
+
+    readSyncTimeoutRef.current = setTimeout(() => {
+      if (inFlightReadConnectionsRef.current.has(connectionId)) {
+        return;
+      }
+
+      inFlightReadConnectionsRef.current.add(connectionId);
+      syncedReadKeysRef.current.set(connectionId, syncKey);
+      markAsReadMutation.mutate(connectionId);
+    }, 250);
+
+    return () => {
+      if (readSyncTimeoutRef.current) {
+        clearTimeout(readSyncTimeoutRef.current);
+      }
+    };
+  }, [
+    latestUnreadIncomingMessageId,
+    markAsReadMutation,
+    selectedConversation?.connectionId,
+    selectedConversation?.unreadCount,
+    user?.id,
+  ]);
 
   const handleSendMessage = () => {
     if (!messageInput.trim() || !selectedConversation) return;
@@ -287,6 +370,24 @@ export default function MessagesPage() {
   const handleVideoCall = () => {
     setShowVideoCall(true);
     setShowActions(false);
+  };
+
+  const handleSelectConversation = (conversation: Conversation) => {
+    setSelectedConversationId(conversation.connectionId);
+    queryClient.setQueryData(['conversations'], (current: any) => {
+      if (!current?.conversations) {
+        return current;
+      }
+
+      return {
+        ...current,
+        conversations: current.conversations.map((item: Conversation) =>
+          item.connectionId === conversation.connectionId
+            ? { ...item, unreadCount: 0 }
+            : item,
+        ),
+      };
+    });
   };
 
   return (
@@ -326,7 +427,7 @@ export default function MessagesPage() {
             {conversationList.map((conversation) => (
               <button
                 key={conversation.connectionId}
-                onClick={() => setSelectedConversation(conversation)}
+                onClick={() => handleSelectConversation(conversation)}
                 className={cn(
                   'w-full p-4 flex items-center gap-3 hover:bg-muted/50 transition-colors text-left',
                   selectedConversation?.connectionId === conversation.connectionId && 'bg-muted'
@@ -390,7 +491,7 @@ export default function MessagesPage() {
             {/* Chat Header */}
             <div className="p-4 border-b flex items-center gap-3">
               <button
-                onClick={() => setSelectedConversation(null)}
+                onClick={() => setSelectedConversationId(null)}
                 className="md:hidden p-2 -ml-2 hover:bg-muted rounded-md"
               >
                 <ArrowLeft className="h-5 w-5" />

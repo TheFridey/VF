@@ -20,6 +20,8 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
+import { BulkReviewVerificationDto, GetVerificationRequestsDto } from './dto/verification-admin.dto';
+import { VerificationStatus } from '@prisma/client';
 
 @ApiTags('verification')
 @ApiBearerAuth()
@@ -66,10 +68,12 @@ export class VerificationController {
   async getPendingRequests(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query() query?: GetVerificationRequestsDto,
   ) {
     return this.verificationService.getPendingRequests(
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 20,
+      query?.status || VerificationStatus.PENDING,
     );
   }
 
@@ -88,11 +92,16 @@ export class VerificationController {
   async approveRequest(
     @Param('requestId') requestId: string,
     @CurrentUser('id') adminId: string,
-    @Body('adminNotes') adminNotes: string,
+    @Body() body: { notes?: string; adminNotes?: string },
     @Req() req: Request,
   ) {
     const ipAddress = req.ip || req.socket.remoteAddress;
-    return this.verificationService.approveVerification(requestId, adminId, adminNotes, ipAddress);
+    return this.verificationService.approveVerification(
+      requestId,
+      adminId,
+      body.notes ?? body.adminNotes,
+      ipAddress,
+    );
   }
 
   @Patch('admin/requests/:requestId/reject')
@@ -107,5 +116,25 @@ export class VerificationController {
   ) {
     const ipAddress = req.ip || req.socket.remoteAddress;
     return this.verificationService.rejectVerification(requestId, adminId, reason, ipAddress);
+  }
+
+  @Post('admin/requests/bulk-review')
+  @UseGuards(RolesGuard)
+  @Roles('MODERATOR', 'ADMIN')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Bulk approve or reject verification requests' })
+  async bulkReviewRequests(
+    @CurrentUser('id') adminId: string,
+    @Body() dto: BulkReviewVerificationDto,
+    @Req() req: Request,
+  ) {
+    const ipAddress = req.ip || req.socket.remoteAddress;
+    return this.verificationService.bulkReviewRequests(
+      adminId,
+      dto.requestIds,
+      dto.decision,
+      dto.notes,
+      ipAddress,
+    );
   }
 }

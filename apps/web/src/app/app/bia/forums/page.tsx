@@ -22,7 +22,7 @@ import { api } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { ForumPanel, ForumShell, ForumStage } from '@/components/bia/forum-shell';
+import { ForumBreadcrumbs, ForumPanel, ForumShell, ForumStage } from '@/components/bia/forum-shell';
 import { formatRelativeTime, cn } from '@/lib/utils';
 
 const ICONS: Record<string, any> = {
@@ -83,19 +83,19 @@ function CategoryCard({
 
         <div className="grid gap-4 px-5 py-4 sm:grid-cols-[1fr_auto] sm:items-end">
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.24em] text-slate-500">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-slate-500">
               <Clock className="h-3.5 w-3.5" />
               <span>Latest Thread</span>
             </div>
             {category.latestThread ? (
               <>
-                <p className="line-clamp-2 text-sm font-medium text-slate-100">{category.latestThread.title}</p>
-                <p className="text-xs text-slate-400">
+                <p className="line-clamp-2 text-[15px] font-medium leading-7 text-slate-100">{category.latestThread.title}</p>
+                <p className="text-xs leading-6 text-slate-400">
                   {formatRelativeTime(category.latestThread.lastPostAt)} by {category.latestThread.author?.profile?.displayName || 'Unknown'}
                 </p>
               </>
             ) : (
-              <p className="text-sm text-slate-400">No threads yet. Start the tone for this forum.</p>
+              <p className="text-sm leading-7 text-slate-400">No threads yet. Start the tone for this forum.</p>
             )}
           </div>
 
@@ -171,6 +171,14 @@ export default function ForumsPage() {
   return (
     <ForumStage>
       <ForumShell>
+        <ForumBreadcrumbs
+          items={[
+            { label: 'BIA', href: '/app/bia' },
+            { label: 'Forums' },
+          ]}
+          className="px-1"
+        />
+
         <ForumPanel className="overflow-hidden">
           <div className="grid gap-8 p-6 sm:p-8 xl:grid-cols-[1.15fr_0.85fr]">
             <div className="space-y-6">
@@ -183,7 +191,7 @@ export default function ForumsPage() {
                 <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
                   A premium veteran forum network built to feel private, useful, and worth returning to.
                 </h1>
-                <p className="max-w-3xl text-base leading-7 text-slate-300">
+                <p className="max-w-3xl text-base leading-8 text-slate-300">
                   Explore curated BIA community rooms, premium BIA+ discussions inside The Bunker, and regiment-only
                   spaces for veterans who want sharper conversations, better context, and a stronger sense of belonging.
                 </p>
@@ -207,7 +215,7 @@ export default function ForumsPage() {
                 { label: 'BIA+ Rooms', value: bunkerCategories.length, helper: 'Premium spaces', icon: Crown },
                 { label: 'Live Threads', value: totalThreads, helper: latestActivity ? `Latest ${formatRelativeTime(latestActivity)}` : 'Freshly seeded', icon: Trophy },
               ].map(({ label, value, helper, icon: Icon }) => (
-                <div key={label} className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+                <div key={label} className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
                   <div className="flex items-center justify-between">
                     <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{label}</p>
                     <Icon className="h-4 w-4 text-slate-400" />

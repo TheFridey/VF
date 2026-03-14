@@ -87,7 +87,7 @@ jobs:
           fail_ci_if_error: false
 
   frontend-tests:
-    name: Frontend Tests
+    name: Frontend and Browser Tests
     runs-on: ubuntu-latest
     needs: lint
     steps:
@@ -97,19 +97,30 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: apps/web/package-lock.json
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            apps/admin/package-lock.json
 
       - name: Install web dependencies
         run: npm ci --prefix apps/web
 
+      - name: Install admin dependencies
+        run: npm ci --prefix apps/admin
+
       - name: Install Playwright browser
         run: npx --prefix apps/web playwright install --with-deps chromium
+
+      - name: Install admin Playwright browser
+        run: npx --prefix apps/admin playwright install chromium
 
       - name: Run web unit tests
         run: npm run test:unit --prefix apps/web
 
       - name: Run web end-to-end tests
         run: npm run test:e2e --prefix apps/web
+
+      - name: Run admin end-to-end tests
+        run: npm run test:e2e --prefix apps/admin
 
   e2e-tests:
     name: E2E Tests

@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsEnum,
   IsInt,
+  IsArray,
   Min,
   Max,
   IsDateString,
@@ -89,6 +90,13 @@ export class UpdateUserStatusDto {
   @Min(1)
   @Max(365)
   suspensionDays?: number;
+}
+
+export class BulkUpdateUserStatusDto extends UpdateUserStatusDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  userIds: string[];
 }
 
 export class UpdateUserRoleDto {

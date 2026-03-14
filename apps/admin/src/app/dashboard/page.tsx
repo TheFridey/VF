@@ -1,85 +1,69 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { adminApi } from '@/lib/api';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import {
-  Users, Shield, Flag, Activity, Clock,
-  Database, Server, TrendingUp, TrendingDown,
-  MessageSquare, Zap, CheckCircle
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  Database,
+  MessageSquare,
+  Shield,
+  Users,
+  Zap,
 } from 'lucide-react';
+import { adminApi } from '@/lib/api';
+import {
+  AdminCard,
+  AdminMetricCard,
+  AdminPageHeader,
+  AdminStatusChip,
+  adminTheme,
+} from '@/components/admin-ui';
 
-const S = {
-  label: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#3a5068', letterSpacing: 2, textTransform: 'uppercase' as const, marginBottom: 6 },
-  val: { fontFamily: "'JetBrains Mono', monospace", fontSize: 30, fontWeight: 500, color: '#dce8f5', lineHeight: 1, letterSpacing: -1 },
-  card: { background: '#0d1524', border: '1px solid #1a2636', borderRadius: 8, padding: '20px 22px', position: 'relative' as const, overflow: 'hidden' },
-  h2: { fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600, fontSize: 12, color: '#7a9bb5', letterSpacing: 2.5, textTransform: 'uppercase' as const, marginBottom: 14 },
-};
+function metricValue(value: number | undefined, loading: boolean) {
+  if (loading) {
+    return '...';
+  }
 
-function Skeleton() {
-  return <div style={{ height: 14, borderRadius: 3, background: 'linear-gradient(90deg, #111c2e 25%, #172030 50%, #111c2e 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' }} />;
+  return (value ?? 0).toLocaleString();
 }
 
-function MetricCard({ label, value, accent, icon: Icon, href, trend, sub }: any) {
-  const inner = (
-    <div style={{ ...S.card, cursor: href ? 'pointer' : 'default', transition: 'border-color 0.15s' }}
-      onMouseEnter={e => href && ((e.currentTarget as HTMLDivElement).style.borderColor = '#d4a853')}
-      onMouseLeave={e => href && ((e.currentTarget as HTMLDivElement).style.borderColor = '#1a2636')}>
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${accent}50, ${accent}10)` }} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <p style={S.label}>{label}</p>
-          <p style={{ ...S.val, color: accent || '#dce8f5' }}>{value ?? <Skeleton />}</p>
-          {sub && <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#3a5068', marginTop: 8 }}>{sub}</p>}
-          {trend !== undefined && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8 }}>
-              {trend >= 0 ? <TrendingUp size={10} color="#34d399" /> : <TrendingDown size={10} color="#f87171" />}
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: trend >= 0 ? '#34d399' : '#f87171' }}>
-                {trend >= 0 ? '+' : ''}{trend}% this week
-              </span>
-            </div>
-          )}
-        </div>
-        <div style={{ width: 38, height: 38, background: `${accent}14`, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Icon size={17} color={accent} />
-        </div>
-      </div>
-    </div>
-  );
-  return href ? <Link href={href} style={{ textDecoration: 'none' }}>{inner}</Link> : inner;
-}
+function HealthRow({
+  label,
+  status,
+  detail,
+}: {
+  label: string;
+  status: 'ok' | 'warn' | 'error' | 'unknown';
+  detail?: string;
+}) {
+  const color =
+    status === 'ok'
+      ? adminTheme.success
+      : status === 'warn'
+        ? adminTheme.warning
+        : status === 'error'
+          ? adminTheme.danger
+          : adminTheme.textMuted;
 
-function ActionRow({ label, count, href, urgency }: { label: string; count: number; href: string; urgency: 'high' | 'med' | 'low' }) {
-  const colors = { high: '#f87171', med: '#fbbf24', low: '#34d399' };
   return (
-    <Link href={href} style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '12px 16px', borderBottom: '1px solid #141f2e', textDecoration: 'none',
-      transition: 'background 0.1s',
-    }}
-      onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(212,168,83,0.04)'}
-      onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'}>
-      <span style={{ fontSize: 13, color: '#7a9bb5' }}>{label}</span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 600, color: count > 0 ? colors[urgency] : '#2d3f55' }}>{count}</span>
-        {count > 0 && <span style={{ width: 6, height: 6, borderRadius: '50%', background: colors[urgency], display: 'inline-block' }} />}
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        padding: '14px 16px',
+        borderBottom: `1px solid ${adminTheme.panelInset}`,
+      }}
+    >
+      <div>
+        <p style={{ color: adminTheme.textStrong, fontSize: 13, fontWeight: 600 }}>{label}</p>
+        {detail ? <p style={{ color: adminTheme.textSoft, fontSize: 11, marginTop: 4 }}>{detail}</p> : null}
       </div>
-    </Link>
-  );
-}
-
-function HealthRow({ label, status, detail }: { label: string; status: 'ok' | 'error' | 'warn'; detail?: string }) {
-  const colors = { ok: '#34d399', error: '#f87171', warn: '#fbbf24' };
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #141f2e' }}>
-      <span style={{ fontSize: 13, color: '#7a9bb5' }}>{label}</span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {detail && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#3a5068' }}>{detail}</span>}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: colors[status], display: 'inline-block', animation: status === 'ok' ? 'pulse-dot 2.5s ease infinite' : 'none' }} />
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: colors[status], letterSpacing: 1 }}>{status.toUpperCase()}</span>
-        </div>
-      </div>
+      <AdminStatusChip label={status.toUpperCase()} color={color} />
     </div>
   );
 }
@@ -90,80 +74,232 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([adminApi.getDashboard(), adminApi.getHealth()])
-      .then(([s, h]) => { setStats(s); setHealth(h); })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-    const interval = setInterval(() => {
+    let mounted = true;
+
+    const load = async () => {
+      try {
+        const [dashboard, systemHealth] = await Promise.all([
+          adminApi.getDashboard(),
+          adminApi.getHealth(),
+        ]);
+
+        if (!mounted) {
+          return;
+        }
+
+        setStats(dashboard);
+        setHealth(systemHealth);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load().catch(console.error);
+    const interval = window.setInterval(() => {
       adminApi.getDashboard().then(setStats).catch(console.error);
-    }, 60000);
-    return () => clearInterval(interval);
+    }, 60_000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
-  const d = stats || {};
+  const dashboard = stats || {};
+  const pendingVerifications = dashboard.pendingVerifications ?? 0;
+  const pendingReports = dashboard.pendingReports ?? 0;
+  const suspendedUsers = dashboard.suspendedUsers ?? 0;
+  const queueSeverity =
+    pendingReports > 5 || pendingVerifications > 10
+      ? adminTheme.danger
+      : pendingReports > 0 || pendingVerifications > 0
+        ? adminTheme.warning
+        : adminTheme.success;
 
   return (
     <div>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 28, color: '#dce8f5', letterSpacing: 0.5, lineHeight: 1 }}>
-          Command Dashboard
-        </h1>
-        <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#3a5068', letterSpacing: 2, marginTop: 6 }}>
-          PLATFORM OVERVIEW — REAL TIME
-        </p>
+      <AdminPageHeader
+        eyebrow="Operations overview"
+        title="Command Dashboard"
+        description="Real-time metrics for operator workload, trust operations, and platform health."
+      />
+
+      <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))' }}>
+        <AdminMetricCard
+          label="Total Personnel"
+          value={metricValue(dashboard.totalUsers, loading)}
+          helper={`${metricValue(dashboard.newUsersToday, loading)} joined today`}
+          accent={adminTheme.info}
+          icon={<Users size={18} />}
+        />
+        <AdminMetricCard
+          label="Verified Veterans"
+          value={metricValue(dashboard.verifiedVeterans, loading)}
+          helper={`${metricValue(pendingVerifications, loading)} awaiting review`}
+          accent={adminTheme.success}
+          icon={<Shield size={18} />}
+        />
+        <AdminMetricCard
+          label="Open Reports"
+          value={metricValue(pendingReports, loading)}
+          helper={`${metricValue(suspendedUsers, loading)} users suspended`}
+          accent={pendingReports > 0 ? adminTheme.danger : adminTheme.warning}
+          icon={<AlertTriangle size={18} />}
+        />
+        <AdminMetricCard
+          label="Connections Today"
+          value={metricValue(dashboard.matchesToday, loading)}
+          helper={`${metricValue(dashboard.totalConnections, loading)} total connections`}
+          accent={adminTheme.violet}
+          icon={<MessageSquare size={18} />}
+        />
       </div>
 
-      {/* Primary metrics */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 14 }}>
-        <MetricCard label="Total Personnel" value={loading ? undefined : d.totalUsers?.toLocaleString() ?? '0'} accent="#7ab3d4" icon={Users} href="/users" trend={d.userGrowth} />
-        <MetricCard label="Verified Veterans" value={loading ? undefined : d.verifiedVeterans?.toLocaleString() ?? '0'} accent="#34d399" icon={Shield} href="/verification" />
-        <MetricCard label="Open Reports" value={loading ? undefined : d.pendingReports ?? '0'} accent={d.pendingReports > 5 ? '#f87171' : '#fbbf24'} icon={Flag} href="/reports" />
-        <MetricCard label="Active Users" value={loading ? undefined : d.activeUsers?.toLocaleString() ?? '0'} accent="#a78bfa" icon={Activity} />
-      </div>
-
-      {/* Secondary row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
-        <MetricCard label="New Today" value={loading ? undefined : d.newUsersToday ?? '0'} accent="#d4a853" icon={TrendingUp} sub="new registrations" />
-        <MetricCard label="Pending Verification" value={loading ? undefined : d.pendingVerifications ?? '0'} accent={d.pendingVerifications > 0 ? '#fbbf24' : '#34d399'} icon={Clock} href="/verification" />
-        <MetricCard label="Connections Today" value={loading ? undefined : d.matchesToday ?? '0'} accent="#7ab3d4" icon={Zap} />
-        <MetricCard label="Total Connections" value={loading ? undefined : d.totalConnections?.toLocaleString() ?? '0'} accent="#60a5fa" icon={MessageSquare} />
-      </div>
-
-      {/* Lower panels */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        <div>
-          <p style={S.h2}>Pending Actions</p>
-          <div style={{ background: '#0d1524', border: '1px solid #1a2636', borderRadius: 8, overflow: 'hidden' }}>
-            <ActionRow label="Verification Requests" count={d.pendingVerifications || 0} href="/verification" urgency="med" />
-            <ActionRow label="Open Reports" count={d.pendingReports || 0} href="/reports" urgency="high" />
-            <ActionRow label="Suspended Users" count={d.suspendedUsers || 0} href="/users" urgency="low" />
-            <div style={{ padding: '12px 16px' }}>
-              <span style={{ fontSize: 13, color: '#2d4055' }}>Pending Deletions — 0</span>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <p style={S.h2}>System Health</p>
-          <div style={{ background: '#0d1524', border: '1px solid #1a2636', borderRadius: 8, overflow: 'hidden' }}>
-            <HealthRow label="API Server" status="ok" />
-            <HealthRow label="PostgreSQL" status={health?.database?.status === 'ok' ? 'ok' : 'warn'} detail={health?.database?.latency ? `${health.database.latency}ms` : undefined} />
-            <HealthRow label="Redis Cache" status={health?.redis?.status === 'ok' ? 'ok' : 'warn'} detail={health?.redis?.latency ? `${health.redis.latency}ms` : undefined} />
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
-              <span style={{ fontSize: 13, color: '#7a9bb5' }}>Email (Resend)</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#34d399', display: 'inline-block', animation: 'pulse-dot 2.5s ease infinite' }} />
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#34d399', letterSpacing: 1 }}>OK</span>
+      <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'minmax(0, 1.2fr) minmax(300px, 0.8fr)', marginTop: 20 }}>
+        <div style={{ display: 'grid', gap: 20 }}>
+          <AdminCard style={{ padding: '20px 22px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
+                  Queue health
+                </p>
+                <h2 style={{ color: adminTheme.textStrong, fontSize: 22, marginTop: 8 }}>Trust operations at a glance</h2>
               </div>
+              <AdminStatusChip
+                label={pendingReports + pendingVerifications > 0 ? 'Action needed' : 'Stable'}
+                color={queueSeverity}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginTop: 18 }}>
+              {[
+                {
+                  href: '/verification',
+                  label: 'Verification queue',
+                  value: pendingVerifications,
+                  helper: dashboard.pendingVerifications > 0 ? 'Review against 48h SLA' : 'No cases waiting',
+                  accent: pendingVerifications > 0 ? adminTheme.warning : adminTheme.success,
+                  icon: <Clock3 size={16} />,
+                },
+                {
+                  href: '/reports',
+                  label: 'Conduct reports',
+                  value: pendingReports,
+                  helper: pendingReports > 0 ? 'Reports need moderator decision' : 'No unresolved reports',
+                  accent: pendingReports > 0 ? adminTheme.danger : adminTheme.success,
+                  icon: <AlertTriangle size={16} />,
+                },
+                {
+                  href: '/users',
+                  label: 'User health',
+                  value: suspendedUsers,
+                  helper: 'Monitor status changes and escalations',
+                  accent: suspendedUsers > 0 ? adminTheme.info : adminTheme.textMuted,
+                  icon: <Activity size={16} />,
+                },
+              ].map((item) => (
+                <Link key={item.label} href={item.href}>
+                  <AdminCard style={{ padding: '16px 18px', height: '100%' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <div>
+                        <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
+                          {item.label}
+                        </p>
+                        <p style={{ color: item.accent, fontSize: 28, fontWeight: 700, marginTop: 8 }}>{item.value}</p>
+                        <p style={{ color: adminTheme.textMuted, fontSize: 12, lineHeight: 1.6, marginTop: 8 }}>{item.helper}</p>
+                      </div>
+                      <div style={{ color: item.accent }}>{item.icon}</div>
+                    </div>
+                  </AdminCard>
+                </Link>
+              ))}
+            </div>
+          </AdminCard>
+
+          <AdminCard style={{ overflow: 'hidden' }}>
+            <div style={{ padding: '18px 20px', borderBottom: `1px solid ${adminTheme.panelInset}` }}>
+              <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
+                Operator prompts
+              </p>
+              <h2 style={{ color: adminTheme.textStrong, fontSize: 20, marginTop: 8 }}>Recommended next actions</h2>
+            </div>
+            {[
+              {
+                href: '/verification',
+                label: 'Verification backlog',
+                description: pendingVerifications > 0 ? `${pendingVerifications} veterans are waiting for review.` : 'Queue is currently clear.',
+                color: pendingVerifications > 0 ? adminTheme.warning : adminTheme.success,
+              },
+              {
+                href: '/reports',
+                label: 'Conduct reports',
+                description: pendingReports > 0 ? `${pendingReports} reports still need a moderation outcome.` : 'No open reports need attention.',
+                color: pendingReports > 0 ? adminTheme.danger : adminTheme.success,
+              },
+              {
+                href: '/audit',
+                label: 'Audit visibility',
+                description: 'Review recent role changes, verification outcomes, and moderation actions.',
+                color: adminTheme.info,
+              },
+            ].map((item, index) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  padding: '16px 20px',
+                  borderBottom: index === 2 ? 'none' : `1px solid ${adminTheme.panelInset}`,
+                }}
+              >
+                <div>
+                  <p style={{ color: adminTheme.textStrong, fontSize: 13, fontWeight: 600 }}>{item.label}</p>
+                  <p style={{ color: adminTheme.textMuted, fontSize: 12, marginTop: 4 }}>{item.description}</p>
+                </div>
+                <CheckCircle2 size={16} color={item.color} />
+              </Link>
+            ))}
+          </AdminCard>
+        </div>
+
+        <AdminCard style={{ overflow: 'hidden', height: 'fit-content' }}>
+          <div style={{ padding: '18px 20px', borderBottom: `1px solid ${adminTheme.panelInset}` }}>
+            <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' }}>
+              System health
+            </p>
+            <h2 style={{ color: adminTheme.textStrong, fontSize: 20, marginTop: 8 }}>Platform dependencies</h2>
+          </div>
+          <HealthRow
+            label="API"
+            status={health?.status === 'error' ? 'error' : 'ok'}
+            detail="Process responding to dashboard requests"
+          />
+          <HealthRow
+            label="PostgreSQL"
+            status={health?.database?.status || 'unknown'}
+            detail={health?.database?.latency ? `${health.database.latency}ms query time` : 'Database latency unavailable'}
+          />
+          <HealthRow
+            label="Redis"
+            status={health?.redis?.status || 'unknown'}
+            detail={health?.redis?.latency ? `${health.redis.latency}ms ping` : 'Redis telemetry unavailable'}
+          />
+          <HealthRow label="Realtime messaging" status="ok" detail="Read sync and sockets available" />
+          <div style={{ padding: '16px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Zap size={16} color={adminTheme.accent} />
+              <p style={{ color: adminTheme.textMuted, fontSize: 12 }}>
+                Dashboard metrics refresh every 60 seconds.
+              </p>
             </div>
           </div>
-        </div>
+        </AdminCard>
       </div>
-
-      <style>{`
-        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-        @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
-      `}</style>
     </div>
   );
 }

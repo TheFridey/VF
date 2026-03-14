@@ -7,6 +7,11 @@ import { EmailService } from '../email/email.service';
 import { RedisService } from '../common/redis/redis.service';
 import { VerificationStatus, UserRole } from '@prisma/client';
 import { v2 as cloudinary } from 'cloudinary';
+import {
+  getVerificationResourceType,
+  validateVerificationEvidenceFile,
+  VERIFICATION_MAX_FILES,
+} from '../uploads/upload-validation';
 
 interface UploadedFile {
   fieldname: string;
@@ -16,33 +21,6 @@ interface UploadedFile {
   buffer: Buffer;
   size: number;
 }
-
-// Accepted MIME types for verification evidence
-const ACCEPTED_VIDEO_TYPES = [
-  'video/mp4',
-  'video/quicktime',   // .mov (iPhone default)
-  'video/x-msvideo',  // .avi
-  'video/webm',
-  'video/x-matroska', // .mkv
-];
-
-const ACCEPTED_IMAGE_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/heic',   // iPhone HEIC
-  'image/heif',
-  'image/webp',
-];
-
-const ACCEPTED_DOCUMENT_TYPES = [
-  'application/pdf',
-];
-
-const ALL_ACCEPTED_TYPES = [
-  ...ACCEPTED_VIDEO_TYPES,
-  ...ACCEPTED_IMAGE_TYPES,
-  ...ACCEPTED_DOCUMENT_TYPES,
-];
 
 const EVIDENCE_FOLDER = 'veteranfinder/verification-evidence';
 
@@ -68,21 +46,8 @@ export class VerificationService {
     userId: string,
     file: UploadedFile,
   ): Promise<{ url: string; publicId: string }> {
-    if (!ALL_ACCEPTED_TYPES.includes(file.mimetype)) {
-      throw new BadRequestException(
-        `Invalid file type (${file.mimetype}). Upload a video, photo, or PDF of your HM Armed Forces Veteran Card.`,
-      );
-    }
-
-    const isVideo = ACCEPTED_VIDEO_TYPES.includes(file.mimetype);
-    const maxSize = isVideo ? 200 * 1024 * 1024 : 10 * 1024 * 1024; // 200MB video, 10MB image/PDF
-
-    if (file.size > maxSize) {
-      const maxMb = maxSize / (1024 * 1024);
-      throw new BadRequestException(`File too large. Maximum size is ${maxMb}MB.`);
-    }
-
-    const resourceType = isVideo ? 'video' : ACCEPTED_DOCUMENT_TYPES.includes(file.mimetype) ? 'raw' : 'image';
+    validateVerificationEvidenceFile(file);
+    const resourceType = getVerificationResourceType(file.mimetype);
 
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
@@ -109,10 +74,15 @@ export class VerificationService {
   private async wipeEvidenceFiles(publicIds: string[]): Promise<void> {
     if (!publicIds || publicIds.length === 0) return;
     try {
-      await cloudinary.api.delete_resources(publicIds, { resource_type: 'video', type: 'authenticated' });
+      await Promise.all([
+        cloudinary.api.delete_resources(publicIds, { resource_type: 'video', type: 'authenticated' }),
+        cloudinary.api.delete_resources(publicIds, { resource_type: 'image', type: 'authenticated' }),
+        cloudinary.api.delete_resources(publicIds, { resource_type: 'raw', type: 'authenticated' }),
+      ]);
       this.logger.log(`Wiped ${publicIds.length} evidence file(s)`);
     } catch (err) {
-      this.logger.error(`Failed to wipe evidence files: ${err.message}`);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.error(`Failed to wipe evidence files: ${message}`);
     }
   }
 
@@ -130,8 +100,8 @@ export class VerificationService {
       throw new BadRequestException('Please upload your HM Armed Forces Veteran Card or supporting documentation.');
     }
 
-    if (files.length > 5) {
-      throw new BadRequestException('Maximum 5 files per submission.');
+    if (files.length > VERIFICATION_MAX_FILES) {
+      throw new BadRequestException(`Maximum ${VERIFICATION_MAX_FILES} files per submission.`);
     }
 
     const evidenceUrls: string[] = [];
@@ -218,21 +188,22 @@ export class VerificationService {
     };
   }
 
-  async getPendingRequests(page = 1, limit = 20) {
+  async getPendingRequests(page = 1, limit = 20, status?: VerificationStatus) {
     const skip = (page - 1) * limit;
+    const where = status ? { status } : undefined;
     const [requests, total] = await Promise.all([
       this.prisma.verificationRequest.findMany({
-        where: { status: VerificationStatus.PENDING },
+        where: where ?? undefined,
         include: {
           user: {
             select: { id: true, email: true, profile: true, veteranDetails: true },
           },
         },
-        orderBy: { createdAt: 'asc' }, // FIFO — oldest first
+        orderBy: status === VerificationStatus.PENDING ? { createdAt: 'asc' } : { createdAt: 'desc' },
         skip,
         take: limit,
       }),
-      this.prisma.verificationRequest.count({ where: { status: VerificationStatus.PENDING } }),
+      this.prisma.verificationRequest.count({ where: where ?? undefined }),
     ]);
 
     const requestsWithSla = requests.map((r) => ({
@@ -339,6 +310,54 @@ export class VerificationService {
     });
 
     return updatedRequest;
+  }
+
+  async bulkReviewRequests(
+    reviewerId: string,
+    requestIds: string[],
+    decision: 'APPROVE' | 'REJECT',
+    notesOrReason?: string,
+    ipAddress?: string,
+  ) {
+    const uniqueRequestIds = [...new Set(requestIds.filter(Boolean))];
+    if (uniqueRequestIds.length === 0) {
+      throw new BadRequestException('Select at least one verification request.');
+    }
+
+    if (decision === 'REJECT' && !notesOrReason?.trim()) {
+      throw new BadRequestException('A rejection reason is required for bulk rejection.');
+    }
+
+    const results: Array<{ requestId: string; status: 'updated' | 'skipped'; reason?: string }> = [];
+
+    for (const requestId of uniqueRequestIds) {
+      const request = await this.getRequest(requestId);
+
+      if (request.status !== VerificationStatus.PENDING) {
+        results.push({
+          requestId,
+          status: 'skipped',
+          reason: `Request already ${request.status.toLowerCase()}`,
+        });
+        continue;
+      }
+
+      if (decision === 'APPROVE') {
+        await this.approveVerification(requestId, reviewerId, notesOrReason, ipAddress);
+      } else {
+        await this.rejectVerification(requestId, reviewerId, notesOrReason!, ipAddress);
+      }
+
+      results.push({ requestId, status: 'updated' });
+    }
+
+    return {
+      success: true,
+      decision,
+      updatedCount: results.filter((result) => result.status === 'updated').length,
+      skippedCount: results.filter((result) => result.status === 'skipped').length,
+      results,
+    };
   }
 
   // ── SLA breach cron ─────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { ResolveReportDto } from './dto/moderation.dto';
+import { BulkResolveReportsDto, ResolveReportDto, UserAction } from './dto/moderation.dto';
 import { AuditService } from '../audit/audit.service';
 import { ReportStatus, ReportReason, UserStatus } from '@prisma/client';
 
@@ -106,19 +106,37 @@ export class ModerationService {
       },
     });
 
-    // If action taken, suspend the reported user
+    // Apply the selected action to the reported user.
     if (takeAction) {
+      const userStatus =
+        dto.userAction === UserAction.PERMANENT_BAN
+          ? UserStatus.BANNED
+          : dto.userAction === UserAction.WARNING
+            ? UserStatus.ACTIVE
+            : UserStatus.SUSPENDED;
+
       await this.prisma.user.update({
         where: { id: report.reportedUserId },
-        data: { status: UserStatus.SUSPENDED },
+        data: {
+          status: userStatus,
+          banReason: dto.userAction === UserAction.WARNING ? null : resolution,
+          banExpiresAt:
+            dto.userAction === UserAction.SUSPEND_7_DAYS
+              ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+              : dto.userAction === UserAction.SUSPEND_30_DAYS
+                ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                : dto.userAction === UserAction.PERMANENT_BAN
+                  ? null
+                  : undefined,
+        },
       });
 
       await this.auditService.log({
         userId: moderatorId,
-        action: 'user_suspended',
+        action: dto.userAction === UserAction.PERMANENT_BAN ? 'user_banned' : 'user_suspended',
         resource: 'user',
         resourceId: report.reportedUserId,
-        metadata: { reason: 'Report action', reportId },
+        metadata: { reason: 'Report action', reportId, userAction: dto.userAction },
         ipAddress,
       });
     }
@@ -133,6 +151,46 @@ export class ModerationService {
     });
 
     return updatedReport;
+  }
+
+  async bulkResolveReports(moderatorId: string, dto: BulkResolveReportsDto, ipAddress?: string) {
+    const uniqueReportIds = [...new Set(dto.reportIds.filter(Boolean))];
+    if (uniqueReportIds.length === 0) {
+      throw new BadRequestException('Select at least one report.');
+    }
+
+    const results: Array<{ reportId: string; status: 'updated' | 'skipped'; reason?: string }> = [];
+
+    for (const reportId of uniqueReportIds) {
+      const report = await this.prisma.report.findUnique({
+        where: { id: reportId },
+        select: { id: true, status: true },
+      });
+
+      if (!report) {
+        results.push({ reportId, status: 'skipped', reason: 'Report not found' });
+        continue;
+      }
+
+      if (report.status !== ReportStatus.PENDING) {
+        results.push({
+          reportId,
+          status: 'skipped',
+          reason: `Report already ${report.status.toLowerCase()}`,
+        });
+        continue;
+      }
+
+      await this.resolveReport(moderatorId, reportId, dto, ipAddress);
+      results.push({ reportId, status: 'updated' });
+    }
+
+    return {
+      success: true,
+      updatedCount: results.filter((result) => result.status === 'updated').length,
+      skippedCount: results.filter((result) => result.status === 'skipped').length,
+      results,
+    };
   }
 
   // Blocks

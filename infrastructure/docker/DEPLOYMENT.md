@@ -1,168 +1,79 @@
-# VeteranFinder — Production Deployment Runbook
+# VeteranFinder Deployment Runbook
 
-## Server: Coventry VPS (8 vCPU AMD Ryzen AM5, 16GB DDR5, 200GB NVMe, ~£28/mo)
-## Stack:  NestJS API · Next.js web · Next.js admin · PostgreSQL · Redis · nginx · coturn
+## Overview
 
----
+Production deploys are now image-based:
 
-## Prerequisites (one-time, already done)
+1. GitHub Actions builds `api`, `web`, and `admin` images.
+2. Images are pushed to GHCR with the commit SHA and an environment alias tag.
+3. The deploy workflow connects to the server over SSH.
+4. Docker Compose pulls the new images, restarts the app containers, runs Prisma migrations, and performs a health check.
+
+The server still uses `infrastructure/docker/docker-compose.yml`, but the compose file now supports both:
+
+- local source builds with `docker compose up --build`
+- remote image pulls with `VETERANFINDER_IMAGE_REGISTRY` and `VETERANFINDER_IMAGE_TAG`
+
+## Required GitHub Secrets
+
+Configure these in the target GitHub environment (`staging` or `production`):
+
+- `SSH_HOST`
+- `SSH_PORT`
+- `SSH_USER`
+- `SSH_PRIVATE_KEY`
+- `DEPLOY_PATH`
+- `GHCR_USERNAME`
+- `GHCR_TOKEN`
+
+## Required GitHub Environment Variables
+
+- `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_SITE_URL`
+- `NEXT_PUBLIC_ADMIN_APP_URL`
+- `NEXT_PUBLIC_WS_URL`
+- `HEALTHCHECK_URL`
+
+## First-Time Server Setup
 
 ```bash
-# Ubuntu 24.04 — install Docker
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker $USER
-
-# nginx
-sudo apt install -y nginx certbot python3-certbot-nginx
-
-# SSL for all three domains
-sudo certbot --nginx -d veteranfinder.co.uk -d www.veteranfinder.co.uk -d admin.veteranfinder.co.uk
-```
-
----
-
-## First-time deployment
-
-```bash
-# 1. Clone the repo
-git clone git@github.com:yourusername/veteranfinder.git /opt/veteranfinder
+git clone git@github.com:your-org/veteranfinder.git /opt/veteranfinder
 cd /opt/veteranfinder
-
-# 2. Create environment file
 cp apps/api/.env.example .env
-nano .env   # Fill in all secrets (see REQUIRED SECRETS below)
-
-# 3. Copy nginx config
-sudo cp nginx/veteranfinder.conf /etc/nginx/sites-available/veteranfinder
-sudo ln -s /etc/nginx/sites-available/veteranfinder /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-
-# 4. Build and start all services
-docker compose -f infrastructure/docker/docker-compose.yml --env-file .env up -d --build
-
-# 5. Wait for API health check to pass (usually ~20s)
-watch docker compose -f infrastructure/docker/docker-compose.yml ps
-
-# 6. Run database migrations
-docker exec veteranfinder-api npx prisma migrate deploy
-
-# 7. Seed initial data (first deployment only)
-docker exec veteranfinder-api npx ts-node -r tsconfig-paths/register prisma/seed.ts
-
-# 8. Verify all services healthy
-curl https://veteranfinder.co.uk/api/v1/health/ready
-# Expected: {"status":"ready","checks":{"database":true,"redis":true},...}
 ```
 
----
+Populate `.env` with your production secrets, then ensure Docker is installed and the server can pull from GHCR:
 
-## Subsequent deployments (rolling update)
+```bash
+echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+```
+
+## Manual Pull-and-Restart Flow
+
+If you need to repeat what the workflow does from the server:
 
 ```bash
 cd /opt/veteranfinder
+export VETERANFINDER_IMAGE_REGISTRY=ghcr.io/<owner>
+export VETERANFINDER_IMAGE_TAG=<git-sha>
 
-# 1. Pull latest code
-git pull origin main
-
-# 2. Rebuild and restart only changed services
-docker compose -f infrastructure/docker/docker-compose.yml --env-file .env up -d --build api web admin
-
-# 3. Run any pending migrations
-docker exec veteranfinder-api npx prisma migrate deploy
-
-# 4. Confirm health
-curl https://veteranfinder.co.uk/api/v1/health/ready
+docker compose -f infrastructure/docker/docker-compose.yml --env-file .env pull api web admin
+docker compose -f infrastructure/docker/docker-compose.yml --env-file .env up -d api web admin
+docker compose -f infrastructure/docker/docker-compose.yml --env-file .env exec -T api npx prisma migrate deploy
+curl -fsS https://veteranfinder.co.uk/api/v1/health/ready
 ```
 
----
+## Local Build Flow
 
-## Required secrets (in .env)
-
-The following are **hard failures** if not set (Docker Compose exits with error):
-
-| Variable | How to generate |
-|---|---|
-| `DB_PASSWORD` | `openssl rand -hex 24` |
-| `REDIS_PASSWORD` | `openssl rand -hex 24` |
-| `JWT_SECRET` | `openssl rand -hex 32` |
-| `JWT_REFRESH_SECRET` | `openssl rand -hex 32` |
-| `ENCRYPTION_KEY` | `openssl rand -base64 24 \| head -c 32` |
-| `PASSWORD_PEPPER` | `openssl rand -hex 32` |
-| `COOKIE_SECRET` | `openssl rand -hex 32` |
-
----
-
-## Useful commands
+For local infrastructure testing you can still build from source:
 
 ```bash
-# View all container statuses
-docker compose -f infrastructure/docker/docker-compose.yml ps
-
-# Follow API logs
-docker logs veteranfinder-api -f --tail 100
-
-# Follow all logs
-docker compose -f infrastructure/docker/docker-compose.yml logs -f
-
-# Open Prisma Studio (dev only — not on production)
-docker exec -it veteranfinder-api npx prisma studio
-
-# Postgres backup
-docker exec veteranfinder-db pg_dump -U veteranfinder veteranfinder | gzip > backup_$(date +%Y%m%d_%H%M%S).sql.gz
-
-# Redis CLI
-docker exec -it veteranfinder-redis redis-cli -a $REDIS_PASSWORD
-
-# Restart a single service
-docker restart veteranfinder-api
-
-# Scale down gracefully
-docker compose -f infrastructure/docker/docker-compose.yml stop api && sleep 5 && docker compose up -d api
+docker compose -f infrastructure/docker/docker-compose.yml --env-file .env up -d --build
 ```
 
----
+## Notes
 
-## coturn (video calls)
-
-```bash
-# Install coturn
-sudo apt install -y coturn
-
-# Copy config (edit external-ip= to your VPS public IP first)
-sudo cp coturn/turnserver.conf /etc/coturn/turnserver.conf
-sudo sed -i 's/# external-ip=/external-ip=YOUR_VPS_IP/' /etc/coturn/turnserver.conf
-sudo sed -i "s/\${TURN_SECRET}/$TURN_SECRET/" /etc/coturn/turnserver.conf
-
-# Open firewall ports
-sudo ufw allow 3478/tcp
-sudo ufw allow 3478/udp
-sudo ufw allow 5349/tcp
-sudo ufw allow 5349/udp
-sudo ufw allow 49152:65535/udp
-
-# Start and enable
-sudo systemctl enable coturn
-sudo systemctl start coturn
-```
-
----
-
-## Health check endpoints
-
-| Endpoint | What it checks |
-|---|---|
-| `GET /api/v1/health` | API process alive |
-| `GET /api/v1/health/live` | Liveness (uptime) |
-| `GET /api/v1/health/ready` | Database + Redis connectivity |
-
----
-
-## Monitoring checklist post-deploy
-
-- [ ] `curl https://veteranfinder.co.uk/api/v1/health/ready` returns `"status":"ready"`
-- [ ] Login with `john.doe@example.com / Password123!` succeeds
-- [ ] Brothers search returns results
-- [ ] Admin panel loads at `https://admin.veteranfinder.co.uk`
-- [ ] Verification queue visible in admin
-- [ ] Stripe webhooks receiving (check Stripe dashboard)
-- [ ] Email sending (trigger a forgot-password, check Resend dashboard)
+- `VETERANFINDER_IMAGE_TAG` defaults to `latest` if not set.
+- `VETERANFINDER_IMAGE_REGISTRY` defaults to `ghcr.io/veteranfinder`.
+- The deploy workflow only restarts `api`, `web`, and `admin`; PostgreSQL and Redis stay in place.
+- Prisma migrations are executed after the new API container is up.

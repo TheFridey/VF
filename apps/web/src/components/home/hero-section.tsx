@@ -59,6 +59,25 @@ const signalCards = [
   },
 ];
 
+const quickAnswers = [
+  {
+    label: 'Who it is for',
+    value: 'UK veterans looking to reconnect with the people they served with.',
+  },
+  {
+    label: 'What it does',
+    value: 'Matches profiles, service context, private messaging, and member forums in one place.',
+  },
+  {
+    label: 'Why it feels trustworthy',
+    value: 'Verification, moderation, and audit-led operations are built into the product.',
+  },
+  {
+    label: 'What to do next',
+    value: 'Create an account, submit verification, and begin searching by service details.',
+  },
+];
+
 export function HeroSection() {
   const prefersReducedMotion = useReducedMotion();
   const heroRef = useRef<HTMLElement | null>(null);
@@ -196,6 +215,21 @@ export function HeroSection() {
                 >
                   <CheckCircle2 className="mb-3 h-4 w-4 text-emerald-700" />
                   {item}
+                </motion.div>
+              ))}
+            </div>
+
+            <div className="mt-8 grid gap-3 rounded-[28px] border border-slate-200 bg-white/80 p-4 shadow-sm sm:grid-cols-2">
+              {quickAnswers.map((item, index) => (
+                <motion.div
+                  key={item.label}
+                  initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
+                  animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.42 + index * 0.06 }}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-4"
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{item.label}</p>
+                  <p className="mt-2 text-sm leading-7 text-slate-700">{item.value}</p>
                 </motion.div>
               ))}
             </div>

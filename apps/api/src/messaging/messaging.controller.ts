@@ -11,6 +11,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { MessagingService } from './messaging.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -37,6 +38,7 @@ export class MessagingController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Send a message' })
   async sendMessagePost(
     @CurrentUser('id') userId: string,
@@ -48,6 +50,7 @@ export class MessagingController {
   }
 
   @Post(':connectionId')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Send a message to a connection' })
   async sendMessage(
     @CurrentUser('id') userId: string,
@@ -76,6 +79,7 @@ export class MessagingController {
   }
 
   @Post(':connectionId/read')
+  @Throttle({ default: { limit: 180, ttl: 60000 } })
   @ApiOperation({ summary: 'Mark all messages in connection as read' })
   async markAsRead(
     @CurrentUser('id') userId: string,
@@ -85,6 +89,7 @@ export class MessagingController {
   }
 
   @Patch('messages/:messageId')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Edit a message (within 15 minutes)' })
   async editMessage(
     @CurrentUser('id') userId: string,
@@ -97,6 +102,7 @@ export class MessagingController {
   }
 
   @Delete('messages/:messageId')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Delete a message' })
   async deleteMessage(
     @CurrentUser('id') userId: string,
