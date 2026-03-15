@@ -22,10 +22,10 @@ const verificationExplainer = [
 
 export function VerificationSection() {
   return (
-    <section className="border-y border-slate-200 bg-slate-950 text-slate-100">
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
+    <section className="border-y border-sky-100 bg-[linear-gradient(180deg,#0f172a_0%,#082f49_100%)] text-slate-100">
+      <div className="grid w-full gap-10 px-6 py-16 sm:px-8 lg:grid-cols-[0.95fr_1.05fr] lg:px-10 xl:px-14 2xl:px-20">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300/80">Verification clarity</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300/80">Verification clarity</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight">What &quot;verified veteran&quot; means here.</h2>
           <p className="mt-5 max-w-xl text-sm leading-8 text-slate-300">
             It means the account has gone through a review process intended to protect the quality of the network.
@@ -44,7 +44,7 @@ export function VerificationSection() {
           <ol className="space-y-4">
             {verificationSteps.map((step, index) => (
               <li key={step} className="flex gap-4 rounded-2xl border border-white/10 bg-black/10 p-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-sm font-semibold text-white">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-600 text-sm font-semibold text-white">
                   {index + 1}
                 </div>
                 <p className="text-sm leading-8 text-slate-200">{step}</p>

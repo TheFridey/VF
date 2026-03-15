@@ -22,8 +22,8 @@ function PreviewCard({
 
 export function ProofLayerSection() {
   return (
-    <section className="border-y border-slate-200 bg-[linear-gradient(180deg,#f8fafb_0%,#ffffff_100%)]">
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
+    <section className="border-y border-sky-100 bg-[linear-gradient(180deg,#f6fbff_0%,#ffffff_100%)]">
+      <div className="w-full px-6 py-16 sm:px-8 lg:px-10 xl:px-14 2xl:px-20">
         <Reveal className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Product proof</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
@@ -40,7 +40,7 @@ export function ProofLayerSection() {
             <PreviewCard eyebrow="Profile preview" title="Service history sits alongside the person.">
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
                     <UserRoundSearch className="h-5 w-5" />
                   </div>
                   <div>
@@ -55,7 +55,7 @@ export function ProofLayerSection() {
                   </div>
                   <div className="flex justify-between gap-4">
                     <span>Verification</span>
-                    <span className="font-medium text-emerald-700">Reviewed and active</span>
+                    <span className="font-medium text-sky-700">Reviewed and active</span>
                   </div>
                   <div className="flex justify-between gap-4">
                     <span>What helps search</span>
@@ -76,7 +76,7 @@ export function ProofLayerSection() {
                 ].map(([badge, title, meta]) => (
                   <div key={title} className="rounded-2xl border border-slate-200 bg-white p-3">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-800">
+                      <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-700">
                         {badge}
                       </span>
                       <span className="text-xs text-slate-400">{meta}</span>
@@ -92,7 +92,7 @@ export function ProofLayerSection() {
             <PreviewCard eyebrow="Messaging preview" title="Messages stay private, direct, and clearly read.">
               <div className="space-y-3">
                 <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
-                  <ShieldCheck className="h-4 w-4 text-emerald-700" />
+                  <ShieldCheck className="h-4 w-4 text-sky-600" />
                   Verification and moderation state travel with the conversation.
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
@@ -107,7 +107,7 @@ export function ProofLayerSection() {
                     <div className="max-w-[85%] rounded-2xl bg-slate-100 px-3 py-2 text-sm leading-6 text-slate-700">
                       I think we crossed paths in Catterick. The service years match.
                     </div>
-                    <div className="ml-auto max-w-[85%] rounded-2xl bg-emerald-700 px-3 py-2 text-sm leading-6 text-white">
+                    <div className="ml-auto max-w-[85%] rounded-2xl bg-sky-600 px-3 py-2 text-sm leading-6 text-white">
                       That sounds right. I remember the signals detachment there.
                     </div>
                   </div>

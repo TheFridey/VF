@@ -25,16 +25,16 @@ export function SiteHeader() {
           : 'bg-white/78 backdrop-blur-lg',
       )}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+      <div className="flex w-full items-center justify-between px-6 py-4 sm:px-8 lg:px-10 xl:px-14 2xl:px-20">
         <Link href="/" className="flex items-center gap-2 text-slate-950">
-          <Shield className="h-7 w-7 text-emerald-700" />
+          <Shield className="h-7 w-7 text-sky-600" />
           <span className="text-lg font-semibold tracking-tight">VeteranFinder</span>
         </Link>
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" className="text-slate-700 hover:text-slate-950">
             <Link href="/auth/login">Log in</Link>
           </Button>
-          <Button asChild className="bg-emerald-700 hover:bg-emerald-800">
+          <Button asChild className="bg-sky-600 hover:bg-sky-700">
             <Link href="/auth/register">Join VeteranFinder</Link>
           </Button>
         </div>

@@ -1,293 +1,272 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
-import {
-  ArrowRight,
-  CheckCircle2,
-  Clock3,
-  Lock,
-  MapPinned,
-  MessageSquare,
-  Shield,
-  Sparkles,
-  Users,
-} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowRight, CheckCircle2, Lock, Shield, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Float, ScrollCue } from '@/components/home/home-motion';
 
-const proofPoints = [
-  'Veteran-only access with verification',
-  'Private messaging and moderation controls',
-  'Regiment, service, and community context built in',
+const phrases = [
+  'the same regiment',
+  'the same tour',
+  'the same years',
+  'familiar names',
 ];
 
-const phrases = ['the same regiment', 'the same tour', 'the same years', 'the same stories'];
-
-const steps = [
-  {
-    label: 'Shared context',
-    title: 'Service history gives the search meaning',
-    description: 'Profiles are built around the details that matter for reconnection, not endless posting.',
-    icon: MapPinned,
-  },
-  {
-    label: 'Verification',
-    title: 'Access is based on trust',
-    description: 'Veteran status is reviewed so the network stays grounded and private.',
-    icon: Shield,
-  },
-  {
-    label: 'First contact',
-    title: 'The conversation can start quietly',
-    description: 'When you find the right person, messages and forums give you a simpler way back in.',
-    icon: MessageSquare,
-  },
+const trustPoints = [
+  'Veteran-only access',
+  'Private messaging',
+  'Verification built in',
 ];
 
-const signalCards = [
-  {
-    icon: Clock3,
-    title: 'A calmer first step',
-    description: 'No public feed, no pressure to perform, just enough structure to help you find the right people.',
-  },
-  {
-    icon: Lock,
-    title: 'Private by default',
-    description: 'Verification, moderation, and member-only areas are part of the product, not marketing garnish.',
-  },
-];
-
-const quickAnswers = [
-  {
-    label: 'Who it is for',
-    value: 'UK veterans looking to reconnect with the people they served with.',
-  },
-  {
-    label: 'What it does',
-    value: 'Matches profiles, service context, private messaging, and member forums in one place.',
-  },
-  {
-    label: 'Why it feels trustworthy',
-    value: 'Verification, moderation, and audit-led operations are built into the product.',
-  },
-  {
-    label: 'What to do next',
-    value: 'Create an account, submit verification, and begin searching by service details.',
-  },
-];
+const sceneClass = (active: boolean) =>
+  [
+    'hero-scene absolute inset-4',
+    active ? 'hero-scene-active' : 'hero-scene-hidden',
+  ].join(' ');
 
 export function HeroSection() {
-  const prefersReducedMotion = useReducedMotion();
-  const heroRef = useRef<HTMLElement | null>(null);
   const [activePhrase, setActivePhrase] = useState(0);
-
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ['start start', 'end start'],
-  });
-
-  const orbOneY = useTransform(scrollYProgress, [0, 1], [0, 120]);
-  const orbTwoY = useTransform(scrollYProgress, [0, 1], [0, -90]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.88], [1, 0.74]);
+  const [typedPhrase, setTypedPhrase] = useState('');
+  const [isDeletingPhrase, setIsDeletingPhrase] = useState(false);
+  const [visualStage, setVisualStage] = useState(0);
 
   useEffect(() => {
-    if (prefersReducedMotion) {
-      return;
-    }
+    const currentPhrase = phrases[activePhrase];
+    const typingDelay = isDeletingPhrase ? 55 : 110;
+    const pauseDelay = isDeletingPhrase ? 360 : 1500;
 
-    const interval = window.setInterval(() => {
+    const timeout = window.setTimeout(() => {
+      if (!isDeletingPhrase) {
+        if (typedPhrase.length < currentPhrase.length) {
+          setTypedPhrase(currentPhrase.slice(0, typedPhrase.length + 1));
+          return;
+        }
+
+        setIsDeletingPhrase(true);
+        return;
+      }
+
+      if (typedPhrase.length > 0) {
+        setTypedPhrase(currentPhrase.slice(0, typedPhrase.length - 1));
+        return;
+      }
+
+      setIsDeletingPhrase(false);
       setActivePhrase((current) => (current + 1) % phrases.length);
-    }, 2400);
+    }, typedPhrase === currentPhrase || typedPhrase.length === 0 ? pauseDelay : typingDelay);
+
+    return () => window.clearTimeout(timeout);
+  }, [activePhrase, isDeletingPhrase, typedPhrase]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setVisualStage((current) => (current + 1) % 3);
+    }, 3200);
 
     return () => window.clearInterval(interval);
-  }, [prefersReducedMotion]);
+  }, []);
 
   return (
-    <section
-      ref={heroRef}
-      className="relative flex min-h-screen items-center overflow-hidden border-b border-slate-200 bg-[linear-gradient(180deg,#fbfcfb_0%,#f4f6f7_100%)] pt-24"
-    >
-      <div className="absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.08)_1px,transparent_1px)] bg-[size:28px_28px]" />
-        <motion.div
-          className="absolute left-[-8rem] top-24 h-72 w-72 rounded-full bg-emerald-200/30 blur-3xl"
-          style={{ y: prefersReducedMotion ? 0 : orbOneY }}
-        />
-        <motion.div
-          className="absolute bottom-10 right-[-6rem] h-96 w-96 rounded-full bg-sky-100/55 blur-3xl"
-          style={{ y: prefersReducedMotion ? 0 : orbTwoY }}
-        />
+    <section className="relative isolate flex min-h-screen items-center overflow-hidden border-b border-sky-100 bg-[linear-gradient(180deg,#f4faff_0%,#f9fcff_42%,#ffffff_100%)] pt-24">
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        <div className="hero-grid-motion absolute inset-0" />
+        <div className="hero-top-glow absolute inset-x-[-10%] top-[-12%] h-[24rem]" />
+        <div className="hero-sweep-left absolute inset-y-[-10%] left-[-14%] w-[34rem]" />
+        <div className="hero-sweep-right absolute inset-y-[-8%] right-[-12%] w-[30rem]" />
+        <div className="hero-line-one absolute inset-x-[10%] top-[14%] h-px" />
+        <div className="hero-line-two absolute inset-x-[24%] top-[26%] h-px" />
+        <div className="hero-line-three absolute inset-x-[6%] top-[38%] h-px" />
+        <div className="hero-signal-one absolute left-[12%] top-[22%] h-2.5 w-2.5 rounded-full" />
+        <div className="hero-signal-two absolute right-[18%] top-[34%] h-2 w-2 rounded-full" />
+        <div className="hero-shimmer absolute inset-y-0 left-[-20%] w-[46rem]" />
+        <div className="hero-orb-one absolute left-[-6rem] top-20 h-80 w-80 rounded-full" />
+        <div className="hero-orb-two absolute right-[-8rem] top-28 h-[24rem] w-[24rem] rounded-full" />
+        <div className="hero-orb-three absolute left-[18%] top-[18%] h-28 w-28 rounded-full" />
+        <div className="hero-orb-four absolute right-[16%] top-[52%] h-36 w-36 rounded-full" />
+        <div className="absolute inset-x-0 bottom-0 h-40 bg-[linear-gradient(180deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.94)_100%)]" />
       </div>
 
-      <Float delay={0.2} amplitude={8} className="absolute left-[9%] top-40 hidden xl:block">
-        <div className="rounded-2xl border border-emerald-200 bg-white/90 p-3 shadow-[0_18px_50px_-32px_rgba(15,23,42,0.28)] backdrop-blur">
-          <Shield className="h-5 w-5 text-emerald-700" />
+      <div className="hero-float-slow absolute left-[4%] top-24 z-10 hidden xl:block">
+        <div className="rounded-2xl border border-sky-200/80 bg-white/85 p-3 shadow-[0_18px_50px_-32px_rgba(14,116,144,0.24)] backdrop-blur">
+          <Shield className="h-5 w-5 text-sky-600" />
         </div>
-      </Float>
-      <Float delay={1.1} amplitude={10} className="absolute right-[12%] top-52 hidden xl:block">
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-[0_18px_50px_-32px_rgba(15,23,42,0.28)] backdrop-blur">
-          <Users className="h-5 w-5 text-slate-700" />
+      </div>
+      <div className="hero-float-slow hero-float-delayed absolute right-[6%] top-56 z-10 hidden xl:block">
+        <div className="rounded-2xl border border-sky-100 bg-white/85 p-3 shadow-[0_18px_50px_-32px_rgba(14,116,144,0.2)] backdrop-blur">
+          <Users className="h-5 w-5 text-sky-500" />
         </div>
-      </Float>
-      <Float delay={1.8} amplitude={7} className="absolute bottom-28 right-[18%] hidden xl:block">
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-[0_18px_50px_-32px_rgba(15,23,42,0.28)] backdrop-blur">
-          <Sparkles className="h-5 w-5 text-amber-600" />
-        </div>
-      </Float>
+      </div>
 
-      <motion.div
-        className="mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6 lg:px-8"
-        style={{ opacity: prefersReducedMotion ? 1 : heroOpacity }}
-      >
-        <div className="grid gap-12 lg:grid-cols-[1.04fr_0.96fr] lg:items-center">
-          <div className="max-w-3xl">
-            <motion.div
-              initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
-              animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-800 backdrop-blur"
-            >
+      <div className="relative z-20 w-full px-6 pb-24 sm:px-8 lg:px-10 xl:px-14 2xl:px-20">
+        <div className="grid gap-12 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
+          <div className="max-w-[42rem]">
+            <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-sky-700 backdrop-blur">
               <Shield className="h-3.5 w-3.5" />
               Verified veteran network
-            </motion.div>
+            </div>
 
-            <motion.h1
-              initial={prefersReducedMotion ? false : { opacity: 0, y: 24 }}
-              animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.08 }}
-              className="mt-6 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl lg:text-6xl"
-            >
-              Somewhere in here is someone who remembers
-              <span className="mt-2 block text-emerald-800">
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={phrases[activePhrase]}
-                    initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
-                    animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-                    exit={prefersReducedMotion ? undefined : { opacity: 0, y: -12 }}
-                    transition={{ duration: 0.35 }}
-                    className="inline-block"
-                  >
-                    {phrases[activePhrase]}.
-                  </motion.span>
-                </AnimatePresence>
+            <h1 className="mt-6 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl lg:text-[4rem] lg:leading-[1.02]">
+              Find the people who remember
+              <span className="mt-2 block min-h-[3.4rem] text-sky-700">
+                <span className="inline-flex min-w-[19.5rem] items-center">
+                  <span className="inline-block whitespace-nowrap">{typedPhrase}</span>
+                  <span aria-hidden="true" className="hero-caret ml-px inline-block h-[0.95em] w-[2px] rounded-full bg-sky-500" />
+                </span>
               </span>
-            </motion.h1>
+            </h1>
 
-            <motion.p
-              initial={prefersReducedMotion ? false : { opacity: 0, y: 24 }}
-              animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.16 }}
-              className="mt-5 max-w-2xl text-lg leading-8 text-slate-700"
-            >
-              VeteranFinder helps UK veterans find the people they served with through verified access, service
-              context, and a quieter kind of community experience built for reconnection rather than noise.
-            </motion.p>
+            <p className="mt-5 max-w-xl text-lg leading-8 text-slate-700">
+              A quieter place for UK veterans to reconnect through shared service, trusted access, and simple private conversation.
+            </p>
 
-            <motion.div
-              initial={prefersReducedMotion ? false : { opacity: 0, y: 24 }}
-              animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.24 }}
-              className="mt-8 flex flex-wrap gap-3"
-            >
-              <Button asChild size="lg" className="bg-emerald-700 shadow-[0_18px_40px_-24px_rgba(4,120,87,0.45)] hover:bg-emerald-800">
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Button asChild size="lg" className="bg-sky-600 shadow-[0_18px_40px_-24px_rgba(14,165,233,0.42)] hover:bg-sky-700">
                 <Link href="/auth/register">
-                  Start looking
+                  Start here
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="border-slate-300 bg-white/80 text-slate-800 hover:bg-white">
-                <Link href="/auth/login">Already a member?</Link>
+              <Button asChild size="lg" variant="outline" className="border-sky-200 bg-white/80 text-slate-800 hover:bg-white">
+                <Link href="/auth/login">Sign in</Link>
               </Button>
-            </motion.div>
-
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              {proofPoints.map((item, index) => (
-                <motion.div
-                  key={item}
-                  initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
-                  animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-                  transition={{ duration: 0.55, delay: 0.32 + index * 0.08 }}
-                  whileHover={prefersReducedMotion ? undefined : { y: -4 }}
-                  className="rounded-2xl border border-slate-200 bg-white/88 px-4 py-4 text-sm text-slate-700 shadow-sm backdrop-blur"
-                >
-                  <CheckCircle2 className="mb-3 h-4 w-4 text-emerald-700" />
-                  {item}
-                </motion.div>
-              ))}
             </div>
 
-            <div className="mt-8 grid gap-3 rounded-[28px] border border-slate-200 bg-white/80 p-4 shadow-sm sm:grid-cols-2">
-              {quickAnswers.map((item, index) => (
-                <motion.div
-                  key={item.label}
-                  initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
-                  animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.42 + index * 0.06 }}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-4"
+            <div className="mt-8 flex flex-wrap gap-2">
+              {trustPoints.map((item) => (
+                <span
+                  key={item}
+                  className="rounded-full border border-sky-100 bg-white/88 px-3 py-1.5 text-sm text-slate-700 shadow-sm"
                 >
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{item.label}</p>
-                  <p className="mt-2 text-sm leading-7 text-slate-700">{item.value}</p>
-                </motion.div>
+                  {item}
+                </span>
               ))}
             </div>
           </div>
 
-          <motion.div
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 28 }}
-            animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-            transition={{ duration: 0.75, delay: 0.18 }}
-            className="rounded-[32px] border border-slate-200 bg-white/86 p-6 shadow-[0_28px_80px_-42px_rgba(15,23,42,0.32)] backdrop-blur"
-          >
-            <div className="rounded-[28px] border border-slate-200 bg-slate-50/90 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">What this feels like</p>
-              <div className="mt-5 space-y-4">
-                {steps.map(({ icon: Icon, label, title, description }, index) => (
-                  <motion.div
-                    key={title}
-                    initial={prefersReducedMotion ? false : { opacity: 0, x: 18 }}
-                    animate={prefersReducedMotion ? undefined : { opacity: 1, x: 0 }}
-                    transition={{ duration: 0.55, delay: 0.35 + index * 0.09 }}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 rounded-2xl border border-emerald-200 bg-emerald-50 p-2 text-emerald-700">
-                        <Icon className="h-4 w-4" />
+          <div className="relative mx-auto w-full max-w-[30rem]">
+            <div className="relative overflow-hidden rounded-[34px] border border-sky-100 bg-white/82 p-6 shadow-[0_28px_80px_-42px_rgba(14,116,144,0.24)] backdrop-blur">
+              <div className="absolute inset-x-8 top-8 h-28 rounded-full bg-sky-100/70 blur-3xl" />
+              <div className="relative rounded-[28px] border border-sky-100 bg-[linear-gradient(180deg,#ffffff_0%,#f3f9ff_100%)] p-6">
+                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
+                  <span>Shared overlap</span>
+                  <span className="rounded-full bg-sky-100 px-2.5 py-1 text-[10px] tracking-[0.2em] text-sky-700">
+                    Likely match
+                  </span>
+                </div>
+
+                <div className="mt-8 space-y-4">
+                  <div className="relative h-[21.5rem] overflow-hidden rounded-[28px] border border-sky-100 bg-[linear-gradient(180deg,#f9fcff_0%,#eff8ff_100%)] p-4">
+                    <div className={sceneClass(visualStage === 0)}>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-3xl border border-sky-100 bg-white/96 px-4 py-3 shadow-sm">
+                          <p className="text-sm font-medium text-slate-950">Liam S.</p>
+                          <p className="mt-1 text-xs text-slate-500">Royal Signals, 2009-2014</p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">Afghanistan</span>
+                            <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">2011</span>
+                          </div>
+                        </div>
+                        <div className="rounded-3xl border border-sky-100 bg-white/96 px-4 py-3 shadow-sm">
+                          <p className="text-sm font-medium text-slate-950">Mark T.</p>
+                          <p className="mt-1 text-xs text-slate-500">Signals detachment, 2010-2013</p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">Afghanistan</span>
+                            <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">2011</span>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</p>
-                        <p className="mt-1 text-sm font-medium text-slate-950">{title}</p>
-                        <p className="mt-1 text-sm text-slate-600">{description}</p>
+                      <div className="mt-5 flex justify-center">
+                        <div className="rounded-full border border-sky-200 bg-white/96 px-3 py-2 text-center shadow-sm">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-700">Afghanistan, 2011</p>
+                        </div>
+                      </div>
+                      <div className="mt-5 rounded-3xl border border-sky-100 bg-white/96 px-4 py-3 text-sm text-slate-700 shadow-sm">
+                        <div className="flex items-center gap-2 text-sky-700">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">Shared overlap found</span>
+                        </div>
+                        <p className="mt-2 leading-6">Afghanistan in 2011 appears in both service histories.</p>
                       </div>
                     </div>
-                  </motion.div>
-                ))}
+
+                    <div className={sceneClass(visualStage === 1)}>
+                      <div className="flex h-full flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                          <div className="rounded-full border border-sky-100 bg-white px-4 py-2 text-sm font-medium text-slate-950 shadow-sm">
+                            Liam S.
+                          </div>
+                          <div className="rounded-full border border-sky-100 bg-white px-4 py-2 text-sm font-medium text-slate-950 shadow-sm">
+                            Mark T.
+                          </div>
+                        </div>
+
+                        <div className="relative mx-3 h-24">
+                          <div className="absolute left-7 right-7 top-1/2 h-px -translate-y-1/2 border-t-2 border-dashed border-sky-300/80" />
+                          <div className="absolute left-6 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-sky-500" />
+                          <div className="absolute right-6 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-sky-400" />
+                          <div className="hero-connection-pulse absolute left-6 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-sky-500 shadow-[0_0_0_10px_rgba(14,165,233,0.14)]" />
+                          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-sky-200 bg-white/98 px-3 py-2 text-center shadow-sm">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-700">Connection forming</p>
+                          </div>
+                        </div>
+
+                        <div className="rounded-3xl border border-sky-100 bg-white/96 px-4 py-3 text-sm text-slate-700 shadow-sm">
+                          <div className="flex items-center gap-2 text-sky-700">
+                            <CheckCircle2 className="h-4 w-4" />
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">Shared tour detected</span>
+                          </div>
+                          <p className="mt-2 leading-6">Afghanistan, 2011 gives the reconnection a real starting point.</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={sceneClass(visualStage === 2)}>
+                      <div className="rounded-full border border-sky-200 bg-white/96 px-3 py-2 text-center shadow-sm">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-700">First messages</p>
+                      </div>
+                      <div className="mt-5 space-y-3">
+                        <div className="max-w-[82%] rounded-[24px] rounded-tl-md border border-sky-100 bg-white/96 px-4 py-3 text-sm leading-6 text-slate-700 shadow-sm">
+                          Were you out in Afghanistan in 2011 as well?
+                        </div>
+                        <div className="rounded-[24px] rounded-tr-md bg-sky-600 px-4 py-3 text-sm leading-6 text-white shadow-[0_18px_30px_-20px_rgba(14,165,233,0.55)] ml-auto max-w-[82%]">
+                          Yes. Herrick 14. I think we may have crossed paths.
+                        </div>
+                        <div className="max-w-[70%] rounded-[24px] rounded-tl-md border border-sky-100 bg-white/96 px-4 py-3 text-sm leading-6 text-slate-700 shadow-sm">
+                          That sounds very possible.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-center gap-2">
+                    {[0, 1, 2].map((stage) => (
+                      <span
+                        key={stage}
+                        className={[
+                          'h-2.5 rounded-full transition-all duration-500',
+                          visualStage === stage ? 'w-8 bg-sky-500' : 'w-2.5 bg-sky-200',
+                        ].join(' ')}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+                  <Lock className="h-4 w-4 text-sky-600" />
+                  Private by default
+                </div>
               </div>
             </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {signalCards.map(({ icon: Icon, title, description }, index) => (
-                <motion.div
-                  key={title}
-                  initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
-                  animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-                  transition={{ duration: 0.55, delay: 0.58 + index * 0.1 }}
-                  whileHover={prefersReducedMotion ? undefined : { y: -4 }}
-                  className="rounded-2xl border border-slate-200 bg-white p-4"
-                >
-                  <Icon className="h-4 w-4 text-slate-500" />
-                  <p className="mt-3 text-sm font-medium text-slate-950">{title}</p>
-                  <p className="mt-1 text-sm text-slate-600">{description}</p>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
+          </div>
         </div>
 
-        <ScrollCue className="mt-14" />
-      </motion.div>
+        <div className="mt-14 hidden flex-col items-center gap-3 text-slate-400 md:flex">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.24em]">Scroll</span>
+          <div className="flex h-10 w-6 items-start justify-center rounded-full border border-slate-300 p-1.5">
+            <div className="animate-scroll-indicator h-2 w-1.5 rounded-full bg-slate-400" />
+          </div>
+        </div>
+      </div>
     </section>
   );
 }

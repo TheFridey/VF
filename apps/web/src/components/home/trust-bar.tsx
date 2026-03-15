@@ -26,8 +26,8 @@ const items = [
 
 export function TrustBar() {
   return (
-    <section className="border-b border-slate-200 bg-white">
-      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+    <section className="border-b border-sky-100 bg-[linear-gradient(180deg,#ffffff_0%,#f8fcff_100%)]">
+      <div className="w-full px-6 py-12 sm:px-8 lg:px-10 xl:px-14 2xl:px-20">
         <Reveal className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Why trust it</p>
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">A calmer, more accountable product experience.</h2>
@@ -35,8 +35,8 @@ export function TrustBar() {
         <div className="mt-8 grid gap-4 lg:grid-cols-4">
           {items.map(({ icon: Icon, title, description }, index) => (
             <Reveal key={title} delay={index * 0.08}>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 transition-transform duration-300 hover:-translate-y-1">
-              <Icon className="h-5 w-5 text-emerald-700" />
+              <div className="rounded-2xl border border-sky-100 bg-white/90 p-5 transition-transform duration-300 hover:-translate-y-1">
+              <Icon className="h-5 w-5 text-sky-600" />
               <h3 className="mt-4 text-base font-medium text-slate-950">{title}</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
               </div>

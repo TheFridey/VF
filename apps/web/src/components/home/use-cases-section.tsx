@@ -21,8 +21,8 @@ const scenarios = [
 
 export function UseCasesSection() {
   return (
-    <section className="bg-[linear-gradient(180deg,#ffffff_0%,#f8faf9_100%)]">
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
+    <section className="bg-[linear-gradient(180deg,#ffffff_0%,#f5fbff_100%)]">
+      <div className="w-full px-6 py-16 sm:px-8 lg:px-10 xl:px-14 2xl:px-20">
         <Reveal className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Why veterans join</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Representative use cases, not inflated promises.</h2>
@@ -33,8 +33,8 @@ export function UseCasesSection() {
         <div className="mt-10 grid gap-4 lg:grid-cols-3">
           {scenarios.map((scenario, index) => (
             <Reveal key={scenario.title} delay={index * 0.08}>
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md">
-                <scenario.icon className="h-5 w-5 text-emerald-700" />
+              <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md">
+                <scenario.icon className="h-5 w-5 text-sky-600" />
                 <h3 className="mt-4 text-lg font-semibold text-slate-950">{scenario.title}</h3>
                 <p className="mt-3 text-sm leading-7 text-slate-600">{scenario.description}</p>
               </div>

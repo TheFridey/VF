@@ -21,8 +21,8 @@ const steps = [
 
 export function HowItWorksSection() {
   return (
-    <section className="bg-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
+    <section className="bg-[linear-gradient(180deg,#f4fbff_0%,#f8fbff_100%)]">
+      <div className="w-full px-6 py-16 sm:px-8 lg:px-10 xl:px-14 2xl:px-20">
         <Reveal className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">How it works</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Three practical steps, not a maze.</h2>
@@ -31,8 +31,8 @@ export function HowItWorksSection() {
           {steps.map((step, index) => (
             <div key={step.title} className="contents">
               <Reveal delay={index * 0.08}>
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-transform duration-300 hover:-translate-y-1">
-                  <step.icon className="h-5 w-5 text-emerald-700" />
+                <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm transition-transform duration-300 hover:-translate-y-1">
+                  <step.icon className="h-5 w-5 text-sky-600" />
                   <h3 className="mt-4 text-xl font-semibold text-slate-950">{step.title}</h3>
                   <p className="mt-3 text-sm leading-7 text-slate-600">{step.description}</p>
                 </div>

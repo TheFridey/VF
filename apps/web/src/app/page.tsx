@@ -11,7 +11,7 @@ import { VerificationSection } from '@/components/home/verification-section';
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-white text-slate-950">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f7fbff_0%,#ffffff_28%)] text-slate-950">
       <SiteHeader />
       <main>
         <HeroSection />
