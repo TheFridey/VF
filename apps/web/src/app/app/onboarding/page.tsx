@@ -11,7 +11,7 @@ import {
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+import { UK_DEPLOYMENT_TAGS } from '@/components/features/community-activation';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
 import { cn } from '@/lib/utils';
@@ -303,14 +303,6 @@ function ServiceStep({
   data: OnboardingData; onChange: (k: keyof OnboardingData, v: any) => void;
   onNext: () => void; onBack: () => void;
 }) {
-  const [newDeployment, setNewDeployment] = useState('');
-  const addDeployment = () => {
-    if (newDeployment.trim()) {
-      onChange('deployments', [...(data.deployments || []), newDeployment.trim()]);
-      setNewDeployment('');
-    }
-  };
-
   return (
     <div>
       <div className="flex items-center gap-2 mb-1">
@@ -318,7 +310,7 @@ function ServiceStep({
         <h2 className="text-2xl font-bold">Service History</h2>
       </div>
       <p className="text-muted-foreground mb-6 text-sm">
-        This is the core of reconnection — the more detail you add, the better we can match you with veterans you actually served with.
+        This is the core of reconnection - the more detail you add, the better we can match you with veterans you actually served with.
       </p>
 
       <div className="space-y-4">
@@ -398,25 +390,43 @@ function ServiceStep({
         <div>
           <label className="block text-sm font-medium mb-1">Deployments & Tours</label>
           <p className="text-xs text-muted-foreground mb-2">
-            Add tours of duty — this is how we identify veterans who served in the same places as you.
+            Add tours of duty - this is how we identify veterans who served in the same places as you.
           </p>
-          <div className="flex gap-2 mb-2">
-            <Input
-              value={newDeployment}
-              onChange={e => setNewDeployment(e.target.value)}
-              placeholder="e.g. Afghanistan (Helmand), Iraq, Bosnia, Falklands..."
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addDeployment(); } }}
-            />
-            <Button type="button" variant="outline" size="sm" onClick={addDeployment}>Add</Button>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {UK_DEPLOYMENT_TAGS.map(({ tag, label, years }) => {
+              const selected = (data.deployments || []).includes(tag);
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => {
+                    const current = data.deployments || [];
+                    onChange(
+                      'deployments',
+                      selected
+                        ? current.filter((deployment) => deployment !== tag)
+                        : [...current, tag],
+                    );
+                  }}
+                  title={years}
+                  className={[
+                    'px-3 py-1.5 rounded text-xs font-medium border transition-all',
+                    selected
+                      ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                      : 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-500',
+                  ].join(' ')}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {(data.deployments || []).map((d, i) => (
-              <Badge key={i} variant="secondary" className="gap-1 cursor-pointer hover:bg-destructive/10"
-                onClick={() => onChange('deployments', data.deployments.filter((_, j) => j !== i))}>
-                {d} ×
-              </Badge>
-            ))}
-          </div>
+          {(data.deployments || []).length > 0 && (
+            <p className="text-xs text-zinc-500 mt-2">
+              {data.deployments.length} operation
+              {data.deployments.length !== 1 ? 's' : ''} selected
+            </p>
+          )}
         </div>
       </div>
 
@@ -429,8 +439,6 @@ function ServiceStep({
     </div>
   );
 }
-
-// ─── Step 4: Verification ─────────────────────────────────────────────────────
 
 function VerificationStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   return (

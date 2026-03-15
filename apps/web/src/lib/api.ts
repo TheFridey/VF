@@ -314,15 +314,6 @@ class ApiClient {
     return response.data;
   }
 
-  async getMatches() {
-    const response = await this.client.get('/matches');
-    return response.data;
-  }
-
-  async unmatch(matchId: string) {
-    const response = await this.client.delete(`/matches/${matchId}`);
-    return response.data;
-  }
 
   // ── Messaging ─────────────────────────────────────────────────────────────────
   async getConversations() {
