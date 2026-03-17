@@ -1,126 +1,95 @@
 # VeteranFinder
 
-VeteranFinder is a multi-app platform for veteran reconnection, messaging, moderation, verification, and BIA community features.
+VeteranFinder is a monorepo for a veteran reconnection platform with a public member app, a dedicated admin console, and a NestJS API.
 
-## Overview
-
-This repository contains three application surfaces plus local infrastructure:
+## What is in this repo
 
 ```text
-                    +----------------------+
-                    |  apps/web            |
-                    |  Public user app     |
-                    |  Next.js :3001       |
-                    +----------+-----------+
-                               |
-                               | /api/* rewrite
-                               v
-                    +----------------------+
-                    |  apps/api            |
-                    |  NestJS + Prisma     |
-                    |  API :3000           |
-                    +----+-----------+-----+
-                         |           |
-                         |           |
-                         v           v
-                +-------------+   +-------------+
-                | PostgreSQL  |   | Redis       |
-                | :5432       |   | :6379       |
-                +-------------+   +-------------+
-
-                    +----------------------+
-                    |  apps/admin          |
-                    |  Admin console       |
-                    |  Next.js :3002       |
-                    +----------+-----------+
-                               |
-                               | /api/* rewrite
-                               v
-                           apps/api
+apps/web    Next.js member-facing app
+apps/admin  Next.js admin console
+apps/api    NestJS API + Prisma + tests
+infrastructure/  Deployment and infrastructure docs
+docs/       Product and project docs
+scripts/    Shared repo scripts
+coturn/     TURN server config for video features
+nginx/      Reverse proxy config
 ```
 
-## Repository Layout
+## Architecture
 
 ```text
-vf/
-|-- apps/
-|   |-- api/              NestJS API, Prisma schema, seeds, tests
-|   |-- web/              Main user-facing Next.js app
-|   `-- admin/            Dedicated admin Next.js app
-|-- infrastructure/       Docker, Terraform, Kubernetes docs/config
-|-- coturn/               TURN server config
-|-- nginx/                Reverse proxy config
-|-- .github/workflows/    CI and deploy workflows
-|-- docker-compose.yml    Local infrastructure stack
-|-- Makefile              Convenience commands for Unix/WSL
-`-- package.json          Root helper scripts
+apps/web (:3001)  ----\
+                       \--> apps/api (:3000) --> PostgreSQL (:5432)
+apps/admin (:3002) --/                      \-> Redis (:6379)
 ```
 
-## Current Admin Surfaces
+Both frontend apps use `/api/*` rewrites to talk to the API. Authentication is cookie-based, with HttpOnly cookies set by the API.
 
-There are currently two admin entry points in the repo:
+## Current stack
 
-- `apps/admin` is the dedicated admin console on port `3002`.
-- `apps/web/src/app/admin/*` is now a transitional redirect layer inside the main web app.
-
-The long-term direction is `apps/admin`. Embedded `/admin/*` routes inside `apps/web` are intentionally being kept only so older links do not hard-break during the transition.
+- Node.js 20
+- npm 10+
+- Next.js 15.5.10
+- React 18.3.1
+- NestJS 10
+- Prisma 5
+- PostgreSQL 15
+- Redis 7
+- Playwright + Vitest + Jest
 
 ## Requirements
 
 - Node.js `20.x`
 - npm `10+`
 - Docker Desktop
-- A repo location on an `NTFS` volume if you need to run `next build` directly on Windows
+- PostgreSQL and Redis via Docker for local development
 
-### Important Windows note
+### Windows filesystem note
 
-If this project is stored on `exFAT`, `FAT32`, or another non-NTFS filesystem, both Next.js apps can fail during build with errors like:
+Direct `next build` runs on Windows require the repo to live on an `NTFS` volume.
 
-```text
-EISDIR: illegal operation on a directory, readlink ... node_modules/next/dist/pages/_app.js
-```
+This repo includes a guard script that blocks production Next.js builds on `exFAT` / `FAT32` and similar filesystems because of the known Windows `readlink` / `EISDIR` failure inside Next.js.
 
-This repository is currently on `D:` and that drive is `exFAT`, which explains the build failure seen locally. If you need reliable `next build` behavior on Windows, move the repo to an `NTFS` path such as:
-
-```text
-C:\dev\vf
-```
-
-If you are temporarily stuck on `exFAT` but need to prove the production build, use the Linux container build path from the repo root instead:
+If you are on a non-NTFS drive:
 
 ```powershell
 npm run build:web:docker
 npm run build:admin:docker
 ```
 
-## Quick Start
+Those Docker builds run correctly because they build inside Linux containers.
 
-### 1. Start infrastructure
+## Apps and local URLs
 
-From the repo root:
+| Surface | URL | Notes |
+| --- | --- | --- |
+| API | `http://localhost:3000` | NestJS API |
+| API docs | `http://localhost:3000/api/docs` | Swagger |
+| Web app | `http://localhost:3001` | Member app |
+| Admin app | `http://localhost:3002` | Admin console |
+| Mailpit UI | `http://localhost:8025` | Local mail viewer |
+| PostgreSQL | `localhost:5432` | Docker |
+| Redis | `localhost:6379` | Docker |
+
+## Quick start
+
+### 1. Start local infrastructure
 
 ```powershell
 docker-compose up -d
 ```
 
-Services started by default:
+Default local services:
 
-```text
-+----------------+--------+------------------------------+
-| Service        | Port   | Purpose                      |
-+----------------+--------+------------------------------+
-| PostgreSQL     | 5432   | Primary relational database  |
-| Redis          | 6379   | Cache / queues / sessions    |
-| Mailpit SMTP   | 1025   | Local outbound mail capture  |
-| Mailpit UI     | 8025   | Mail viewer                  |
-+----------------+--------+------------------------------+
-```
+- PostgreSQL
+- Redis
+- Mailpit
 
 Optional:
 
-- `coturn` is included in `docker-compose.yml` under the `video` profile.
+- `coturn` is available under the `video` Docker Compose profile.
 
-### 2. Install app dependencies
+### 2. Install dependencies
 
 From the repo root:
 
@@ -128,17 +97,9 @@ From the repo root:
 npm run install:apps
 ```
 
-Or install per app:
+### 3. Create environment files
 
-```powershell
-cd apps\api   ; npm install
-cd apps\web   ; npm install
-cd apps\admin ; npm install
-```
-
-### 3. Prepare environment files
-
-Minimum local setup:
+Minimum local files:
 
 ```text
 apps/api/.env
@@ -146,27 +107,24 @@ apps/web/.env.local
 apps/admin/.env.local
 ```
 
-Suggested starting point:
+Suggested setup:
 
 ```powershell
 Copy-Item apps\api\.env.example apps\api\.env
 Copy-Item apps\web\.env.example apps\web\.env.local
+Set-Content apps\admin\.env.local "NEXT_PUBLIC_API_URL=http://localhost:3000"
 ```
 
-`apps/admin` typically only needs `NEXT_PUBLIC_API_URL` if you are not using the default local API URL.
-
-`apps/web/.env.example` now also includes `NEXT_PUBLIC_ADMIN_APP_URL` so the transitional admin redirect can send operators to the dedicated admin app.
-
-### 4. Generate Prisma client and seed the database
+### 4. Run Prisma setup
 
 ```powershell
 cd apps\api
 npx prisma generate
-npx prisma migrate dev --name init
+npx prisma migrate dev
 npx prisma db seed
 ```
 
-### 5. Run the apps
+### 5. Start the apps
 
 In separate terminals:
 
@@ -185,70 +143,255 @@ cd apps\admin
 npm run dev
 ```
 
-## Local URLs
+## Environment variables
 
-```text
-+----------------------+-----------------------------+
-| Surface              | URL                         |
-+----------------------+-----------------------------+
-| API                  | http://localhost:3000       |
-| API docs             | http://localhost:3000/api/docs
-| Web app              | http://localhost:3001       |
-| Admin app            | http://localhost:3002       |
-| Mailpit UI           | http://localhost:8025       |
-+----------------------+-----------------------------+
+### `apps/api/.env`
+
+The API example file is the source of truth for local setup. Important variables include:
+
+- `DATABASE_URL`
+- `REDIS_HOST`
+- `REDIS_PORT`
+- `JWT_SECRET`
+- `JWT_REFRESH_SECRET`
+- `COOKIE_SECRET`
+- `ENCRYPTION_KEY`
+- `PASSWORD_PEPPER`
+- `FRONTEND_URL`
+- `ADMIN_URL`
+- `CLOUDINARY_*`
+- `STRIPE_*`
+- `RESEND_API_KEY`
+- `APP_URL`
+- `TURN_*`
+- `VAPID_*`
+
+### `apps/web/.env.local`
+
+Minimum local values:
+
+```dotenv
+NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_SITE_URL=http://localhost:3001
+NEXT_PUBLIC_ADMIN_APP_URL=http://localhost:3002
 ```
 
-## Root Scripts
+Optional:
+
+- `NEXT_PUBLIC_ENABLE_BIA`
+- `NEXT_PUBLIC_ENABLE_MEMBERSHIP`
+- analytics tokens
+
+### `apps/admin/.env.local`
+
+Minimum local value:
+
+```dotenv
+NEXT_PUBLIC_API_URL=http://localhost:3000
+```
+
+## Root scripts
 
 From the repo root:
 
-```text
-+-------------------+-----------------------------------------------+
-| Command           | What it does                                  |
-+-------------------+-----------------------------------------------+
-| npm run install:apps | Install dependencies for api/web/admin     |
-| npm run dev:api      | Start API in watch mode                    |
-| npm run dev:web      | Start web app on :3001                     |
-| npm run dev:admin    | Start admin app on :3002                   |
-| npm run typecheck    | Run TypeScript checks across all apps      |
-| npm run lint         | Run lint across all apps                   |
-| npm run build        | Build api, web, and admin                  |
-| npm run test         | Run the full repo test surface             |
-| npm run test:api     | Run API unit tests                         |
-| npm run test:api:e2e | Run API end-to-end tests                   |
-| npm run test:web     | Run web unit tests                         |
-| npm run test:web:e2e | Run web Playwright tests                   |
-| npm run test:admin   | Run admin unit tests                       |
-| npm run test:admin:e2e | Run admin Playwright tests               |
-| npm run test:all     | Run unit and end-to-end tests everywhere   |
-| npm run build:web:docker | Build the web app in Linux container   |
-| npm run build:admin:docker | Build the admin app in Linux container |
-+-------------------+-----------------------------------------------+
+| Command | Purpose |
+| --- | --- |
+| `npm run install:apps` | Install dependencies for all three apps |
+| `npm run docker:up` | Start local Docker services |
+| `npm run docker:down` | Stop local Docker services |
+| `npm run docker:logs` | Tail Docker logs |
+| `npm run dev:api` | Start API in watch mode |
+| `npm run dev:web` | Start web app |
+| `npm run dev:admin` | Start admin app |
+| `npm run build:api` | Build API |
+| `npm run build:web` | Build web app |
+| `npm run build:admin` | Build admin app |
+| `npm run build:web:docker` | Production-build web inside Docker |
+| `npm run build:admin:docker` | Production-build admin inside Docker |
+| `npm run typecheck` | Typecheck all apps |
+| `npm run lint` | Lint all apps |
+| `npm run build` | Build all apps |
+| `npm run test:api` | API unit tests |
+| `npm run test:api:e2e` | API e2e tests |
+| `npm run test:web` | Web unit tests |
+| `npm run test:web:e2e` | Web Playwright tests |
+| `npm run test:admin` | Admin unit tests |
+| `npm run test:admin:e2e` | Admin Playwright tests |
+| `npm run test:e2e` | API e2e + web e2e + admin e2e |
+| `npm run test:all` | Full test surface |
+| `npm test` | Alias for `npm run test:all` |
+
+## App-level scripts
+
+### `apps/api`
+
+- `npm run dev`
+- `npm run build`
+- `npm run lint`
+- `npm run typecheck`
+- `npm run test:unit`
+- `npm run test:e2e`
+- `npm run prisma:generate`
+- `npm run prisma:migrate`
+- `npm run prisma:migrate:prod`
+- `npm run prisma:seed`
+- `npm run db:reset`
+
+### `apps/web`
+
+- `npm run dev`
+- `npm run build`
+- `npm run lint`
+- `npm run typecheck`
+- `npm run test:unit`
+- `npm run test:e2e`
+- `npm run test:e2e:install`
+
+### `apps/admin`
+
+- `npm run dev`
+- `npm run build`
+- `npm run lint`
+- `npm run typecheck`
+- `npm run test:unit`
+- `npm run test:e2e`
+- `npm run test:e2e:install`
+
+## Testing
+
+### API
+
+```powershell
+cd apps\api
+npm run lint
+npm run typecheck
+npm run build
+npm run test:unit
+npm run test:e2e
 ```
 
-## Frontend Testing
-
-Frontend quality gates now live in `apps/web`:
+### Web
 
 ```powershell
 cd apps\web
-npm run test:unit
+npm run lint
+npm run typecheck
+npm run test
 npm run test:e2e:install
 npm run test:e2e
 ```
 
-Current coverage focuses on high-risk user journeys:
+### Admin
 
-- login
-- signup and email verification
-- protected route access
-- settings and verification start flow
-- BIA/forums navigation
+```powershell
+cd apps\admin
+npm run lint
+npm run typecheck
+npm run test
+npm run test:e2e:install
+npm run test:e2e
+```
 
-These tests are mocked at the browser boundary so they stay useful without depending on seeded API state.
+### Production-container browser proof
 
-## Makefile Targets
+When you need to validate the built Next.js apps instead of the dev servers:
+
+```powershell
+npm run build:web:docker
+npm run build:admin:docker
+```
+
+Then run containers and point Playwright at them with `PLAYWRIGHT_BASE_URL`.
+
+The repo is configured so external container Playwright runs use a safer single-worker mode.
+
+## Auth model
+
+VeteranFinder does not rely on browser-stored auth tokens.
+
+Flow:
+
+1. frontend submits login to `/api/auth/login`
+2. API sets HttpOnly cookies
+3. later requests include cookies automatically
+4. frontend state stores the user profile only
+
+Implications:
+
+- use the frontend rewrites instead of calling the API directly from the browser
+- cookie behavior matters for route protection and redirects
+- both Next.js apps are designed around same-origin browser requests
+
+## Seed data
+
+The seed script is at [apps/api/prisma/seed.ts](/d:/Downloads/vf/apps/api/prisma/seed.ts).
+
+Useful seeded accounts include:
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin | `admin@veteranfinder.com` | `Admin123!@#` |
+| Moderator | `moderator@veteranfinder.com` | `Moderator123!@#` |
+| Veteran | `john.doe@example.com` | `Password123!` |
+| Veteran | `sarah.smith@example.com` | `Password123!` |
+| Veteran | `marcus.williams@example.com` | `Password123!` |
+
+The seed also creates:
+
+- verification requests
+- BIA forum categories and starter threads
+- example message conversations
+- reports and moderation data
+- blocks
+- audit logs
+
+Treat the seed file as the source of truth if any of the sample accounts change.
+
+## Builds
+
+### Local builds
+
+API builds normally on all supported platforms:
+
+```powershell
+npm run build --prefix apps/api
+```
+
+Frontend production builds:
+
+- work directly on macOS, Linux, WSL, and Windows on `NTFS`
+- are intentionally blocked on unsupported Windows filesystems by [scripts/check-next-build-env.js](/d:/Downloads/vf/scripts/check-next-build-env.js)
+
+### Docker builds
+
+Frontend production images are built from the repo root:
+
+```powershell
+docker build -t veteranfinder-web-build -f apps/web/Dockerfile .
+docker build -t veteranfinder-admin-build -f apps/admin/Dockerfile .
+```
+
+The Dockerfiles are aligned with the current Next.js 15 standalone output layout.
+
+## CI and deployment
+
+Current workflow files:
+
+- [.github/workflows/ci.yml](/d:/Downloads/vf/.github/workflows/ci.yml)
+- [.github/workflows/deploy.yml](/d:/Downloads/vf/.github/workflows/deploy.yml)
+
+At a high level:
+
+- CI installs dependencies per app
+- CI runs lint, typecheck, unit tests, browser tests, API e2e, builds, and audits
+- deploy is image-based and SSH-driven
+
+For the deployment runbook, use:
+
+- [infrastructure/docker/DEPLOYMENT.md](/d:/Downloads/vf/infrastructure/docker/DEPLOYMENT.md)
+- [infrastructure/README.md](/d:/Downloads/vf/infrastructure/README.md)
+
+## Makefile
 
 For Linux, macOS, and WSL users:
 
@@ -262,140 +405,75 @@ make admin
 make typecheck
 make lint
 make build
-```
-
-## Auth and Request Flow
-
-The frontend apps use cookie-based auth:
-
-```text
-Browser
-  |
-  | 1. POST /auth/login
-  v
-Next.js app (/api/* rewrite)
-  |
-  | 2. Forwards to apps/api
-  v
-API sets HttpOnly cookies
-  |
-  | 3. Browser sends cookies automatically on later requests
-  v
-Protected routes and API clients work without storing tokens in JS
-```
-
-Key implications:
-
-- `apps/web` and `apps/admin` both send requests with `withCredentials: true`.
-- Browser-side requests should go through each app's `/api/*` rewrite, not directly to `localhost:3000`.
-- Session state stored in Zustand is profile-only; credentials stay in cookies.
-
-## Seed Accounts
-
-The current seed file creates these useful starter accounts:
-
-```text
-+----------------+-----------------------------+------------------+
-| Role           | Email                       | Password         |
-+----------------+-----------------------------+------------------+
-| Admin          | admin@veteranfinder.com     | Admin123!@#      |
-| Moderator      | moderator@veteranfinder.com | Moderator123!@#  |
-| Veteran        | john.doe@example.com        | Password123!     |
-| Veteran        | sarah.smith@example.com     | Password123!     |
-+----------------+-----------------------------+------------------+
-```
-
-These credentials are for local development only. Do not reuse them for staging, demos with real users, or production-like environments.
-
-If you change the seed logic, treat `apps/api/prisma/seed.ts` as the source of truth.
-
-## Verification Status
-
-Current repo checks after this cleanup:
-
-```text
-+----------------------+------------------------------+
-| Check                | Status                       |
-+----------------------+------------------------------+
-| apps/api build       | Passing                      |
-| apps/api lint        | Passing                      |
-| apps/web typecheck   | Passing                      |
-| apps/web lint        | Passing with warnings        |
-| apps/admin typecheck | Passing                      |
-| apps/admin lint      | Passing                      |
-| apps/web build       | NTFS required on Windows     |
-| apps/admin build     | NTFS required on Windows     |
-+----------------------+------------------------------+
-```
-
-## CI and Deploy
-
-GitHub Actions now use the same package manager model as local development:
-
-- `CI` installs each app with `npm ci`
-- `CI` runs lint, typecheck, tests, and builds per app
-- `Deploy` builds Docker images, runs Prisma migrations with the new API image,
-  then switches over `api`, `web`, and `admin`
-
-Workflow files:
-
-```text
-.github/workflows/ci.yml
-.github/workflows/deploy.yml
+make db-migrate
+make db-seed
+make db-reset
 ```
 
 ## Troubleshooting
 
-### Next.js build fails with `EISDIR ... readlink ... _app.js`
+### `next build` fails on Windows
 
-Cause:
+If you see a message about unsupported Windows filesystems or the older Next.js `readlink` / `EISDIR` failure:
 
-- The repo is on a non-NTFS filesystem, most commonly `exFAT`.
+- move the repo to an `NTFS` path
+- reinstall dependencies
+- retry the build
 
-Fix:
+Or use Docker:
 
-1. Move the repository to an `NTFS` volume.
-2. Reinstall app dependencies.
-3. Retry `npm run build` in `apps/web` or `apps/admin`.
-4. If you only need production build proof from the current machine, use:
-   `npm run build:web:docker` and `npm run build:admin:docker`
+```powershell
+npm run build:web:docker
+npm run build:admin:docker
+```
 
-### Frontend auth loops back to login
+### Auth loops or redirects feel wrong
 
 Check:
 
-- `NEXT_PUBLIC_API_URL`
 - API is running on `:3000`
-- Requests are going through the app rewrite (`/api/*`)
-- Cookies are being set for the frontend origin
+- `NEXT_PUBLIC_API_URL` points at the API origin
+- `FRONTEND_URL` and `ADMIN_URL` match the browser origins
+- requests go through the frontend `/api/*` rewrites
+- cookies are not being blocked by cross-origin access
 
-### Prisma seed/login mismatches
+### Seeded passwords do not work
 
-The seed script manually loads `.env.local` before `.env` so `PASSWORD_PEPPER` matches runtime behavior. If seeded passwords stop working, regenerate and reseed from `apps/api`.
+The seed script manually loads env files so `PASSWORD_PEPPER` matches runtime behavior. If local login breaks after env changes:
 
-### Mail testing
+```powershell
+cd apps\api
+npx prisma db seed
+```
+
+If needed, reset and reseed:
+
+```powershell
+cd apps\api
+npx prisma migrate reset --force
+```
+
+### Local email testing
 
 Use Mailpit:
 
-```text
-SMTP port: 1025
-UI:        http://localhost:8025
-```
+- SMTP: `localhost:1025`
+- UI: `http://localhost:8025`
 
-## Recommended Development Flow
+## Recommended dev flow
 
 ```text
 1. docker-compose up -d
 2. npm run install:apps
-3. cd apps/api   && npm run dev
-4. cd apps/web   && npm run dev
-5. cd apps/admin && npm run dev
-6. npm run typecheck
-7. npm run lint
+3. set up env files
+4. cd apps/api && npx prisma migrate dev && npx prisma db seed
+5. run api, web, and admin in separate terminals
+6. run typecheck, lint, and tests before pushing
 ```
 
 ## Notes
 
-- The repo is currently in a period of active structural cleanup.
-- The dedicated admin app and embedded admin routes both exist today.
-- If you want production-like Next builds on Windows, prioritise moving the repo off `exFAT`.
+- The dedicated admin console is `apps/admin`.
+- The frontend apps are on a patched Next.js 15 line.
+- Root `npm test` is intentionally the full-repo test surface.
+- Web lint currently passes with a small number of existing `next/image` performance warnings.
