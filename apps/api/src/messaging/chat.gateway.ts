@@ -2,6 +2,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
   SubscribeMessage,
+  OnGatewayInit,
   OnGatewayConnection,
   OnGatewayDisconnect,
   ConnectedSocket,
@@ -27,7 +28,7 @@ interface AuthenticatedSocket extends Socket {
   },
   namespace: '/chat',
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
@@ -50,6 +51,52 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     );
   }
 
+  afterInit(server: Server) {
+    server.use(async (socket, next) => {
+      try {
+        await this.authenticateSocket(socket as AuthenticatedSocket);
+        next();
+      } catch (error) {
+        next(error instanceof Error ? error : new Error('Authentication failed'));
+      }
+    });
+  }
+
+  private async authenticateSocket(socket: AuthenticatedSocket) {
+    const clientIp = (socket.handshake.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+      ?? socket.handshake.address
+      ?? 'unknown';
+    const attempts = await this.redisService.incrementRateLimit(
+      `ws_connect:${clientIp}`,
+      this.WS_RATE_WINDOW,
+    );
+
+    if (attempts > this.WS_RATE_LIMIT) {
+      this.logger.warn(`WS rate limit exceeded for IP ${clientIp}`);
+      throw new Error('Connection rate limit exceeded');
+    }
+
+    const token = socket.handshake.auth?.token ||
+      socket.handshake.headers?.authorization?.replace('Bearer ', '');
+
+    if (!token) {
+      throw new Error('Authentication token required');
+    }
+
+    const payload = await this.jwtService.verifyAsync(token, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+    });
+
+    const isBlacklisted = await this.redisService.exists(
+      `blacklist:${String(payload.sub)}:${String(payload.iat)}`,
+    );
+    if (isBlacklisted) {
+      throw new Error('Session expired');
+    }
+
+    socket.userId = String(payload.sub);
+  }
+
   private encryptMessage(content: string): { encrypted: string; iv: string; authTag: string } {
     const { encryptedContent, iv, authTag } = this.messageCrypto.encryptMessage(content);
     return {
@@ -65,39 +112,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(socket: AuthenticatedSocket) {
     try {
-      // IP-based connection rate limit: max 10 new WS connections per IP per 60s
-      const clientIp = (socket.handshake.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
-        ?? socket.handshake.address ?? 'unknown';
-      const attempts = await this.redisService.incrementRateLimit(`ws_connect:${clientIp}`, this.WS_RATE_WINDOW);
-      if (attempts > this.WS_RATE_LIMIT) {
-        this.logger.warn(`WS rate limit exceeded for IP ${clientIp}`);
-        socket.disconnect();
+      if (!socket.userId) {
+        socket.disconnect(true);
         return;
       }
-
-      // Extract token from handshake
-      const token = socket.handshake.auth?.token || 
-                    socket.handshake.headers?.authorization?.replace('Bearer ', '');
-
-      if (!token) {
-        this.logger.warn(`Connection rejected: No token provided`);
-        socket.disconnect();
-        return;
-      }
-
-      // Verify JWT
-      const payload = await this.jwtService.verifyAsync(token, {
-        secret: this.configService.get<string>('JWT_SECRET'),
-      });
-
-      // Check JWT blacklist - logout must invalidate WS connections too
-      const isBlacklisted = await this.redisService.exists(`blacklist:${String(payload.sub)}:${String(payload.iat)}`);
-      if (isBlacklisted) {
-        socket.disconnect();
-        return;
-      }
-
-      socket.userId = payload.sub;
       
       // Track connected users
       const uid = socket.userId!;
@@ -141,8 +159,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }).catch(() => { /* non-critical — ignore errors */ });
 
     } catch (error) {
-      this.logger.warn(`Connection rejected: Invalid token`);
-      socket.disconnect();
+      this.logger.warn(`Connection rejected: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      socket.disconnect(true);
     }
   }
 
@@ -259,9 +277,38 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
     } catch (error) {
-      this.logger.error(`Failed to send message: ${error.message}`);
+      this.logger.error(`Failed to send message: ${error instanceof Error ? error.message : String(error)}`);
       socket.emit('error', { message: 'Failed to send message' });
     }
+  }
+
+  @SubscribeMessage('join:connection')
+  async handleJoinConnection(
+    @ConnectedSocket() socket: AuthenticatedSocket,
+    @MessageBody() data: { connectionId: string },
+  ) {
+    if (!socket.userId) {
+      return { success: false, message: 'Unauthorized' };
+    }
+
+    const conn = await this.prisma.connection.findFirst({
+      where: {
+        id: data.connectionId,
+        OR: [
+          { user1Id: socket.userId },
+          { user2Id: socket.userId },
+        ],
+        status: 'ACTIVE',
+        connectionType: ConnectionType.BROTHERS_IN_ARMS,
+      },
+    });
+
+    if (!conn) {
+      return { success: false, message: 'Connection not found or unauthorized' };
+    }
+
+    socket.join(`connection:${data.connectionId}`);
+    return { success: true, connectionId: data.connectionId };
   }
 
   @SubscribeMessage('message:read')
@@ -293,7 +340,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
     } catch (error) {
-      this.logger.error(`Failed to mark messages as read: ${error.message}`);
+      this.logger.error(
+        `Failed to mark messages as read: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

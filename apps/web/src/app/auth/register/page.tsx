@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { api } from '@/lib/api';
-import { useAuthStore } from '@/stores/auth-store';
 import { cn } from '@/lib/utils';
 
 // ─── Client-side password strength analysis ──────────────────────────────────
@@ -236,7 +235,6 @@ function FormCheckbox({
 
 function RegisterForm() {
   const router = useRouter();
-  const { setUser } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
 
   const {
@@ -263,15 +261,13 @@ function RegisterForm() {
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     try {
-      const response = await api.register({
+      await api.register({
         email: data.email,
         password: data.password,
         userType: 'veteran',
       });
-      // Tokens are HttpOnly cookies set by the server — store only the user profile
-      setUser(response.user);
       toast.success('Account created! Please check your email to verify.');
-      window.location.href = '/app/onboarding';
+      router.push(`/auth/verify-email?pending=true&email=${encodeURIComponent(data.email)}`);
     } catch (error: any) {
       const message = error.response?.data?.message || 'Registration failed. Please try again.';
       toast.error(message);

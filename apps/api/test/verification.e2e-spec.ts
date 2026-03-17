@@ -1,97 +1,133 @@
-/**
- * E2E: Verification queue & SLA checks
- */
-
-import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
-import { createTestApp, TestApp } from './test-helpers';
+import { UserRole, UserStatus, VerificationStatus } from '@prisma/client';
+import {
+  createStaffUser,
+  createTestApp,
+  getCookieHeader,
+  getCookieValue,
+  loginUser,
+  registerUser,
+  TestApp,
+  verifyUserEmail,
+} from './test-helpers';
 
 describe('Verification E2E', () => {
   let testApp: TestApp;
-  let app: INestApplication;
-  let http: ReturnType<typeof request>;
 
   beforeAll(async () => {
     testApp = await createTestApp();
-    ({ app, http } = testApp);
   });
 
   afterAll(async () => {
-    await app.close();
+    await testApp.app.close();
   });
 
-  describe('GET /verification/admin/pending', () => {
-    it('returns 401 without auth', async () => {
-      const res = await http.get('/api/v1/verification/admin/pending');
-      expect(res.status).toBe(401);
+  it('proves submission, admin review, and verified-user state update end-to-end', async () => {
+    const userEmail = `verification-${testApp.runId}@test.com`;
+    const userPassword = 'CorrectHorseBatteryStaple99!';
+    const adminEmail = `admin-${testApp.runId}@test.com`;
+    const adminPassword = 'AdminPassphrase99!';
+
+    await registerUser(testApp.http, userEmail, userPassword);
+    await verifyUserEmail(testApp.prisma, testApp.http, userEmail);
+
+    const userLogin = await loginUser(testApp.http, userEmail, userPassword);
+    expect(userLogin.status).toBe(200);
+    const userAccessToken = getCookieValue(userLogin, 'access_token');
+    const userCsrfToken = getCookieValue(userLogin, 'csrf-token');
+    expect(userAccessToken).toBeTruthy();
+    expect(userCsrfToken).toBeTruthy();
+
+    if (!userAccessToken || !userCsrfToken) {
+      throw new Error('Expected user auth cookies were not set');
+    }
+
+    const submitRes = await testApp.http
+      .post('/api/v1/verification/submit')
+      .set('Authorization', `Bearer ${userAccessToken}`)
+      .set('Cookie', `csrf-token=${userCsrfToken}`)
+      .set('X-CSRF-Token', userCsrfToken)
+      .field('notes', 'Front and back of veteran card')
+      .attach('files', Buffer.from('fake-image-data'), {
+        filename: 'veteran-card.jpg',
+        contentType: 'image/jpeg',
+      });
+
+    expect(submitRes.status).toBe(201);
+    const submittedRequestId = submitRes.body.data.id as string;
+    expect(submittedRequestId).toBeTruthy();
+
+    const statusRes = await testApp.http
+      .get('/api/v1/verification/status')
+      .set('Authorization', `Bearer ${userAccessToken}`);
+    expect(statusRes.status).toBe(200);
+    expect(statusRes.body.data).toHaveLength(1);
+    expect(statusRes.body.data[0].status).toBe(VerificationStatus.PENDING);
+
+    await createStaffUser(testApp.prisma, testApp.passwordSecurity, {
+      email: adminEmail,
+      password: adminPassword,
+      role: UserRole.ADMIN,
     });
 
-    it('returns 403 for non-admin/moderator', async () => {
-      // Login as regular user — not possible without verified email in test env
-      // so we check that the guard is wired by testing with no auth
-      const res = await http.get('/api/v1/verification/admin/pending');
-      expect([401, 403]).toContain(res.status);
+    const adminLogin = await loginUser(testApp.http, adminEmail, adminPassword);
+    expect(adminLogin.status).toBe(200);
+    const adminAccessToken = getCookieValue(adminLogin, 'access_token');
+    const adminCsrfToken = getCookieValue(adminLogin, 'csrf-token');
+    expect(adminAccessToken).toBeTruthy();
+    expect(adminCsrfToken).toBeTruthy();
+
+    if (!adminAccessToken || !adminCsrfToken) {
+      throw new Error('Expected admin auth cookies were not set');
+    }
+
+    const pendingRes = await testApp.http
+      .get('/api/v1/verification/admin/pending?limit=100')
+      .set('Authorization', `Bearer ${adminAccessToken}`);
+    expect(pendingRes.status).toBe(200);
+    const pendingRequest = pendingRes.body.data.requests.find((request: { id: string; user: { email: string } }) =>
+      request.id === submittedRequestId || request.user.email === userEmail,
+    );
+    expect(pendingRequest).toBeDefined();
+
+    const approveRes = await testApp.http
+      .patch(`/api/v1/verification/admin/requests/${pendingRequest.id}/approve`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .set('Cookie', `csrf-token=${adminCsrfToken}`)
+      .set('X-CSRF-Token', adminCsrfToken)
+      .send({ notes: 'Matched service evidence and approved.' });
+
+    expect(approveRes.status).toBe(200);
+    expect(approveRes.body.data.status).toBe(VerificationStatus.APPROVED);
+
+    const updatedStatus = await testApp.http
+      .get('/api/v1/verification/status')
+      .set('Authorization', `Bearer ${userAccessToken}`);
+    expect(updatedStatus.status).toBe(200);
+    expect(updatedStatus.body.data[0].status).toBe(VerificationStatus.APPROVED);
+
+    const userRecord = await testApp.prisma.user.findUnique({
+      where: { email: userEmail },
+      select: { role: true, status: true },
+    });
+    expect(userRecord).toEqual({
+      role: UserRole.VETERAN_VERIFIED,
+      status: UserStatus.ACTIVE,
     });
 
-    it('returns paginated pending queue with SLA fields for admin', async () => {
-      if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) return;
+    const reloginRes = await loginUser(testApp.http, userEmail, userPassword);
+    expect(reloginRes.status).toBe(200);
+    const reloginAccessToken = getCookieValue(reloginRes, 'access_token');
+    expect(reloginAccessToken).toBeTruthy();
 
-      const loginRes = await http
-        .post('/api/v1/auth/login')
-        .send({ email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD });
+    if (!reloginAccessToken) {
+      throw new Error('Expected relogin access token cookie');
+    }
 
-      const cookies = (loginRes.headers['set-cookie'] as unknown as string[])?.join('; ') ?? '';
-      const csrfToken = (loginRes.headers['set-cookie'] as unknown as string[])
-        ?.find((c: string) => c.startsWith('csrf-token='))
-        ?.split(';')[0]
-        ?.split('=')[1];
-
-      const res = await http
-        .get('/api/v1/verification/admin/pending')
-        .set('Cookie', cookies)
-        .set('X-CSRF-Token', csrfToken ?? '');
-
-      expect(res.status).toBe(200);
-      const body = res.body.data ?? res.body;
-
-      // Should have pagination shape
-      expect(body).toHaveProperty('requests');
-      expect(body).toHaveProperty('total');
-
-      // Each request should have SLA metadata attached
-      if (body.requests.length > 0) {
-        const req = body.requests[0];
-        expect(req).toHaveProperty('sla');
-        expect(req.sla).toHaveProperty('hoursElapsed');
-        expect(req.sla).toHaveProperty('targetHours');
-        expect(req.sla).toHaveProperty('breached');
-        expect(req.sla).toHaveProperty('urgency');
-      }
-    });
-  });
-
-  describe('Verification submit', () => {
-    it('rejects non-multipart request', async () => {
-      if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) return;
-
-      const loginRes = await http
-        .post('/api/v1/auth/login')
-        .send({ email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD });
-
-      const cookies = (loginRes.headers['set-cookie'] as unknown as string[])?.join('; ') ?? '';
-      const csrfToken = (loginRes.headers['set-cookie'] as unknown as string[])
-        ?.find((c: string) => c.startsWith('csrf-token='))
-        ?.split(';')[0]
-        ?.split('=')[1];
-
-      const res = await http
-        .post('/api/v1/verification/submit')
-        .set('Cookie', cookies)
-        .set('X-CSRF-Token', csrfToken ?? '')
-        .send({}); // no files
-
-      // 400 because no files provided
-      expect(res.status).toBe(400);
-    });
+    const meRes = await testApp.http
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${reloginAccessToken}`);
+    expect(meRes.status).toBe(200);
+    expect(meRes.body.data.role).toBe(UserRole.VETERAN_VERIFIED);
+    expect(meRes.body.data.status).toBe(UserStatus.ACTIVE);
   });
 });

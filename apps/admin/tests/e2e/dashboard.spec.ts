@@ -1,11 +1,13 @@
 import { expect, test } from '@playwright/test';
-import { mockCurrentAdmin, mockDashboard, seedAdminAuth } from './support/mock-api';
+import { mockCurrentAdmin, mockDashboard, persistAdminAuth, seedAdminAuth } from './support/mock-api';
 
 test('dashboard metrics render inside the protected shell', async ({ page }) => {
   await seedAdminAuth(page);
   await mockCurrentAdmin(page);
   await mockDashboard(page);
 
+  await page.goto('/auth/login');
+  await persistAdminAuth(page);
   await page.goto('/dashboard');
 
   await expect(page.getByRole('heading', { name: /command dashboard/i })).toBeVisible();

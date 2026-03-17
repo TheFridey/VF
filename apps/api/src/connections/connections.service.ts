@@ -20,7 +20,17 @@ export class ConnectionsService {
       orderBy: { lastMessageAt: 'desc' },
     });
 
-    return connections.map(c => this.formatConnection(c, userId));
+    const blockedCounterpartIds = await this.getBlockedCounterpartIds(
+      userId,
+      connections.map((connection) => (connection.user1Id === userId ? connection.user2Id : connection.user1Id)),
+    );
+
+    return connections
+      .filter((connection) => {
+        const otherUserId = connection.user1Id === userId ? connection.user2Id : connection.user1Id;
+        return !blockedCounterpartIds.has(otherUserId);
+      })
+      .map(c => this.formatConnection(c, userId));
   }
 
   async getConnection(connectionId: string, userId: string) {
@@ -46,6 +56,9 @@ export class ConnectionsService {
     if (!connection) throw new NotFoundException('Connection not found');
     if (connection.user1Id !== userId && connection.user2Id !== userId) {
       throw new ForbiddenException('Not authorised to view this connection');
+    }
+    if (await this.isBlockedBetween(userId, connection.user1Id === userId ? connection.user2Id : connection.user1Id)) {
+      throw new ForbiddenException('This connection is unavailable because one of the users has been blocked');
     }
 
     return this.formatConnectionDetail(connection, userId);
@@ -119,5 +132,46 @@ export class ConnectionsService {
         veteranDetails: otherUser.veteranDetails,
       },
     };
+  }
+
+  private async isBlockedBetween(userId: string, otherUserId: string) {
+    const block = await this.prisma.block.findFirst({
+      where: {
+        deletedAt: null,
+        OR: [
+          { blockerId: userId, blockedId: otherUserId },
+          { blockerId: otherUserId, blockedId: userId },
+        ],
+      },
+      select: { id: true },
+    });
+
+    return !!block;
+  }
+
+  private async getBlockedCounterpartIds(userId: string, candidateUserIds?: string[]) {
+    const blocks = await this.prisma.block.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          {
+            blockerId: userId,
+            ...(candidateUserIds?.length ? { blockedId: { in: candidateUserIds } } : {}),
+          },
+          {
+            blockedId: userId,
+            ...(candidateUserIds?.length ? { blockerId: { in: candidateUserIds } } : {}),
+          },
+        ],
+      },
+      select: {
+        blockerId: true,
+        blockedId: true,
+      },
+    });
+
+    return new Set(
+      blocks.map((block) => (block.blockerId === userId ? block.blockedId : block.blockerId)),
+    );
   }
 }

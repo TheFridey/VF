@@ -11,9 +11,10 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { MessagingService } from './messaging.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { UserThrottlerGuard } from '../common/guards/user-throttler.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { SendMessageDto, UpdateMessageDto } from './dto/messaging.dto';
 import { Request } from 'express';
@@ -79,7 +80,8 @@ export class MessagingController {
   }
 
   @Post(':connectionId/read')
-  @Throttle({ default: { limit: 180, ttl: 60000 } })
+  @SkipThrottle({ short: true, medium: true, long: true })
+  @UseGuards(UserThrottlerGuard)
   @ApiOperation({ summary: 'Mark all messages in connection as read' })
   async markAsRead(
     @CurrentUser('id') userId: string,

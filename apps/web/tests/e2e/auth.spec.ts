@@ -1,5 +1,13 @@
 import { expect, test } from '@playwright/test';
-import { incompleteUser, memberUser, mockBrothersDashboard, mockCurrentUser, seedCookieConsent } from './support/mock-api';
+import {
+  incompleteUser,
+  memberUser,
+  mockBrothersDashboard,
+  mockCurrentUser,
+  mockSubscription,
+  mockUnreadCounts,
+  seedCookieConsent,
+} from './support/mock-api';
 
 test('login sends a returning member into the app', async ({ page }) => {
   await page.route('**/api/auth/login', (route) =>
@@ -14,6 +22,8 @@ test('login sends a returning member into the app', async ({ page }) => {
   );
   await mockCurrentUser(page, memberUser);
   await mockBrothersDashboard(page);
+  await mockUnreadCounts(page);
+  await mockSubscription(page, 'BIA');
   await seedCookieConsent(page);
 
   await page.goto('/auth/login');
@@ -56,11 +66,11 @@ test('signup flows into onboarding', async ({ page }) => {
     );
   }, incompleteUser);
   await mockCurrentUser(page, incompleteUser);
-  const registerRequest = page.waitForRequest('**/api/auth/register');
+  const registerResponse = page.waitForResponse('**/api/auth/register');
   await page.getByRole('button', { name: 'Create Account' }).click();
-  await registerRequest;
-  await expect(page.getByRole('heading', { name: /welcome/i })).toBeVisible();
-
-  await page.getByRole('button', { name: /set up my profile/i }).click();
-  await expect(page.getByRole('heading', { name: 'Your Profile' })).toBeVisible();
+  await registerResponse;
+  await expect(page).toHaveURL(/\/auth\/verify-email\?pending=true&email=/);
+  await expect(page.getByRole('heading', { name: /check your email/i })).toBeVisible();
+  await expect(page.getByText('new.user@example.com')).toBeVisible();
+  await expect(page.getByRole('button', { name: /resend verification email/i })).toBeVisible();
 });

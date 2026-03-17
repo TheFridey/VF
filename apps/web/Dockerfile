@@ -1,6 +1,6 @@
 FROM node:20-alpine AS builder
 
-WORKDIR /app
+WORKDIR /app/apps/web
 
 ARG NEXT_PUBLIC_API_URL=http://localhost:3000
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3001
@@ -11,10 +11,11 @@ ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 ENV NEXT_PUBLIC_ADMIN_APP_URL=$NEXT_PUBLIC_ADMIN_APP_URL
 ENV NODE_OPTIONS="--max-old-space-size=1536"
 
-COPY package.json package-lock.json ./
+COPY apps/web/package.json apps/web/package-lock.json ./
 RUN npm ci
 
-COPY . .
+COPY scripts /app/scripts
+COPY apps/web ./
 
 RUN npm run build
 
@@ -28,9 +29,9 @@ ENV NODE_OPTIONS="--max-old-space-size=512"
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder /app/apps/web/.next/standalone ./
+COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 
 RUN chown -R nextjs:nodejs /app
 
@@ -40,4 +41,4 @@ EXPOSE 3001
 ENV PORT=3001
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+CMD ["node", "apps/web/server.js"]

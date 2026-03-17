@@ -217,14 +217,26 @@ Local services:
 - Web: http://localhost:3001
 - PostgreSQL: localhost:5432
 - Redis: localhost:6379
-- MinIO Console: http://localhost:9001
-- Mailhog UI: http://localhost:8025
+- Mailpit UI: http://localhost:8025
 
 ## CI/CD
 
 ### GitHub Actions
 
-Example workflow for deploying to ECS:
+This repository currently ships with two GitHub Actions workflows:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/deploy.yml`
+
+The deploy workflow is image-based and SSH-driven:
+
+- builds `api`, `web`, and `admin` images
+- pushes them to GHCR
+- runs Prisma migrations with the new API image
+- restarts the application containers on the target host
+- verifies the configured healthcheck URL
+
+The ECS example below is reference infrastructure only and is not the active repo deploy path today:
 
 ```yaml
 name: Deploy to ECS

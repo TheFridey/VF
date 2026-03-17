@@ -20,12 +20,26 @@ const breadcrumbs: Record<string, string> = {
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, setUser, _hasHydrated } = useAuthStore();
+  const { user, setUser, _hasHydrated, setHasHydrated } = useAuthStore();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!mounted || _hasHydrated) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setHasHydrated(true);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [_hasHydrated, mounted, setHasHydrated]);
 
   useEffect(() => {
     if (!mounted || !_hasHydrated) {

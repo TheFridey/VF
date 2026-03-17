@@ -4,7 +4,7 @@
 
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
-import { createTestApp, TestApp } from './test-helpers';
+import { createStaffUser, createTestApp, getCookieValue, loginUser, TestApp } from './test-helpers';
 
 describe('Profiles & Brothers E2E', () => {
   let testApp: TestApp;
@@ -27,24 +27,28 @@ describe('Profiles & Brothers E2E', () => {
       expect(res.status).toBe(401);
     });
 
-    it('returns profile for authenticated user (admin seed)', async () => {
-      if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) return;
+    it('returns profile for authenticated user', async () => {
+      const email = `profiles-admin-${runId}@test.com`;
+      const password = 'AdminPassphrase99!';
 
-      const loginRes = await http
-        .post('/api/v1/auth/login')
-        .send({ email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD });
+      await createStaffUser(testApp.prisma, testApp.passwordSecurity, {
+        email,
+        password,
+        role: 'ADMIN',
+      });
 
-      const cookies = (loginRes.headers['set-cookie'] as unknown as string[])?.join('; ') ?? '';
-      const csrfToken = (loginRes.headers['set-cookie'] as unknown as string[])
-        ?.find((c: string) => c.startsWith('csrf-token='))
-        ?.split(';')[0]
-        ?.split('=')[1];
+      const loginRes = await loginUser(http, email, password);
+      expect(loginRes.status).toBe(200);
+      const accessToken = getCookieValue(loginRes, 'access_token');
+      expect(accessToken).toBeTruthy();
+
+      if (!accessToken) {
+        throw new Error('Expected access token cookie');
+      }
 
       const res = await http
         .get('/api/v1/profiles/me')
-        .set('Cookie', cookies)
-        .set('X-CSRF-Token', csrfToken ?? '');
-
+        .set('Authorization', `Bearer ${accessToken}`);
       expect(res.status).toBe(200);
       expect(res.body.data ?? res.body).toBeDefined();
     });
@@ -56,44 +60,46 @@ describe('Profiles & Brothers E2E', () => {
       expect(res.status).toBe(401);
     });
 
-    it('returns 403 for unverified veteran', async () => {
-      if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) return;
-
-      // Register a fresh unverified user
+    it('blocks unverified veterans from authenticated search access', async () => {
       const email = `unverified-${runId}@test.com`;
       await http.post('/api/v1/auth/register').send({ email, password: 'Test@Passphrase99!' });
-      // We can't log in without email verification — 401 expected, which still means "not 200"
+
       const loginRes = await http.post('/api/v1/auth/login').send({ email, password: 'Test@Passphrase99!' });
-      // Either 401 (unverified) or could succeed on PENDING accounts depending on config
-      expect([200, 401]).toContain(loginRes.status);
+      expect(loginRes.status).toBe(401);
     });
   });
 
   describe('Profile caching', () => {
-    it('two rapid GET requests return same data (cache hit)', async () => {
-      if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) return;
+    it('two rapid GET requests return the same profile payload', async () => {
+      const email = `cache-admin-${runId}@test.com`;
+      const password = 'AdminPassphrase99!';
 
-      const loginRes = await http
-        .post('/api/v1/auth/login')
-        .send({ email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD });
+      await createStaffUser(testApp.prisma, testApp.passwordSecurity, {
+        email,
+        password,
+        role: 'ADMIN',
+      });
 
-      const cookies = (loginRes.headers['set-cookie'] as unknown as string[])?.join('; ') ?? '';
-      const csrfToken = (loginRes.headers['set-cookie'] as unknown as string[])
-        ?.find((c: string) => c.startsWith('csrf-token='))
-        ?.split(';')[0]
-        ?.split('=')[1];
+      const loginRes = await loginUser(http, email, password);
+      expect(loginRes.status).toBe(200);
+      const accessToken = getCookieValue(loginRes, 'access_token');
+      expect(accessToken).toBeTruthy();
+
+      if (!accessToken) {
+        throw new Error('Expected access token cookie');
+      }
 
       const [res1, res2] = await Promise.all([
-        http.get('/api/v1/profiles/me').set('Cookie', cookies).set('X-CSRF-Token', csrfToken ?? ''),
-        http.get('/api/v1/profiles/me').set('Cookie', cookies).set('X-CSRF-Token', csrfToken ?? ''),
+        http.get('/api/v1/profiles/me').set('Authorization', `Bearer ${accessToken}`),
+        http.get('/api/v1/profiles/me').set('Authorization', `Bearer ${accessToken}`),
       ]);
 
       expect(res1.status).toBe(200);
       expect(res2.status).toBe(200);
-      // Both responses should have identical profile IDs
-      const p1 = res1.body.data ?? res1.body;
-      const p2 = res2.body.data ?? res2.body;
-      expect(p1.id).toBe(p2.id);
+
+      const profile1 = res1.body.data ?? res1.body;
+      const profile2 = res2.body.data ?? res2.body;
+      expect(profile1.id).toBe(profile2.id);
     });
   });
 });

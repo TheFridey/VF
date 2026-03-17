@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { VerificationStatus } from '@prisma/client';
-import { IsArray, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 
 export enum BulkVerificationDecision {
   APPROVE = 'APPROVE',
@@ -8,6 +9,21 @@ export enum BulkVerificationDecision {
 }
 
 export class GetVerificationRequestsDto {
+  @ApiPropertyOptional({ minimum: 1, default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
   @ApiPropertyOptional({ enum: VerificationStatus })
   @IsOptional()
   @IsEnum(VerificationStatus)

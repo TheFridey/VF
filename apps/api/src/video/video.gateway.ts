@@ -2,6 +2,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
   SubscribeMessage,
+  OnGatewayInit,
   OnGatewayConnection,
   OnGatewayDisconnect,
   ConnectedSocket,
@@ -33,13 +34,14 @@ interface CallSession {
   },
   namespace: '/video',
 })
-export class VideoGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
   private readonly logger = new Logger(VideoGateway.name);
   private connectedUsers: Map<string, string> = new Map(); // userId -> socketId
   private activeCalls: Map<string, CallSession> = new Map(); // callId -> session
+  private callTimeouts: Map<string, NodeJS.Timeout> = new Map();
 
   constructor(
     private jwtService: JwtService,
@@ -47,27 +49,44 @@ export class VideoGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private prisma: PrismaService,
   ) {}
 
+  afterInit(server: Server) {
+    server.use(async (socket, next) => {
+      try {
+        await this.authenticateSocket(socket as AuthenticatedSocket);
+        next();
+      } catch (error) {
+        next(error instanceof Error ? error : new Error('Authentication failed'));
+      }
+    });
+  }
+
+  private async authenticateSocket(socket: AuthenticatedSocket) {
+    const token = socket.handshake.auth?.token ||
+      socket.handshake.headers?.authorization?.replace('Bearer ', '');
+
+    if (!token) {
+      throw new Error('Authentication token required');
+    }
+
+    const payload = await this.jwtService.verifyAsync(token, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+    });
+
+    socket.userId = String(payload.sub);
+  }
+
   async handleConnection(socket: AuthenticatedSocket) {
     try {
-      const token = socket.handshake.auth?.token || 
-                    socket.handshake.headers?.authorization?.replace('Bearer ', '');
-
-      if (!token) {
-        socket.disconnect();
+      if (!socket.userId) {
+        socket.disconnect(true);
         return;
       }
-
-      const payload = await this.jwtService.verifyAsync(token, {
-        secret: this.configService.get<string>('JWT_SECRET'),
-      });
-
-      socket.userId = payload.sub;
       this.connectedUsers.set(socket.userId!, socket.id);
 
       this.logger.log(`Video: User ${socket.userId!} connected`);
 
     } catch (error) {
-      socket.disconnect();
+      socket.disconnect(true);
     }
   }
 
@@ -192,12 +211,14 @@ export class VideoGateway implements OnGatewayConnection, OnGatewayDisconnect {
     socket.emit('call:ringing', { callId });
 
     // Auto-end call after 30 seconds if not answered
-    setTimeout(() => {
+    const timeout = setTimeout(() => {
       const call = this.activeCalls.get(callId);
       if (call && call.status === 'ringing') {
         this.endCall(callId, 'no_answer');
       }
     }, 30000);
+    timeout.unref?.();
+    this.callTimeouts.set(callId, timeout);
   }
 
   /**
@@ -342,6 +363,12 @@ export class VideoGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private endCall(callId: string, reason: string) {
     const session = this.activeCalls.get(callId);
     if (!session) return;
+
+    const timeout = this.callTimeouts.get(callId);
+    if (timeout) {
+      clearTimeout(timeout);
+      this.callTimeouts.delete(callId);
+    }
 
     const callerSocketId = this.connectedUsers.get(session.callerId);
     const calleeSocketId = this.connectedUsers.get(session.calleeId);

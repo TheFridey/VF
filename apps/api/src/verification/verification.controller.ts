@@ -65,15 +65,11 @@ export class VerificationController {
   @UseGuards(RolesGuard)
   @Roles('MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Get pending verification requests' })
-  async getPendingRequests(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query() query?: GetVerificationRequestsDto,
-  ) {
+  async getPendingRequests(@Query() query: GetVerificationRequestsDto) {
     return this.verificationService.getPendingRequests(
-      page ? parseInt(page) : 1,
-      limit ? parseInt(limit) : 20,
-      query?.status || VerificationStatus.PENDING,
+      query.page ?? 1,
+      query.limit ?? 20,
+      query.status || VerificationStatus.PENDING,
     );
   }
 

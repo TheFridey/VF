@@ -27,7 +27,6 @@ import {
 @ApiTags('admin')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN')
 @Controller('admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
@@ -35,12 +34,14 @@ export class AdminController {
   // ============ DASHBOARD ============
 
   @Get('dashboard')
+  @Roles('MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Get admin dashboard statistics' })
   async getDashboard() {
     return this.adminService.getDashboardStats();
   }
 
   @Get('health')
+  @Roles('MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Get system health status' })
   async getSystemHealth() {
     return this.adminService.getSystemHealth();
@@ -49,18 +50,21 @@ export class AdminController {
   // ============ USER MANAGEMENT ============
 
   @Get('users')
+  @Roles('MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Get all users with filters' })
   async getUsers(@Query() dto: GetUsersDto) {
     return this.adminService.getUsers(dto);
   }
 
   @Get('users/:userId')
+  @Roles('MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Get detailed user information' })
   async getUserDetails(@Param('userId') userId: string) {
     return this.adminService.getUserDetails(userId);
   }
 
   @Patch('users/:userId/status')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Update user status (suspend/ban/activate)' })
   async updateUserStatus(
     @CurrentUser('id') adminId: string,
@@ -71,6 +75,7 @@ export class AdminController {
   }
 
   @Patch('users/bulk-status')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Bulk update user statuses' })
   async bulkUpdateUserStatus(
     @CurrentUser('id') adminId: string,
@@ -80,6 +85,7 @@ export class AdminController {
   }
 
   @Patch('users/:userId/role')
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Update user role' })
   async updateUserRole(
     @CurrentUser('id') adminId: string,
@@ -92,6 +98,7 @@ export class AdminController {
   // ============ AUDIT LOGS ============
 
   @Get('audit-logs')
+  @Roles('MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Get audit logs with filters' })
   async getAuditLogs(@Query() dto: GetAuditLogsDto) {
     return this.adminService.getAuditLogs(dto);
@@ -100,6 +107,7 @@ export class AdminController {
   // ============ BIA COMMUNITY ============
 
   @Get('bia/threads')
+  @Roles('MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Get all forum threads for moderation' })
   async getForumThreads(
     @Query('page') page = 1,
@@ -110,6 +118,7 @@ export class AdminController {
   }
 
   @Patch('bia/threads/:threadId')
+  @Roles('MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Lock/unlock forum thread' })
   async updateThread(
     @Param('threadId') threadId: string,
@@ -119,18 +128,21 @@ export class AdminController {
   }
 
   @Delete('bia/threads/:threadId')
+  @Roles('MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Delete forum thread' })
   async deleteThread(@Param('threadId') threadId: string, @CurrentUser('id') adminId: string) {
     return this.adminService.deleteForumThread(threadId, adminId);
   }
 
   @Get('bia/listings')
+  @Roles('MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Get all business listings' })
   async getListings(@Query('page') page = 1, @Query('limit') limit = 20) {
     return this.adminService.getBusinessListings({ page: +page, limit: +limit });
   }
 
   @Patch('bia/listings/:listingId')
+  @Roles('MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Approve/reject business listing' })
   async updateListing(
     @Param('listingId') listingId: string,

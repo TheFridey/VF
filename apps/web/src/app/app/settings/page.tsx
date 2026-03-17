@@ -28,14 +28,22 @@ const ACCEPTED_MIME_TYPES = [
   'video/quicktime',
   'video/x-msvideo',
   'video/webm',
+  'video/x-matroska',
   'image/jpeg',
   'image/png',
+  'image/heic',
+  'image/heif',
   'image/webp',
   'application/pdf',
 ];
-const ACCEPTED_EXTENSIONS = '.mp4,.mov,.avi,.webm,.jpg,.jpeg,.png,.webp,.pdf';
-const MAX_FILE_SIZE_MB = 10;
+const ACCEPTED_EXTENSIONS = '.mp4,.mov,.avi,.webm,.mkv,.jpg,.jpeg,.png,.webp,.heic,.heif,.pdf';
+const MAX_STANDARD_FILE_SIZE_MB = 10;
+const MAX_VIDEO_FILE_SIZE_MB = 200;
 const MAX_FILES = 5;
+
+function getMaxFileSizeMb(file: File) {
+  return file.type.startsWith('video/') ? MAX_VIDEO_FILE_SIZE_MB : MAX_STANDARD_FILE_SIZE_MB;
+}
 
 function fileIcon(file: File) {
   if (file.type.startsWith('video/')) return '🎥';
@@ -65,8 +73,9 @@ function UploadModal({
     if (!incoming) return;
     const next: File[] = [];
     Array.from(incoming).forEach((file) => {
-      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-        toast.error(`${file.name} exceeds ${MAX_FILE_SIZE_MB}MB limit`);
+      const maxFileSizeMb = getMaxFileSizeMb(file);
+      if (file.size > maxFileSizeMb * 1024 * 1024) {
+        toast.error(`${file.name} exceeds the ${maxFileSizeMb}MB limit`);
         return;
       }
       if (!ACCEPTED_MIME_TYPES.includes(file.type)) {
@@ -116,7 +125,7 @@ function UploadModal({
             <li>F-Med 133 discharge summary or service record (PDF)</li>
             <li>Video of your GOV.UK Digital Veteran ID card (MP4, MOV, WebM)</li>
           </ul>
-          <p className="text-xs text-muted-foreground">Max {MAX_FILE_SIZE_MB}MB per file · up to {MAX_FILES} files</p>
+          <p className="text-xs text-muted-foreground">Max {MAX_STANDARD_FILE_SIZE_MB}MB for photos/PDFs, {MAX_VIDEO_FILE_SIZE_MB}MB for video · up to {MAX_FILES} files</p>
         </div>
 
         {/* Drop zone */}

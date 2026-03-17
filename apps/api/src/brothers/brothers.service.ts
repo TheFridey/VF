@@ -40,8 +40,15 @@ export class BrothersService {
       },
     });
 
+    const blockedCounterpartIds = await this.getBlockedCounterpartIds(
+      userId,
+      requests.map((request) => request.user1Id),
+    );
+
     return {
-      requests: requests.map((req) => ({
+      requests: requests
+        .filter((req) => !blockedCounterpartIds.has(req.user1Id))
+        .map((req) => ({
         id: req.id,
         overlapScore: req.overlapScore,
         createdAt: req.createdAt,
@@ -52,7 +59,7 @@ export class BrothersService {
           branch: req.user1.veteranDetails?.branch,
           rank: req.user1.veteranDetails?.rank,
         },
-      })),
+        })),
     };
   }
 
@@ -74,6 +81,10 @@ export class BrothersService {
     ]);
 
     if (!user || !target) throw new NotFoundException('User not found');
+
+    if (await this.isBlockedBetween(userId, targetUserId)) {
+      throw new ForbiddenException('You cannot connect with a user who is blocked');
+    }
 
     const isUserVerified = user.role === UserRole.VETERAN_VERIFIED || user.role === UserRole.VETERAN_MEMBER;
     const isTargetVerified = target.role === UserRole.VETERAN_VERIFIED || target.role === UserRole.VETERAN_MEMBER;
@@ -180,9 +191,15 @@ export class BrothersService {
       take: 50,
     });
 
+    const blockedCounterpartIds = await this.getBlockedCounterpartIds(
+      userId,
+      candidates.map((candidate) => candidate.id),
+    );
+
     // Calculate overlap scores — keep ALL candidates, sort by score descending.
     // Users with score=0 (no detected overlap) show as "Other Veterans" in the UI.
     const scoredCandidates = candidates
+      .filter((candidate) => !blockedCounterpartIds.has(candidate.id))
       .map((candidate) => ({
         ...candidate,
         overlapScore: this.calculateOverlapScore(user, candidate),
@@ -215,6 +232,10 @@ export class BrothersService {
     ]);
 
     if (!user || !target) throw new NotFoundException('User not found');
+
+    if (await this.isBlockedBetween(userId, targetUserId)) {
+      throw new ForbiddenException('You cannot connect with a user who is blocked');
+    }
 
     const isUserVerified = user.role === UserRole.VETERAN_VERIFIED || user.role === UserRole.VETERAN_MEMBER;
     const isTargetVerified = target.role === UserRole.VETERAN_VERIFIED || target.role === UserRole.VETERAN_MEMBER;
@@ -466,5 +487,46 @@ export class BrothersService {
         location: p.dutyStation || p.unit || null,
       })),
     };
+  }
+
+  private async isBlockedBetween(userId: string, otherUserId: string) {
+    const block = await this.prisma.block.findFirst({
+      where: {
+        deletedAt: null,
+        OR: [
+          { blockerId: userId, blockedId: otherUserId },
+          { blockerId: otherUserId, blockedId: userId },
+        ],
+      },
+      select: { id: true },
+    });
+
+    return !!block;
+  }
+
+  private async getBlockedCounterpartIds(userId: string, candidateUserIds?: string[]) {
+    const blocks = await this.prisma.block.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          {
+            blockerId: userId,
+            ...(candidateUserIds?.length ? { blockedId: { in: candidateUserIds } } : {}),
+          },
+          {
+            blockedId: userId,
+            ...(candidateUserIds?.length ? { blockerId: { in: candidateUserIds } } : {}),
+          },
+        ],
+      },
+      select: {
+        blockerId: true,
+        blockedId: true,
+      },
+    });
+
+    return new Set(
+      blocks.map((block) => (block.blockerId === userId ? block.blockedId : block.blockerId)),
+    );
   }
 }

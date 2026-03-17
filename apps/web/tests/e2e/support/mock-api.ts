@@ -148,6 +148,18 @@ export async function mockVerificationStatus(page: Page, statusPayload: unknown 
   );
 }
 
+export async function mockUnreadCounts(page: Page, total = 0) {
+  await page.route('**/api/messaging/unread', (route) =>
+    json(route, wrapData({ total })),
+  );
+}
+
+export async function mockSubscription(page: Page, tier: 'FREE' | 'BIA' | 'BIA_PLUS' = 'FREE') {
+  await page.route('**/api/subscriptions/me', (route) =>
+    json(route, wrapData({ tier })),
+  );
+}
+
 export async function mockForumIndex(page: Page) {
   await page.route('**/api/bia/forums', (route) =>
     json(route, wrapData({

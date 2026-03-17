@@ -1,11 +1,13 @@
 import { expect, test } from '@playwright/test';
-import { mockCurrentAdmin, mockVerificationQueue, seedAdminAuth } from './support/mock-api';
+import { mockCurrentAdmin, mockVerificationQueue, persistAdminAuth, seedAdminAuth } from './support/mock-api';
 
 test('verification queue loads requests and SLA indicators', async ({ page }) => {
   await seedAdminAuth(page);
   await mockCurrentAdmin(page);
   await mockVerificationQueue(page);
 
+  await page.goto('/auth/login');
+  await persistAdminAuth(page);
   await page.goto('/verification');
 
   await expect(page.getByRole('heading', { name: /verification queue/i })).toBeVisible();

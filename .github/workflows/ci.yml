@@ -116,6 +116,9 @@ jobs:
       - name: Run web unit tests
         run: npm run test:unit --prefix apps/web
 
+      - name: Run admin unit tests
+        run: npm run test:unit --prefix apps/admin
+
       - name: Run web end-to-end tests
         run: npm run test:e2e --prefix apps/web
 
@@ -188,8 +191,6 @@ jobs:
           PASSWORD_PEPPER: ci-test-pepper-32-chars-long-xxxxxx
           COOKIE_SECRET: ci-cookie-secret-min-32-chars-long
           NODE_ENV: test
-          ADMIN_EMAIL: admin@veteranfinder.com
-          ADMIN_PASSWORD: Password123!
 
   build:
     name: Build

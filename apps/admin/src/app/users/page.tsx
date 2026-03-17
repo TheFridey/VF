@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Ban, ChevronLeft, ChevronRight, Eye, RefreshCw, Shield, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi } from '@/lib/api';
+import { useAuthStore } from '@/lib/auth-store';
 import { usePersistedAdminState } from '@/lib/use-persisted-admin-state';
 import {
   AdminBulkActionBar,
@@ -41,6 +42,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function UsersPage() {
+  const { user } = useAuthStore();
   const [filters, setFilters, hydrated] = usePersistedAdminState('vf-admin-users-filters', {
     search: '',
     role: '',
@@ -60,7 +62,7 @@ export default function UsersPage() {
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const data = await adminApi.getUsers({
@@ -80,7 +82,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters.role, filters.search, filters.status, page]);
 
   useEffect(() => {
     if (!hydrated) {
@@ -88,7 +90,7 @@ export default function UsersPage() {
     }
 
     fetchUsers().catch(console.error);
-  }, [hydrated, page, filters.search, filters.role, filters.status]);
+  }, [fetchUsers, hydrated]);
 
   useEffect(() => {
     setPage(1);
@@ -122,6 +124,7 @@ export default function UsersPage() {
     () => users.filter((user) => selectedIds.includes(user.id)),
     [selectedIds, users],
   );
+  const canManageUsers = user?.role === 'ADMIN';
 
   const applyBulkStatus = async () => {
     if (!bulkStatus || selectedIds.length === 0) {
@@ -166,20 +169,22 @@ export default function UsersPage() {
         }
       />
 
-      <AdminBulkActionBar count={selectedIds.length}>
-        <button type="button" onClick={() => setShowBulkPanel((value) => !value)} style={adminActionButtonStyle(adminTheme.warning, true)}>
-          <Ban size={13} />
-          Bulk status
-        </button>
-        <span style={{ color: adminTheme.textMuted, fontSize: 12 }}>
-          {selectedUsers.filter((user) => user.status === 'BANNED').length} already banned
-        </span>
-        <button type="button" onClick={() => setSelectedIds([])} style={adminActionButtonStyle(adminTheme.textMuted, true)}>
-          Clear
-        </button>
-      </AdminBulkActionBar>
+      {canManageUsers ? (
+        <AdminBulkActionBar count={selectedIds.length}>
+          <button type="button" onClick={() => setShowBulkPanel((value) => !value)} style={adminActionButtonStyle(adminTheme.warning, true)}>
+            <Ban size={13} />
+            Bulk status
+          </button>
+          <span style={{ color: adminTheme.textMuted, fontSize: 12 }}>
+            {selectedUsers.filter((user) => user.status === 'BANNED').length} already banned
+          </span>
+          <button type="button" onClick={() => setSelectedIds([])} style={adminActionButtonStyle(adminTheme.textMuted, true)}>
+            Clear
+          </button>
+        </AdminBulkActionBar>
+      ) : null}
 
-      {showBulkPanel ? (
+      {canManageUsers && showBulkPanel ? (
         <AdminCard style={{ padding: '18px 20px', marginBottom: 16 }}>
           <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
             <div>
@@ -236,14 +241,20 @@ export default function UsersPage() {
           <option value="SUSPENDED">Suspended</option>
           <option value="BANNED">Banned</option>
         </AdminSelect>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: adminTheme.textMuted, fontSize: 12 }}>
-          <input
-            type="checkbox"
-            checked={allSelected}
-            onChange={(event) => setSelectedIds(event.target.checked ? users.map((user) => user.id) : [])}
-          />
-          Select page
-        </label>
+        {canManageUsers ? (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: adminTheme.textMuted, fontSize: 12 }}>
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={(event) => setSelectedIds(event.target.checked ? users.map((user) => user.id) : [])}
+            />
+            Select page
+          </label>
+        ) : (
+          <span style={{ color: adminTheme.textMuted, fontSize: 12 }}>
+            Moderators have read-only access to personnel records.
+          </span>
+        )}
       </AdminFilterBar>
 
       <AdminTableShell>
@@ -283,17 +294,19 @@ export default function UsersPage() {
               users.map((user) => (
                 <tr key={user.id}>
                   <AdminTableCell>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(user.id)}
-                      onChange={(event) => {
-                        setSelectedIds((current) =>
-                          event.target.checked
-                            ? [...current, user.id]
-                            : current.filter((id) => id !== user.id),
-                        );
-                      }}
-                    />
+                    {canManageUsers ? (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(user.id)}
+                        onChange={(event) => {
+                          setSelectedIds((current) =>
+                            event.target.checked
+                              ? [...current, user.id]
+                              : current.filter((id) => id !== user.id),
+                          );
+                        }}
+                      />
+                    ) : null}
                   </AdminTableCell>
                   <AdminTableCell>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -348,30 +361,34 @@ export default function UsersPage() {
                         <Eye size={13} />
                         Timeline
                       </Link>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setModal({ type: 'role', user });
-                          setNewValue(user.role);
-                          setReason('');
-                        }}
-                        style={adminActionButtonStyle(adminTheme.violet, true)}
-                      >
-                        <Shield size={13} />
-                        Role
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setModal({ type: 'status', user });
-                          setNewValue(user.status);
-                          setReason('');
-                        }}
-                        style={adminActionButtonStyle(adminTheme.warning, true)}
-                      >
-                        <Ban size={13} />
-                        Status
-                      </button>
+                      {canManageUsers ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModal({ type: 'role', user });
+                              setNewValue(user.role);
+                              setReason('');
+                            }}
+                            style={adminActionButtonStyle(adminTheme.violet, true)}
+                          >
+                            <Shield size={13} />
+                            Role
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModal({ type: 'status', user });
+                              setNewValue(user.status);
+                              setReason('');
+                            }}
+                            style={adminActionButtonStyle(adminTheme.warning, true)}
+                          >
+                            <Ban size={13} />
+                            Status
+                          </button>
+                        </>
+                      ) : null}
                     </div>
                   </AdminTableCell>
                 </tr>

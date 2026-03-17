@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Check, Eye, Flag, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi } from '@/lib/api';
@@ -64,7 +64,7 @@ export default function ReportsPage() {
   const [bulkResolveOpen, setBulkResolveOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
       const data = await adminApi.getReports({ status: filters.status || undefined });
@@ -76,7 +76,7 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters.status]);
 
   useEffect(() => {
     if (!hydrated) {
@@ -84,7 +84,7 @@ export default function ReportsPage() {
     }
 
     fetchReports().catch(console.error);
-  }, [filters.status, hydrated]);
+  }, [fetchReports, hydrated]);
 
   const openCount = useMemo(
     () => reports.filter((report) => report.status === 'PENDING').length,

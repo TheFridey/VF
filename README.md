@@ -70,7 +70,7 @@ The long-term direction is `apps/admin`. Embedded `/admin/*` routes inside `apps
 - Node.js `20.x`
 - npm `10+`
 - Docker Desktop
-- A repo location on an `NTFS` volume if you need to run `next build`
+- A repo location on an `NTFS` volume if you need to run `next build` directly on Windows
 
 ### Important Windows note
 
@@ -84,6 +84,13 @@ This repository is currently on `D:` and that drive is `exFAT`, which explains t
 
 ```text
 C:\dev\vf
+```
+
+If you are temporarily stuck on `exFAT` but need to prove the production build, use the Linux container build path from the repo root instead:
+
+```powershell
+npm run build:web:docker
+npm run build:admin:docker
 ```
 
 ## Quick Start
@@ -207,7 +214,16 @@ From the repo root:
 | npm run typecheck    | Run TypeScript checks across all apps      |
 | npm run lint         | Run lint across all apps                   |
 | npm run build        | Build api, web, and admin                  |
-| npm run test         | Run API unit tests                         |
+| npm run test         | Run the full repo test surface             |
+| npm run test:api     | Run API unit tests                         |
+| npm run test:api:e2e | Run API end-to-end tests                   |
+| npm run test:web     | Run web unit tests                         |
+| npm run test:web:e2e | Run web Playwright tests                   |
+| npm run test:admin   | Run admin unit tests                       |
+| npm run test:admin:e2e | Run admin Playwright tests               |
+| npm run test:all     | Run unit and end-to-end tests everywhere   |
+| npm run build:web:docker | Build the web app in Linux container   |
+| npm run build:admin:docker | Build the admin app in Linux container |
 +-------------------+-----------------------------------------------+
 ```
 
@@ -225,7 +241,7 @@ npm run test:e2e
 Current coverage focuses on high-risk user journeys:
 
 - login
-- signup into onboarding
+- signup and email verification
 - protected route access
 - settings and verification start flow
 - BIA/forums navigation
@@ -306,9 +322,9 @@ Current repo checks after this cleanup:
 | apps/web typecheck   | Passing                      |
 | apps/web lint        | Passing with warnings        |
 | apps/admin typecheck | Passing                      |
-| apps/admin lint      | Passing with warnings        |
-| apps/web build       | Blocked on exFAT filesystem  |
-| apps/admin build     | Blocked on exFAT filesystem  |
+| apps/admin lint      | Passing                      |
+| apps/web build       | NTFS required on Windows     |
+| apps/admin build     | NTFS required on Windows     |
 +----------------------+------------------------------+
 ```
 
@@ -318,10 +334,8 @@ GitHub Actions now use the same package manager model as local development:
 
 - `CI` installs each app with `npm ci`
 - `CI` runs lint, typecheck, tests, and builds per app
-- `Deploy` builds Docker images for:
-  - `apps/api`
-  - `apps/web`
-  - `apps/admin`
+- `Deploy` builds Docker images, runs Prisma migrations with the new API image,
+  then switches over `api`, `web`, and `admin`
 
 Workflow files:
 
@@ -343,6 +357,8 @@ Fix:
 1. Move the repository to an `NTFS` volume.
 2. Reinstall app dependencies.
 3. Retry `npm run build` in `apps/web` or `apps/admin`.
+4. If you only need production build proof from the current machine, use:
+   `npm run build:web:docker` and `npm run build:admin:docker`
 
 ### Frontend auth loops back to login
 

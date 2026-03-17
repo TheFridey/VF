@@ -22,7 +22,8 @@ function signToken(jwtService: JwtService, userId: string): string {
 
 const mockPrisma = {
   user:       { findUnique: jest.fn(), update: jest.fn() },
-  connection: { findFirst: jest.fn() },
+  profile:    { updateMany: jest.fn() },
+  connection: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
   message:    { create: jest.fn(), updateMany: jest.fn() },
 };
 const mockRedis = {
@@ -31,6 +32,7 @@ const mockRedis = {
   getRateLimit:        jest.fn().mockResolvedValue(0),
   cacheGet:            jest.fn().mockResolvedValue(null),
   cacheSet:            jest.fn().mockResolvedValue(undefined),
+  exists:              jest.fn().mockResolvedValue(false),
 };
 
 describe('ChatGateway', () => {
@@ -71,7 +73,14 @@ describe('ChatGateway', () => {
   });
 
   afterAll(async () => { await app.close(); });
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockRedis.incrementRateLimit.mockResolvedValue(1);
+    mockRedis.exists.mockResolvedValue(false);
+    mockPrisma.connection.findMany.mockResolvedValue([]);
+    mockPrisma.connection.update.mockResolvedValue({ id: 'conn-updated' });
+    mockPrisma.profile.updateMany.mockResolvedValue({ count: 1 });
+  });
 
   function connectClient(token?: string): Promise<Socket> {
     return new Promise((resolve, reject) => {

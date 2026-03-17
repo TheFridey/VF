@@ -21,6 +21,14 @@ if (process.platform !== 'win32') {
 }
 
 try {
+  if (process.env.NEXT_BUILD_ALLOW_UNSUPPORTED_FS === '1') {
+    console.warn(
+      'Skipping Windows filesystem guard because NEXT_BUILD_ALLOW_UNSUPPORTED_FS=1. ' +
+      'This is diagnostic-only and unsupported on exFAT/FAT volumes.',
+    );
+    process.exit(0);
+  }
+
   const driveRoot = getDriveRoot(process.cwd());
   const filesystemName = getFilesystemName(driveRoot);
 
@@ -32,6 +40,12 @@ try {
         `Detected filesystem: ${filesystemName}`,
         'Move the repo to an NTFS path or run the build inside WSL/Linux to avoid the',
         "known Next.js 'EISDIR ... readlink ... _app.js' failure on exFAT/FAT volumes.",
+        'If you need a production-build proof from this machine, use the Linux container build',
+        'path from the repo root instead:',
+        '  npm run build:web:docker',
+        '  npm run build:admin:docker',
+        'Set NEXT_BUILD_ALLOW_UNSUPPORTED_FS=1 only if you intentionally want to confirm the',
+        'underlying Next.js failure yourself.',
       ].join('\n'),
     );
     process.exit(1);
@@ -41,4 +55,3 @@ try {
     `Unable to verify the Windows filesystem before build: ${error instanceof Error ? error.message : String(error)}`,
   );
 }
-

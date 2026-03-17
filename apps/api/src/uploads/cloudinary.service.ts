@@ -150,4 +150,16 @@ export class CloudinaryService {
 
     return cloudinary.url(publicId, options);
   }
+
+  getAuthenticatedUrl(
+    publicId: string,
+    resourceType: 'image' | 'video' | 'raw' = 'image',
+  ): string {
+    return cloudinary.url(publicId, {
+      secure: true,
+      sign_url: true,
+      resource_type: resourceType,
+      type: 'authenticated',
+    });
+  }
 }

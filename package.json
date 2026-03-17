@@ -11,13 +11,23 @@
     "dev:api": "npm run dev --prefix apps/api",
     "dev:web": "npm run dev --prefix apps/web",
     "dev:admin": "npm run dev --prefix apps/admin",
+    "build:api": "npm run build --prefix apps/api",
+    "build:web": "npm run build --prefix apps/web",
+    "build:admin": "npm run build --prefix apps/admin",
+    "build:web:docker": "docker build -t veteranfinder-web-build -f apps/web/Dockerfile .",
+    "build:admin:docker": "docker build -t veteranfinder-admin-build -f apps/admin/Dockerfile .",
     "typecheck": "npm run typecheck --prefix apps/api && npm run typecheck --prefix apps/web && npm run typecheck --prefix apps/admin",
     "lint": "npm run lint --prefix apps/api && npm run lint --prefix apps/web && npm run lint --prefix apps/admin",
     "build": "npm run build --prefix apps/api && npm run build --prefix apps/web && npm run build --prefix apps/admin",
-    "test:api": "npm run test:unit --prefix apps/api && npm run test:e2e --prefix apps/api",
+    "test:api": "npm run test:unit --prefix apps/api",
+    "test:api:e2e": "npm run test:e2e --prefix apps/api",
     "test:web": "npm run test:unit --prefix apps/web",
-    "test:e2e": "npm run test:e2e --prefix apps/web && npm run test:e2e --prefix apps/admin",
-    "test": "npm run test:api && npm run test:web && npm run test:e2e"
+    "test:web:e2e": "npm run test:e2e --prefix apps/web",
+    "test:admin": "npm run test:unit --prefix apps/admin",
+    "test:admin:e2e": "npm run test:e2e --prefix apps/admin",
+    "test:e2e": "npm run test:api:e2e && npm run test:web:e2e && npm run test:admin:e2e",
+    "test:all": "npm run test:api && npm run test:api:e2e && npm run test:web && npm run test:web:e2e && npm run test:admin && npm run test:admin:e2e",
+    "test": "npm run test:all"
   },
   "engines": {
     "node": ">=20.0.0"

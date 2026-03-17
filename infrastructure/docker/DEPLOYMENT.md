@@ -7,7 +7,7 @@ Production deploys are now image-based:
 1. GitHub Actions builds `api`, `web`, and `admin` images.
 2. Images are pushed to GHCR with the commit SHA and an environment alias tag.
 3. The deploy workflow connects to the server over SSH.
-4. Docker Compose pulls the new images, restarts the app containers, runs Prisma migrations, and performs a health check.
+4. Docker Compose pulls the new images, runs Prisma migrations with the new API image, restarts the app containers, and performs a health check.
 
 The server still uses `infrastructure/docker/docker-compose.yml`, but the compose file now supports both:
 
@@ -58,8 +58,8 @@ export VETERANFINDER_IMAGE_REGISTRY=ghcr.io/<owner>
 export VETERANFINDER_IMAGE_TAG=<git-sha>
 
 docker compose -f infrastructure/docker/docker-compose.yml --env-file .env pull api web admin
+docker compose -f infrastructure/docker/docker-compose.yml --env-file .env run --rm api npx prisma migrate deploy
 docker compose -f infrastructure/docker/docker-compose.yml --env-file .env up -d api web admin
-docker compose -f infrastructure/docker/docker-compose.yml --env-file .env exec -T api npx prisma migrate deploy
 curl -fsS https://veteranfinder.co.uk/api/v1/health/ready
 ```
 
@@ -76,4 +76,4 @@ docker compose -f infrastructure/docker/docker-compose.yml --env-file .env up -d
 - `VETERANFINDER_IMAGE_TAG` defaults to `latest` if not set.
 - `VETERANFINDER_IMAGE_REGISTRY` defaults to `ghcr.io/veteranfinder`.
 - The deploy workflow only restarts `api`, `web`, and `admin`; PostgreSQL and Redis stay in place.
-- Prisma migrations are executed after the new API container is up.
+- Prisma migrations are executed before the new app containers are switched over.

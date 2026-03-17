@@ -27,15 +27,25 @@ export const adminUser = {
 };
 
 export async function seedAdminAuth(page: Page) {
-  await page.addInitScript((user) => {
-    window.localStorage.setItem(
-      'admin-auth-user',
-      JSON.stringify({
-        state: { user },
-        version: 0,
-      }),
-    );
-  }, adminUser);
+  const persistedState = JSON.stringify({
+    state: { user: adminUser },
+    version: 0,
+  });
+
+  await page.addInitScript((state) => {
+    window.localStorage.setItem('admin-auth-user', state);
+  }, persistedState);
+}
+
+export async function persistAdminAuth(page: Page) {
+  const persistedState = JSON.stringify({
+    state: { user: adminUser },
+    version: 0,
+  });
+
+  await page.evaluate((state) => {
+    window.localStorage.setItem('admin-auth-user', state);
+  }, persistedState);
 }
 
 export async function mockAdminLogin(page: Page) {
@@ -111,4 +121,3 @@ export async function mockVerificationQueue(page: Page) {
     })),
   );
 }
-

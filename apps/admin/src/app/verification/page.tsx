@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Clock3, Eye, FileText, Shield, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi } from '@/lib/api';
@@ -56,7 +56,7 @@ export default function VerificationPage() {
   const [saving, setSaving] = useState(false);
   const [queueSummary, setQueueSummary] = useState({ normal: 0, urgent: 0, breached: 0 });
 
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     setLoading(true);
     try {
       const data = await adminApi.getPendingVerifications({
@@ -72,7 +72,7 @@ export default function VerificationPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters.status]);
 
   useEffect(() => {
     if (!filtersHydrated) {
@@ -80,7 +80,7 @@ export default function VerificationPage() {
     }
 
     fetchRequests().catch(console.error);
-  }, [filters.status, filtersHydrated]);
+  }, [fetchRequests, filtersHydrated]);
 
   const pendingCount = useMemo(
     () => requests.filter((request) => request.status === 'PENDING').length,
@@ -301,9 +301,9 @@ export default function VerificationPage() {
                       </p>
                     </AdminTableCell>
                     <AdminTableCell>
-                      <p style={{ color: adminTheme.textMuted, fontSize: 12 }}>{request.user?.profile?.branch || 'Not provided'}</p>
+                      <p style={{ color: adminTheme.textMuted, fontSize: 12 }}>{request.user?.veteranDetails?.branch || 'Not provided'}</p>
                       <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, marginTop: 4 }}>
-                        {request.user?.profile?.unit || request.user?.veteranDetails?.regiment || 'Unit not provided'}
+                        {request.user?.veteranDetails?.regiment || 'Unit not provided'}
                       </p>
                     </AdminTableCell>
                     <AdminTableCell>

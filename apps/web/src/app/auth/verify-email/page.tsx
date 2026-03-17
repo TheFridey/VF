@@ -18,6 +18,7 @@ export default function VerifyEmailPage() {
   const [state, setState] = useState<VerificationState>('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [resending, setResending] = useState(false);
+  const knownEmail = searchParams.get('email') || user?.email || 'your email address';
 
   useEffect(() => {
     const token = searchParams.get('token');
@@ -48,10 +49,14 @@ export default function VerifyEmailPage() {
   }, [searchParams]);
 
   const handleResend = async () => {
-    if (!user?.email) { toast.error('Please log in first'); return; }
+    if (!knownEmail || knownEmail === 'your email address') {
+      toast.error('Return to registration or login to request a new email');
+      return;
+    }
+
     setResending(true);
     try {
-      await api.resendVerificationEmail(user.email);
+      await api.resendVerificationEmail(knownEmail);
       toast.success('Verification email sent — check your inbox');
     } catch {
       toast.error('Failed to resend — please try again shortly');
@@ -80,7 +85,7 @@ export default function VerifyEmailPage() {
           </div>
           <CardTitle className="text-2xl">Check your email</CardTitle>
           <CardDescription>
-            We sent a verification link to <strong>{user?.email || 'your email address'}</strong>.
+            We sent a verification link to <strong>{knownEmail}</strong>.
             Click the link in that email to activate your account.
           </CardDescription>
         </CardHeader>
@@ -114,8 +119,8 @@ export default function VerifyEmailPage() {
           </CardDescription>
         </CardHeader>
         <CardFooter className="justify-center">
-          <Link href="/app/brothers">
-            <Button>Get Started</Button>
+          <Link href={`/auth/login?verified=true&email=${encodeURIComponent(knownEmail)}`}>
+            <Button>Sign In</Button>
           </Link>
         </CardFooter>
       </Card>

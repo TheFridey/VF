@@ -64,7 +64,17 @@ export class MessagingService {
       unreadGroups.map((g) => [g.connectionId, g._count.id]),
     );
 
-    const conversations = connections.map((connection) => {
+    const blockedCounterpartIds = await this.getBlockedCounterpartIds(
+      userId,
+      connections.map((connection) => (connection.user1Id === userId ? connection.user2Id : connection.user1Id)),
+    );
+
+    const conversations = connections
+      .filter((connection) => {
+        const otherUserId = connection.user1Id === userId ? connection.user2Id : connection.user1Id;
+        return !blockedCounterpartIds.has(otherUserId);
+      })
+      .map((connection) => {
       const otherUser = connection.user1Id === userId ? connection.user2 : connection.user1;
       const lastMessage = connection.messages[0];
 
@@ -90,17 +100,24 @@ export class MessagingService {
         unreadCount: unreadByConnection.get(connection.id) ?? 0,
         lastMessageAt: connection.lastMessageAt,
       };
-    });
+      });
 
     return { conversations };
   }
 
   async getUnreadCounts(userId: string) {
+    const blockedCounterpartIds = Array.from(await this.getBlockedCounterpartIds(userId));
+    const blockedSenderFilter =
+      blockedCounterpartIds.length > 0
+        ? { senderId: { notIn: blockedCounterpartIds } }
+        : {};
+
     const totalUnread = await this.prisma.message.count({
       where: {
         receiverId: userId,
         readAt: null,
         deletedAt: null,
+        ...blockedSenderFilter,
         connection: { status: ConnectionStatus.ACTIVE, connectionType: ConnectionType.BROTHERS_IN_ARMS },
       },
     });
@@ -112,6 +129,7 @@ export class MessagingService {
         receiverId: userId,
         readAt: null,
         deletedAt: null,
+        ...blockedSenderFilter,
         connection: { status: ConnectionStatus.ACTIVE, connectionType: ConnectionType.BROTHERS_IN_ARMS },
       },
       _count: { id: true },
@@ -211,6 +229,24 @@ export class MessagingService {
   async markAsRead(connectionId: string, userId: string) {
     await this.verifyParticipant(connectionId, userId);
 
+    const unreadMessage = await this.prisma.message.findFirst({
+      where: {
+        connectionId,
+        receiverId: userId,
+        readAt: null,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!unreadMessage) {
+      return {
+        success: true,
+        updatedCount: 0,
+        alreadyRead: true,
+      };
+    }
+
     const result = await this.prisma.message.updateMany({
       where: {
         connectionId,
@@ -305,7 +341,53 @@ export class MessagingService {
       throw new ForbiddenException('Connection is not active');
     }
 
+    const otherUserId = connection.user1Id === userId ? connection.user2Id : connection.user1Id;
+    if (await this.isBlockedBetween(userId, otherUserId)) {
+      throw new ForbiddenException('This conversation is unavailable because one of the users has been blocked');
+    }
+
     return connection;
+  }
+
+  private async isBlockedBetween(userId: string, otherUserId: string) {
+    const block = await this.prisma.block.findFirst({
+      where: {
+        deletedAt: null,
+        OR: [
+          { blockerId: userId, blockedId: otherUserId },
+          { blockerId: otherUserId, blockedId: userId },
+        ],
+      },
+      select: { id: true },
+    });
+
+    return !!block;
+  }
+
+  private async getBlockedCounterpartIds(userId: string, candidateUserIds?: string[]) {
+    const blocks = await this.prisma.block.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          {
+            blockerId: userId,
+            ...(candidateUserIds?.length ? { blockedId: { in: candidateUserIds } } : {}),
+          },
+          {
+            blockedId: userId,
+            ...(candidateUserIds?.length ? { blockerId: { in: candidateUserIds } } : {}),
+          },
+        ],
+      },
+      select: {
+        blockerId: true,
+        blockedId: true,
+      },
+    });
+
+    return new Set(
+      blocks.map((block) => (block.blockerId === userId ? block.blockedId : block.blockerId)),
+    );
   }
 
   private encryptMessage(content: string): { encrypted: string; iv: string; authTag: string } {

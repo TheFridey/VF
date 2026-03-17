@@ -5,7 +5,7 @@ import { CloudinaryService } from '../uploads/cloudinary.service';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { RedisService } from '../common/redis/redis.service';
-import { VerificationStatus, UserRole } from '@prisma/client';
+import { VerificationStatus, UserRole, UserStatus } from '@prisma/client';
 import { v2 as cloudinary } from 'cloudinary';
 import {
   getVerificationResourceType,
@@ -20,6 +20,19 @@ interface UploadedFile {
   mimetype: string;
   buffer: Buffer;
   size: number;
+}
+
+interface StoredEvidenceFile {
+  publicId: string;
+  resourceType: 'image' | 'video' | 'raw';
+  originalName?: string;
+  mimetype?: string;
+}
+
+interface StoredVerificationNotes {
+  reviewNotes?: string;
+  evidencePublicIds?: string[];
+  evidenceFiles?: StoredEvidenceFile[];
 }
 
 const EVIDENCE_FOLDER = 'veteranfinder/verification-evidence';
@@ -45,7 +58,7 @@ export class VerificationService {
   private async uploadEvidenceFile(
     userId: string,
     file: UploadedFile,
-  ): Promise<{ url: string; publicId: string }> {
+  ): Promise<{ url: string; publicId: string; resourceType: 'image' | 'video' | 'raw' }> {
     validateVerificationEvidenceFile(file);
     const resourceType = getVerificationResourceType(file.mimetype);
 
@@ -64,7 +77,7 @@ export class VerificationService {
             reject(new BadRequestException('Failed to upload verification file. Please try again.'));
             return;
           }
-          resolve({ url: result.secure_url, publicId: result.public_id });
+          resolve({ url: result.secure_url, publicId: result.public_id, resourceType });
         },
       );
       uploadStream.end(file.buffer);
@@ -86,6 +99,78 @@ export class VerificationService {
     }
   }
 
+  private parseStoredNotes(notes: string | null): StoredVerificationNotes {
+    if (!notes) {
+      return {};
+    }
+
+    try {
+      const parsed = JSON.parse(notes) as StoredVerificationNotes;
+      if (parsed && typeof parsed === 'object') {
+        return parsed;
+      }
+    } catch {
+      return { reviewNotes: notes };
+    }
+
+    return {};
+  }
+
+  private serializeStoredNotes(reviewNotes: string | undefined, evidenceFiles: StoredEvidenceFile[]) {
+    return JSON.stringify({
+      reviewNotes: reviewNotes?.trim() || '',
+      evidencePublicIds: evidenceFiles.map((file) => file.publicId),
+      evidenceFiles,
+    });
+  }
+
+  private inferResourceTypeFromUrl(url: string): 'image' | 'video' | 'raw' {
+    if (url.includes('/video/')) {
+      return 'video';
+    }
+
+    if (url.includes('/raw/')) {
+      return 'raw';
+    }
+
+    return 'image';
+  }
+
+  private getEvidenceFiles(
+    evidenceUrls: string[],
+    storedNotes: StoredVerificationNotes,
+  ): StoredEvidenceFile[] {
+    if (storedNotes.evidenceFiles?.length) {
+      return storedNotes.evidenceFiles;
+    }
+
+    const publicIds = storedNotes.evidencePublicIds || [];
+    return publicIds.map((publicId, index) => ({
+      publicId,
+      resourceType: this.inferResourceTypeFromUrl(evidenceUrls[index] || ''),
+    }));
+  }
+
+  private prepareAdminRequest<T extends { evidenceUrls: string[]; notes: string | null }>(request: T) {
+    const storedNotes = this.parseStoredNotes(request.notes);
+    const evidenceFiles = this.getEvidenceFiles(request.evidenceUrls, storedNotes);
+    const evidenceUrls =
+      evidenceFiles.length > 0
+        ? evidenceFiles.map((file, index) =>
+            this.cloudinaryService.getAuthenticatedUrl(
+              file.publicId,
+              file.resourceType || this.inferResourceTypeFromUrl(request.evidenceUrls[index] || ''),
+            ),
+          )
+        : request.evidenceUrls;
+
+    return {
+      ...request,
+      evidenceUrls,
+      notes: storedNotes.reviewNotes ?? request.notes,
+    };
+  }
+
   // ── Submit verification ────────────────────────────────────────────────────
 
   async submitVerification(userId: string, files: UploadedFile[], notes?: string, ipAddress?: string) {
@@ -105,31 +190,41 @@ export class VerificationService {
     }
 
     const evidenceUrls: string[] = [];
-    const evidencePublicIds: string[] = [];
+    const evidenceFiles: StoredEvidenceFile[] = [];
 
-    for (const file of files) {
-      const { url, publicId } = await this.uploadEvidenceFile(userId, file);
-      evidenceUrls.push(url);
-      evidencePublicIds.push(publicId);
-    }
+    try {
+      for (const file of files) {
+        const upload = await this.uploadEvidenceFile(userId, file);
+        evidenceUrls.push(upload.url);
+        evidenceFiles.push({
+          publicId: upload.publicId,
+          resourceType: upload.resourceType,
+          originalName: file.originalname,
+          mimetype: file.mimetype,
+        });
+      }
 
-    const request = await this.prisma.verificationRequest.create({
-      data: {
+      const request = await this.prisma.verificationRequest.create({
+        data: {
+          userId,
+          evidenceUrls,
+          notes: this.serializeStoredNotes(notes, evidenceFiles),
+        },
+      });
+
+      await this.auditService.log({
         userId,
-        evidenceUrls,
-        notes: JSON.stringify({ reviewNotes: notes || '', evidencePublicIds }),
-      },
-    });
+        action: 'VERIFICATION_SUBMITTED',
+        resource: 'verification',
+        resourceId: request.id,
+        ipAddress,
+      });
 
-    await this.auditService.log({
-      userId,
-      action: 'VERIFICATION_SUBMITTED',
-      resource: 'verification',
-      resourceId: request.id,
-      ipAddress,
-    });
-
-    return request;
+      return request;
+    } catch (error) {
+      await this.wipeEvidenceFiles(evidenceFiles.map((file) => file.publicId));
+      throw error;
+    }
   }
 
   // ── Retrieve requests ──────────────────────────────────────────────────────
@@ -144,7 +239,7 @@ export class VerificationService {
       },
     });
     if (!request) throw new NotFoundException('Verification request not found');
-    return request;
+    return this.prepareAdminRequest(request);
   }
 
   async getMyRequests(userId: string) {
@@ -207,7 +302,7 @@ export class VerificationService {
     ]);
 
     const requestsWithSla = requests.map((r) => ({
-      ...r,
+      ...this.prepareAdminRequest(r),
       sla: this.computeSla(r.createdAt),
     }));
 
@@ -223,7 +318,10 @@ export class VerificationService {
   // ── Approve / Reject ────────────────────────────────────────────────────────
 
   async approveVerification(requestId: string, reviewerId: string, notes?: string, ipAddress?: string) {
-    const request = await this.getRequest(requestId);
+    const request = await this.prisma.verificationRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!request) throw new NotFoundException('Verification request not found');
     if (request.status !== VerificationStatus.PENDING) {
       throw new BadRequestException('Request is not pending');
     }
@@ -236,14 +334,15 @@ export class VerificationService {
         status: VerificationStatus.APPROVED,
         reviewerId,
         reviewedAt: new Date(),
-        notes: notes || 'Approved',
+        notes: notes?.trim() || 'Approved',
         evidenceUrls: [],
+        evidenceDeletedAt: new Date(),
       },
     });
 
     const verifiedUser = await this.prisma.user.update({
       where: { id: request.userId },
-      data: { role: UserRole.VETERAN_VERIFIED },
+      data: { role: UserRole.VETERAN_VERIFIED, status: UserStatus.ACTIVE },
       include: { profile: true },
     });
 
@@ -267,7 +366,10 @@ export class VerificationService {
   }
 
   async rejectVerification(requestId: string, reviewerId: string, reason: string, ipAddress?: string) {
-    const request = await this.getRequest(requestId);
+    const request = await this.prisma.verificationRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!request) throw new NotFoundException('Verification request not found');
     if (request.status !== VerificationStatus.PENDING) {
       throw new BadRequestException('Request is not pending');
     }
@@ -282,6 +384,7 @@ export class VerificationService {
         reviewedAt: new Date(),
         rejectionReason: reason,
         evidenceUrls: [],
+        evidenceDeletedAt: new Date(),
       },
     });
 
@@ -446,12 +549,11 @@ export class VerificationService {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   private extractPublicIds(notes: string | null): string[] {
-    if (!notes) return [];
-    try {
-      const parsed = JSON.parse(notes);
-      return Array.isArray(parsed.evidencePublicIds) ? parsed.evidencePublicIds : [];
-    } catch {
-      return [];
+    const parsed = this.parseStoredNotes(notes);
+    if (parsed.evidenceFiles?.length) {
+      return parsed.evidenceFiles.map((file) => file.publicId);
     }
+
+    return Array.isArray(parsed.evidencePublicIds) ? parsed.evidencePublicIds : [];
   }
 }

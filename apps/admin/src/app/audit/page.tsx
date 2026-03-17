@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi } from '@/lib/api';
@@ -64,7 +64,7 @@ export default function AuditPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
       const data = await adminApi.getAuditLogs({
@@ -81,7 +81,7 @@ export default function AuditPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters.action, filters.search, page]);
 
   useEffect(() => {
     if (!hydrated) {
@@ -89,7 +89,7 @@ export default function AuditPage() {
     }
 
     fetchLogs().catch(console.error);
-  }, [hydrated, page, filters.search, filters.action]);
+  }, [fetchLogs, hydrated]);
 
   useEffect(() => {
     setPage(1);

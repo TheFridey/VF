@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test';
 import {
   mockCurrentUser,
+  mockSubscription,
   mockUnauthorizedCurrentUser,
+  mockUnreadCounts,
   mockVerificationStatus,
   seedAuthState,
   unverifiedUser,
@@ -19,6 +21,8 @@ test('protected routes redirect back to login when auth fails', async ({ page })
 test('settings exposes verification and account controls for authenticated users', async ({ page }) => {
   await seedAuthState(page, unverifiedUser);
   await mockCurrentUser(page, unverifiedUser);
+  await mockUnreadCounts(page);
+  await mockSubscription(page, 'FREE');
   await mockVerificationStatus(page, []);
 
   await page.goto('/app/settings');
@@ -32,6 +36,8 @@ test('settings exposes verification and account controls for authenticated users
 test('verification flow lets an unverified user start a submission', async ({ page }) => {
   await seedAuthState(page, unverifiedUser);
   await mockCurrentUser(page, unverifiedUser);
+  await mockUnreadCounts(page);
+  await mockSubscription(page, 'FREE');
   await mockVerificationStatus(page, []);
   await page.route('**/api/verification/submit', (route) =>
     route.fulfill({

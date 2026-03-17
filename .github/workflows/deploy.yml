@@ -99,8 +99,8 @@ jobs:
             export VETERANFINDER_IMAGE_TAG=${{ env.IMAGE_TAG }}
 
             docker compose -f infrastructure/docker/docker-compose.yml --env-file .env pull api web admin
+            docker compose -f infrastructure/docker/docker-compose.yml --env-file .env run --rm api npx prisma migrate deploy
             docker compose -f infrastructure/docker/docker-compose.yml --env-file .env up -d api web admin
-            docker compose -f infrastructure/docker/docker-compose.yml --env-file .env exec -T api npx prisma migrate deploy
 
             if [ -n "${{ vars.HEALTHCHECK_URL }}" ]; then
               curl --fail --silent --show-error "${{ vars.HEALTHCHECK_URL }}"

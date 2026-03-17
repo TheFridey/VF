@@ -3,20 +3,24 @@ import {
   memberUser,
   mockCurrentUser,
   mockForumIndex,
+  mockSubscription,
   mockForumThreads,
   mockThreadView,
+  mockUnreadCounts,
   seedAuthState,
 } from './support/mock-api';
 
 test('members can browse from forum index into a thread', async ({ page }) => {
   await seedAuthState(page, memberUser);
   await mockCurrentUser(page, memberUser);
+  await mockUnreadCounts(page);
+  await mockSubscription(page, 'BIA');
   await mockForumIndex(page);
   await mockForumThreads(page);
   await mockThreadView(page);
 
   await page.goto('/app/bia/forums');
-  await expect(page.getByRole('heading', { name: /premium veteran forum network/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /forum network built to feel private/i })).toBeVisible();
   await expect(page.getByText('History and Reunions')).toBeVisible();
 
   await page.goto('/app/bia/forums/history-and-reunions');

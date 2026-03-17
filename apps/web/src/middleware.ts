@@ -22,8 +22,8 @@ export function middleware(request: NextRequest): NextResponse {
 
   const cspDirectives = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ''}`,
-    `style-src 'self' 'nonce-${nonce}'`,
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
+    "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https://res.cloudinary.com https://images.unsplash.com",
     "font-src 'self'",
     `connect-src 'self' https://api.veteranfinder.co.uk wss://veteranfinder.co.uk${isDev ? ' http://localhost:3000 ws://localhost:3000 ws://localhost:3001' : ''}`,

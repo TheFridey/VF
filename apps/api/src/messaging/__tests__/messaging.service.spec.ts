@@ -67,8 +67,13 @@ function makePrisma(overrides: Record<string, unknown> = {}) {
         ...data,
       })),
       findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn().mockResolvedValue({ id: 'msg-unread' }),
       updateMany: jest.fn().mockResolvedValue({ count: 2 }),
       groupBy: jest.fn().mockResolvedValue([]),
+    },
+    block: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn().mockResolvedValue(null),
     },
     ...overrides,
   };
@@ -174,6 +179,18 @@ describe('MessagingService.getConversations', () => {
     expect(result.conversations[0].unreadCount).toBe(0);
   });
 
+  it('hides blocked conversations from the list', async () => {
+    const svc = makeSvc({
+      block: {
+        findMany: jest.fn().mockResolvedValue([{ blockerId: U_A, blockedId: U_B }]),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    });
+
+    const result = await svc.getConversations(U_A);
+    expect(result.conversations).toEqual([]);
+  });
+
   it('populates unreadCount from groupBy aggregation', async () => {
     const svc = makeSvc({
       message: {
@@ -266,6 +283,17 @@ describe('MessagingService.sendMessage', () => {
       expect.objectContaining({ where: { id: C_ID } }),
     );
   });
+
+  it('throws ForbiddenException when the users have blocked each other', async () => {
+    const svc = makeSvc({
+      block: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue({ id: 'block-1' }),
+      },
+    });
+
+    await expect(svc.sendMessage(C_ID, U_A, 'Hi')).rejects.toThrow(ForbiddenException);
+  });
 });
 
 describe('MessagingService.markAsRead', () => {
@@ -284,6 +312,7 @@ describe('MessagingService.markAsRead', () => {
       message: {
         create: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         groupBy: jest.fn().mockResolvedValue([]),
       },
@@ -294,5 +323,22 @@ describe('MessagingService.markAsRead', () => {
       updatedCount: 0,
       alreadyRead: true,
     });
+  });
+
+  it('skips the write entirely when everything is already read', async () => {
+    const svc = makeSvc({
+      message: {
+        create: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        groupBy: jest.fn().mockResolvedValue([]),
+      },
+    });
+    const prisma = (svc as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
+
+    await svc.markAsRead(C_ID, U_A);
+
+    expect(prisma.message.updateMany).not.toHaveBeenCalled();
   });
 });

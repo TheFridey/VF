@@ -64,10 +64,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Login user' })
   async login(
     @Body() dto: LoginDto,
-    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const ipAddress = req.ip || '';
     const { user, accessToken, refreshToken } = await this.authService.login(dto);
 
     res.cookie('refresh_token', refreshToken, {
@@ -95,7 +93,7 @@ export class AuthController {
       maxAge: 15 * 60 * 1000,
     });
 
-    return { user, accessToken, refreshToken };
+    return { user };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -117,10 +115,15 @@ export class AuthController {
     // Blacklist the current access token so it can't be reused within its
     // remaining lifetime even if an attacker has a copy of it.
     const authHeader = req.headers['authorization'];
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.slice(7);
+    const cookieToken = req.cookies?.access_token as string | undefined;
+    const presentedToken =
+      authHeader?.startsWith('Bearer ')
+        ? authHeader.slice(7)
+        : cookieToken;
+
+    if (presentedToken) {
       try {
-        const decoded = this.jwtService.decode(token) as { sub: string; iat: number; exp: number } | null;
+        const decoded = this.jwtService.decode(presentedToken) as { sub: string; iat: number; exp: number } | null;
         if (decoded?.iat && decoded?.exp) {
           const remainingTtl = Math.max(0, decoded.exp - Math.floor(Date.now() / 1000));
           if (remainingTtl > 0) {
@@ -137,9 +140,14 @@ export class AuthController {
     }
 
     await this.authService.logout(userId);
-    res.clearCookie('refresh_token');
-    res.clearCookie('access_token');
-    res.clearCookie('session');
+    const cookieOptions = {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      path: '/',
+    };
+    res.clearCookie('refresh_token', { ...cookieOptions, httpOnly: true });
+    res.clearCookie('access_token', { ...cookieOptions, httpOnly: true });
+    res.clearCookie('session', { ...cookieOptions, httpOnly: false });
     return { success: true };
   }
 
@@ -180,7 +188,7 @@ export class AuthController {
       maxAge: 15 * 60 * 1000,
     });
 
-    return { accessToken, refreshToken };
+    return { success: true };
   }
 
   @Public()

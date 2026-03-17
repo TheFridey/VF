@@ -65,6 +65,10 @@ function makePrisma(overrides: Record<string, unknown> = {}) {
         return null;
       }),
     },
+    block: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     ...overrides,
   };
 }

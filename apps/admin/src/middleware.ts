@@ -19,7 +19,7 @@ export function middleware(request: NextRequest): NextResponse {
 
   const cspDirectives = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ''}`,
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https://res.cloudinary.com",
     "font-src 'self'",

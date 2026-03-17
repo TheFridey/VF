@@ -199,6 +199,8 @@ export default function MessagesPage() {
     queryKey: ['conversations'],
     queryFn: () => api.getConversations(),
     refetchInterval: 10000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     enabled: !!user?.id,
   });
 
@@ -211,6 +213,8 @@ export default function MessagesPage() {
     queryFn: () => api.getMessages(selectedConversationId!),
     enabled: !!user?.id && !!selectedConversationId,
     refetchInterval: 5000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const reportMutation = useMutation({
@@ -291,7 +295,10 @@ export default function MessagesPage() {
     },
   });
 
-  const conversationList: Conversation[] = conversationsData?.conversations || [];
+  const conversationList = useMemo<Conversation[]>(
+    () => conversationsData?.conversations || [],
+    [conversationsData],
+  );
   const messageList = useMemo<Message[]>(() => messagesData?.messages || [], [messagesData]);
   const selectedConversation = useMemo(
     () => conversationList.find((conversation) => conversation.connectionId === selectedConversationId) || null,
@@ -334,6 +341,7 @@ export default function MessagesPage() {
         return;
       }
 
+      readSyncTimeoutRef.current = null;
       inFlightReadConnectionsRef.current.add(connectionId);
       syncedReadKeysRef.current.set(connectionId, syncKey);
       markAsReadMutation.mutate(connectionId);
