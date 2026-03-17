@@ -7,7 +7,7 @@ data:
   NODE_ENV: "production"
   PORT: "3000"
   LOG_LEVEL: "info"
-  CORS_ORIGIN: "https://veteranfinder.com"
+  CORS_ORIGIN: "https://veteranfinder.co.uk"
   # Database and Redis URLs are in secrets
 ---
 apiVersion: v1
@@ -17,7 +17,7 @@ metadata:
   namespace: veteranfinder
 data:
   NODE_ENV: "production"
-  NEXT_PUBLIC_API_URL: "https://api.veteranfinder.com"
-  NEXT_PUBLIC_SITE_URL: "https://veteranfinder.com"
+  NEXT_PUBLIC_API_URL: "https://api.veteranfinder.co.uk"
+  NEXT_PUBLIC_SITE_URL: "https://veteranfinder.co.uk"
   NEXT_PUBLIC_ENABLE_BROTHERS_IN_ARMS: "true"
   NEXT_PUBLIC_ENABLE_PREMIUM: "true"

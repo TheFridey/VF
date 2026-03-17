@@ -752,9 +752,7 @@ html, body {
   .hero-orb-three,
   .hero-orb-four,
   .hero-float-slow,
-  .hero-caret,
-  .hero-connection-pulse,
-  .hero-scene {
+  .hero-connection-pulse {
     animation: none !important;
     transition: none !important;
   }

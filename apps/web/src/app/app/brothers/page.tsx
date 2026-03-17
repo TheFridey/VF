@@ -2,18 +2,44 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Shield, MapPin, Calendar, Loader2, UserPlus, Check, X } from 'lucide-react';
+import { motion } from 'framer-motion';
+import {
+  Users, Shield, MapPin, Calendar, Loader2, UserPlus, Check, X, ArrowRight, Sparkles, Link2,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Modal } from '@/components/ui/modal';
-import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatBranch, isVerifiedVeteran, cn } from '@/lib/utils';
 import type { BrothersCandidate } from '@/types';
+
+function getOverlapMeta(score: number) {
+  if (score >= 0.7) {
+    return {
+      label: 'Strong overlap',
+      badgeClass: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+      ringClass: 'from-emerald-500/20 to-transparent',
+    };
+  }
+
+  if (score >= 0.4) {
+    return {
+      label: 'Possible match',
+      badgeClass: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+      ringClass: 'from-amber-500/20 to-transparent',
+    };
+  }
+
+  return {
+    label: 'Worth reviewing',
+    badgeClass: 'border-border bg-muted text-muted-foreground',
+    ringClass: 'from-primary/10 to-transparent',
+  };
+}
 
 export default function BrothersPage() {
   const { user } = useAuthStore();
@@ -64,6 +90,7 @@ export default function BrothersPage() {
 
   const candidates: BrothersCandidate[] = Array.isArray(searchResults) ? searchResults : (searchResults?.data || searchResults?.candidates || []);
   const pendingRequests = connectionRequests?.requests || connectionRequests?.incoming || [];
+  const strongMatches = candidates.filter((candidate) => (candidate.overlapScore || 0) >= 0.7).length;
 
   const handleConnect = (candidate: BrothersCandidate) => {
     setSelectedCandidate(candidate);
@@ -79,19 +106,18 @@ export default function BrothersPage() {
     }
   };
 
-  // Show message if not a verified veteran
   if (!isVerifiedVeteran(user?.role || '')) {
     return (
-      <div className="max-w-2xl mx-auto text-center py-20">
-        <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mx-auto mb-6">
+      <div className="mx-auto max-w-2xl py-20 text-center">
+        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-muted">
           <Shield className="h-10 w-10 text-muted-foreground" />
         </div>
-        <h2 className="text-2xl font-bold mb-2">Verification Required</h2>
-        <p className="text-muted-foreground mb-6">
+        <h2 className="mb-2 text-2xl font-bold">Verification Required</h2>
+        <p className="mb-6 text-muted-foreground">
           Brothers in Arms is exclusively for verified veterans. Get verified to find service
           members you may have served alongside.
         </p>
-        <Button onClick={() => (window.location.href = '/app/settings')}>
+        <Button onClick={() => { window.location.href = '/app/settings'; }}>
           Get Verified
         </Button>
       </div>
@@ -100,187 +126,263 @@ export default function BrothersPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Users className="h-6 w-6" />
-            Brothers in Arms
-          </h1>
-          <p className="text-muted-foreground">
-            Find veterans you may have served alongside
-          </p>
-        </div>
-      </div>
-
-      {/* Pending Connection Requests */}
-      {pendingRequests.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Pending Requests ({pendingRequests.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {pendingRequests.map((request: any) => (
-              <div
-                key={request.id}
-                className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg"
-              >
-                <Avatar
-                  src={request.from.profileImageUrl}
-                  name={request.from.displayName}
-                  size="md"
-                />
-                <div className="flex-1">
-                  <p className="font-medium">{request.from.displayName}</p>
-                  {request.message && (
-                    <p className="text-sm text-muted-foreground">&quot;{request.message}&quot;</p>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      respondToConnectionMutation.mutate({ requestId: request.id, accept: true })
-                    }
-                    disabled={respondToConnectionMutation.isPending}
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      respondToConnectionMutation.mutate({ requestId: request.id, accept: false })
-                    }
-                    disabled={respondToConnectionMutation.isPending}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+    <div className="w-full space-y-8 px-4 py-6 sm:px-6 lg:px-8 xl:space-y-10">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+        <Card className="overflow-hidden border-primary/15 bg-gradient-to-br from-primary/10 via-background to-background">
+          <CardContent className="p-6 sm:p-7 xl:p-8">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+              <div className="space-y-3">
+                <Badge variant="outline" className="border-primary/20 bg-primary/10 text-primary">
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                  Brothers in Arms
+                </Badge>
+                <div>
+                  <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Find Veterans</h1>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+                    Reconnect through shared service history, overlapping tours, and likely unit or location links.
+                  </p>
                 </div>
               </div>
-            ))}
+              <div className="grid grid-cols-2 gap-3 sm:w-full sm:max-w-md">
+                <div className="rounded-2xl border bg-background/80 p-4 shadow-sm">
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Matches</p>
+                  <p className="mt-2 text-2xl font-semibold">{candidates.length}</p>
+                </div>
+                <div className="rounded-2xl border bg-background/80 p-4 shadow-sm">
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Strong overlap</p>
+                  <p className="mt-2 text-2xl font-semibold">{strongMatches}</p>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
+
+        <Card className="border-border/70 bg-card/70">
+          <CardContent className="flex h-full flex-col justify-between p-6">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Pending activity</p>
+              <p className="mt-2 text-3xl font-semibold">{pendingRequests.length}</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Requests waiting on your response stay here so reconnecting never gets lost.
+              </p>
+            </div>
+            <div className="mt-5 inline-flex items-center text-sm font-medium text-primary">
+              Review incoming requests
+              <ArrowRight className="ml-1.5 h-4 w-4" />
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      {pendingRequests.length > 0 && (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">Pending Requests</h2>
+              <p className="text-sm text-muted-foreground">Respond quickly to keep reconnections moving.</p>
+            </div>
+            <Badge variant="outline" className="px-2.5 py-1">{pendingRequests.length} awaiting response</Badge>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+            {pendingRequests.map((request: any, index: number) => (
+              <motion.div
+                key={request.id}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, delay: index * 0.04 }}
+              >
+                <Card className="h-full border-primary/10 bg-card/80 shadow-sm transition-all hover:-translate-y-1 hover:border-primary/25 hover:shadow-lg hover:shadow-primary/5">
+                  <CardContent className="flex h-full flex-col gap-4 p-5">
+                    <div className="flex items-start gap-3">
+                      <Avatar
+                        src={request.from.profileImageUrl}
+                        name={request.from.displayName}
+                        size="lg"
+                        className="ring-2 ring-background shadow-sm"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-base font-semibold">{request.from.displayName}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Wants to reconnect through VeteranFinder</p>
+                      </div>
+                    </div>
+                    {request.message && (
+                      <div className="rounded-2xl border bg-muted/40 p-3">
+                        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Message</p>
+                        <p className="mt-2 text-sm text-foreground/90">&quot;{request.message}&quot;</p>
+                      </div>
+                    )}
+                    <div className="mt-auto flex gap-2">
+                      <Button
+                        className="flex-1"
+                        onClick={() => respondToConnectionMutation.mutate({ requestId: request.id, accept: true })}
+                        disabled={respondToConnectionMutation.isPending}
+                      >
+                        <Check className="mr-1.5 h-4 w-4" />
+                        Accept
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => respondToConnectionMutation.mutate({ requestId: request.id, accept: false })}
+                        disabled={respondToConnectionMutation.isPending}
+                      >
+                        <X className="mr-1.5 h-4 w-4" />
+                        Decline
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </section>
       )}
 
-      {/* Search Results */}
       {candidates.length === 0 ? (
-        <Card className="text-center py-12">
+        <Card className="py-14 text-center">
           <CardContent>
-            <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">No veterans found yet</h3>
-            <p className="text-muted-foreground">
+            <Users className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+            <h3 className="mb-2 text-lg font-medium">No veterans found yet</h3>
+            <p className="mx-auto max-w-xl text-muted-foreground">
               We couldn&apos;t find veterans with overlapping service periods. Make sure your
-              service history to improve reconnection matching.
+              service history is complete to improve reconnection matching.
             </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4">
-          {candidates.map((candidate) => (
-            <Card key={candidate.id} className="overflow-hidden">
-              <CardContent className="p-0">
-                <div className="flex flex-col sm:flex-row">
-                  {/* Left side - Avatar and basic info */}
-                  <div className="p-4 sm:p-6 flex items-start gap-4 sm:border-r">
-                    <Avatar
-                      src={candidate.profileImageUrl}
-                      name={candidate.displayName}
-                      size="lg"
-                    />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-lg">{candidate.displayName}</h3>
-                        {candidate.veteranInfo?.isVerified && (
-                          <Shield className="h-4 w-4 text-green-500" />
-                        )}
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">Potential Reconnections</h2>
+              <p className="text-sm text-muted-foreground">Prioritised by shared service overlap and likely context.</p>
+            </div>
+            <Badge variant="outline" className="px-2.5 py-1">{candidates.length} veterans found</Badge>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+            {candidates.map((candidate, index) => {
+              const overlapMeta = getOverlapMeta(candidate.overlapScore || 0);
+
+              return (
+                <motion.div
+                  key={candidate.id}
+                  initial={{ opacity: 0, y: 18 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.28, delay: index * 0.03 }}
+                  whileHover={{ y: -4 }}
+                  className="h-full"
+                >
+                  <Card className="group relative h-full overflow-hidden border-border/70 bg-card/90 shadow-sm transition-all hover:border-primary/25 hover:shadow-xl hover:shadow-primary/5">
+                    <div className={cn('absolute inset-x-0 top-0 h-24 bg-gradient-to-br', overlapMeta.ringClass)} />
+                    <CardContent className="relative flex h-full flex-col p-5">
+                      <div className="mb-4 flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <Avatar
+                            src={candidate.profileImageUrl}
+                            name={candidate.displayName}
+                            size="lg"
+                            className="ring-2 ring-background shadow-md"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h3 className="truncate text-lg font-semibold">{candidate.displayName}</h3>
+                              {candidate.veteranInfo?.isVerified && (
+                                <Shield className="h-4 w-4 text-emerald-500" />
+                              )}
+                            </div>
+                            {candidate.veteranInfo && (
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                {formatBranch(candidate.veteranInfo.branch)}
+                                {candidate.veteranInfo.rank && ` • ${candidate.veteranInfo.rank}`}
+                              </p>
+                            )}
+                            {candidate.location && (
+                              <p className="mt-1 flex items-center text-sm text-muted-foreground">
+                                <MapPin className="mr-1 h-3.5 w-3.5" />
+                                {candidate.location}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <Badge variant="outline" className={overlapMeta.badgeClass}>
+                          {Math.round((candidate.overlapScore || 0) * 100)}% overlap
+                        </Badge>
                       </div>
-                      {candidate.veteranInfo && (
-                        <p className="text-sm text-muted-foreground">
-                          {formatBranch(candidate.veteranInfo.branch)}
-                          {candidate.veteranInfo.rank && ` • ${candidate.veteranInfo.rank}`}
+
+                      <div className="mb-4 grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl border bg-muted/35 p-3">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Match quality</p>
+                          <p className="mt-2 text-sm font-medium">{overlapMeta.label}</p>
+                        </div>
+                        <div className="rounded-2xl border bg-muted/35 p-3">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Signals</p>
+                          <p className="mt-2 text-sm font-medium">
+                            {(candidate.overlapReasons?.length || candidate.overlappingPeriods?.length || 0)} clues
+                          </p>
+                        </div>
+                      </div>
+
+                      {candidate.overlapReasons && candidate.overlapReasons.length > 0 ? (
+                        <div className="mb-4 space-y-2">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Why you may know them</p>
+                          <div className="flex flex-wrap gap-2">
+                            {candidate.overlapReasons.slice(0, 4).map((reason: string, i: number) => (
+                              <span key={i} className="rounded-full border bg-primary/5 px-3 py-1 text-xs text-foreground/90">
+                                {reason}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : candidate.overlappingPeriods && candidate.overlappingPeriods.length > 0 ? (
+                        <div className="mb-4 space-y-2">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Overlapping service</p>
+                          <div className="space-y-2">
+                            {candidate.overlappingPeriods.slice(0, 2).map((period: any, i: number) => (
+                              <div key={i} className="flex items-start gap-2 rounded-2xl border bg-muted/35 p-3 text-sm">
+                                <Calendar className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                                <span>
+                                  {formatBranch(period.branch)} • {period.dateRange}
+                                  {period.location && ` • ${period.location}`}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {candidate.bio && (
+                        <p className="mb-5 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                          {candidate.bio}
                         </p>
                       )}
-                      {candidate.location && (
-                        <p className="text-sm text-muted-foreground flex items-center mt-1">
-                          <MapPin className="h-3 w-3 mr-1" />
-                          {candidate.location}
-                        </p>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Right side - Overlap info */}
-                  <div className="flex-1 p-4 sm:p-6 bg-muted/30">
-                    <div className="flex items-center justify-between mb-3">
-                      <Badge
-                        variant={
-                          (candidate.overlapScore || 0) >= 0.7
-                            ? 'success'
-                            : (candidate.overlapScore || 0) >= 0.4
-                            ? 'warning'
-                            : 'default'
-                        }
-                      >
-                        {Math.round((candidate.overlapScore || 0) * 100)}% Service Overlap
-                      </Badge>
-                      <Button size="sm" onClick={() => handleConnect(candidate)}>
-                        <UserPlus className="h-4 w-4 mr-1" />
-                        Connect
-                      </Button>
-                    </div>
-
-                    {/* Why you may know this veteran */}
-                    {candidate.overlapReasons && candidate.overlapReasons.length > 0 ? (
-                      <div className="space-y-1.5 mb-3">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                          Why you may know them
-                        </p>
-                        {candidate.overlapReasons.map((reason: string, i: number) => (
-                          <div key={i} className="flex items-center gap-2 text-sm bg-primary/5 rounded px-2 py-1.5">
-                            <Shield className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                            <span className="text-foreground">{reason}</span>
-                          </div>
-                        ))}
+                      <div className="mt-auto flex items-center gap-2">
+                        <Button className="flex-1" onClick={() => handleConnect(candidate)}>
+                          <UserPlus className="mr-1.5 h-4 w-4" />
+                          Send request
+                        </Button>
+                        <div className="flex h-10 items-center rounded-xl border px-3 text-sm font-medium text-muted-foreground">
+                          <Link2 className="mr-1.5 h-4 w-4" />
+                          Reconnect
+                        </div>
                       </div>
-                    ) : candidate.overlappingPeriods && candidate.overlappingPeriods.length > 0 ? (
-                      <div className="space-y-1.5 mb-3">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                          Overlapping service
-                        </p>
-                        {candidate.overlappingPeriods.map((period: any, i: number) => (
-                          <div key={i} className="text-sm bg-background rounded p-2 flex items-center gap-2">
-                            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>
-                              {formatBranch(period.branch)} • {period.dateRange}
-                              {period.location && ` • ${period.location}`}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    {candidate.bio && (
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {candidate.bio}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
-      {/* Connection Request Modal */}
       <Modal
         isOpen={showRequestModal}
         onClose={() => {
@@ -294,7 +396,7 @@ export default function BrothersPage() {
       >
         <div className="space-y-4">
           {selectedCandidate && (
-            <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+            <div className="flex items-center gap-3 rounded-lg bg-muted p-3">
               <Avatar
                 src={selectedCandidate.profileImageUrl}
                 name={selectedCandidate.displayName}
@@ -310,7 +412,7 @@ export default function BrothersPage() {
           )}
 
           <div>
-            <label className="block text-sm font-medium mb-1.5">
+            <label className="mb-1.5 block text-sm font-medium">
               Add a message (optional)
             </label>
             <textarea
@@ -321,7 +423,7 @@ export default function BrothersPage() {
               className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               maxLength={500}
             />
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="mt-1 text-xs text-muted-foreground">
               {connectionMessage.length}/500 characters
             </p>
           </div>

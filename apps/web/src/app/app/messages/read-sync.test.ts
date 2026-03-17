@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildReadSyncKey, getLatestUnreadIncomingMessageId, shouldIssueReadSync } from './read-sync';
+import { buildReadSyncKey, getLatestUnreadIncomingMessageId, shouldIssueReadSync } from '@/components/messaging/read-sync';
 
 describe('message read sync helpers', () => {
   it('returns the latest unread incoming message id', () => {

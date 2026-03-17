@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Shield, ArrowLeft, Cookie } from 'lucide-react';
+import { CONTACT_EMAILS } from '@/lib/contact-emails';
 
 export default function CookiePolicyPage() {
   return (
@@ -255,7 +256,7 @@ export default function CookiePolicyPage() {
               If you have questions about our use of cookies, please contact us:
             </p>
             <ul className="list-none space-y-2 mt-4">
-              <li><strong>Email:</strong> privacy@veteranfinder.com</li>
+              <li><strong>Email:</strong> {CONTACT_EMAILS.privacy}</li>
               <li><strong>Subject:</strong> Cookie Policy Enquiry</li>
             </ul>
           </section>

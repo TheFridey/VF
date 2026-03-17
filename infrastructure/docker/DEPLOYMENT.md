@@ -39,10 +39,50 @@ Configure these in the target GitHub environment (`staging` or `production`):
 ```bash
 git clone git@github.com:your-org/veteranfinder.git /opt/veteranfinder
 cd /opt/veteranfinder
-cp apps/api/.env.example .env
+cp .env.example .env
 ```
 
-Populate `.env` with your production secrets, then ensure Docker is installed and the server can pull from GHCR:
+Populate `.env` with your production secrets and live URLs, then ensure Docker is installed and the server can pull from GHCR:
+
+Minimum live values to set before first deploy:
+
+- `DB_PASSWORD`
+- `REDIS_PASSWORD`
+- `JWT_SECRET`
+- `JWT_REFRESH_SECRET`
+- `COOKIE_SECRET`
+- `ENCRYPTION_KEY`
+- `PASSWORD_PEPPER`
+- `FRONTEND_URL=https://veteranfinder.co.uk`
+- `ADMIN_URL=https://admin.veteranfinder.co.uk`
+- `RESEND_API_KEY`
+- `FROM_EMAIL`
+- `CONTACT_EMAIL`
+- `SUPPORT_EMAIL`
+- `PRIVACY_EMAIL`
+- `LEGAL_EMAIL`
+- `PARTNERSHIPS_EMAIL_TO`
+- `APP_URL=https://veteranfinder.co.uk`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICE_BIA_BASIC_MONTHLY`
+- `STRIPE_PRICE_BIA_BASIC_ANNUAL`
+- `STRIPE_PRICE_BIA_PLUS_MONTHLY`
+- `STRIPE_PRICE_BIA_PLUS_ANNUAL`
+
+For Stripe, configure the live webhook endpoint as:
+
+- `https://veteranfinder.co.uk/api/v1/subscriptions/webhook`
+
+Subscribe it to:
+
+- `checkout.session.completed`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.payment_failed`
+
+Use the endpoint signing secret (`whsec_...`) as `STRIPE_WEBHOOK_SECRET`.
 
 ```bash
 echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin

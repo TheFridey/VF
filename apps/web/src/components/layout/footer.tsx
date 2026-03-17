@@ -34,6 +34,7 @@ export function Footer() {
             <ul className="space-y-2">
               <li><Link href="/about" className="text-sm text-slate-600 transition-colors hover:text-slate-950">About</Link></li>
               <li><Link href="/contact" className="text-sm text-slate-600 transition-colors hover:text-slate-950">Contact</Link></li>
+              <li><Link href="/partner-with-us" className="text-sm text-slate-600 transition-colors hover:text-slate-950">Partner With Us</Link></li>
               <li><Link href="/app/premium" className="text-sm text-slate-600 transition-colors hover:text-slate-950">BIA Membership</Link></li>
             </ul>
           </div>

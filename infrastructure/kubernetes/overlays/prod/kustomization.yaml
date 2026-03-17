@@ -62,13 +62,13 @@ configMapGenerator:
     literals:
       - NODE_ENV=production
       - LOG_LEVEL=info
-      - CORS_ORIGIN=https://veteranfinder.com
+      - CORS_ORIGIN=https://veteranfinder.co.uk
   - name: web-config
     behavior: merge
     literals:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://api.veteranfinder.com
-      - NEXT_PUBLIC_SITE_URL=https://veteranfinder.com
+      - NEXT_PUBLIC_API_URL=https://api.veteranfinder.co.uk
+      - NEXT_PUBLIC_SITE_URL=https://veteranfinder.co.uk
       - NEXT_PUBLIC_ENABLE_PREMIUM=true
 
 images:

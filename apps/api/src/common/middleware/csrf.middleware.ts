@@ -45,6 +45,7 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 const CSRF_EXEMPT_PATHS = [
   // Stripe webhook — validates its own signature on raw body
+  '/api/v1/subscriptions/webhook',
   '/api/v1/webhooks/stripe',
   // Email-link endpoints — arrive via redirect, no prior GET to issue cookie
   '/api/v1/auth/verify-email',
@@ -57,6 +58,8 @@ const CSRF_EXEMPT_PATHS = [
   '/api/v1/auth/forgot-password',
   '/api/v1/auth/resend-verification',
   '/api/v1/auth/refresh',
+  '/api/v1/email/contact',
+  '/api/v1/email/partnerships',
 ];
 
 const CSRF_COOKIE = 'csrf-token';

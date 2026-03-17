@@ -10,6 +10,7 @@
  */
 import axios, { AxiosError, AxiosInstance } from 'axios';
 import { useAuthStore } from '@/stores/auth-store';
+import type { PartnershipEnquiryPayload } from '@/lib/partnership-enquiry';
 
 // ── API base URL ─────────────────────────────────────────────────────────────
 // In the browser we MUST route through the Next.js rewrite proxy (/api/*)
@@ -223,6 +224,21 @@ class ApiClient {
   }
 
   // ── Profile ─────────────────────────────────────────────────────────────────
+  async submitContactForm(data: {
+    name: string;
+    email: string;
+    subject: 'general' | 'support' | 'verification' | 'privacy' | 'feedback' | 'business' | 'other';
+    message: string;
+  }) {
+    const response = await this.client.post('/email/contact', data);
+    return response.data;
+  }
+
+  async submitPartnershipEnquiry(data: PartnershipEnquiryPayload) {
+    const response = await this.client.post('/email/partnerships', data);
+    return response.data;
+  }
+
   async getMyProfile() {
     const response = await this.client.get('/profiles/me');
     return response.data;

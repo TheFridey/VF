@@ -1458,7 +1458,15 @@ async function main() {
 
   // ============ MESSAGES ============
   // Using relation connect syntax for proper Prisma types
-  
+  await prisma.message.deleteMany({
+    where: {
+      connectionId: {
+        in: [match1.id, match3.id, match4.id],
+      },
+    },
+  });
+  console.log('âœ… Cleared existing seeded messages for active demo conversations');
+
   // Conversation between John and Sarah
   const johnSarahMessages = [
     { senderId: john.id, receiverId: sarah.id, content: "Hey Sarah! I noticed you served on the Reagan. My buddy was stationed at Norfolk around the same time.", minutesAgo: 1440 },

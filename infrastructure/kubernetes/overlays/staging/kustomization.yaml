@@ -49,13 +49,13 @@ configMapGenerator:
     literals:
       - NODE_ENV=staging
       - LOG_LEVEL=debug
-      - CORS_ORIGIN=https://staging.veteranfinder.com
+      - CORS_ORIGIN=https://staging.veteranfinder.co.uk
   - name: web-config
     behavior: merge
     literals:
       - NODE_ENV=staging
-      - NEXT_PUBLIC_API_URL=https://api.staging.veteranfinder.com
-      - NEXT_PUBLIC_SITE_URL=https://staging.veteranfinder.com
+      - NEXT_PUBLIC_API_URL=https://api.staging.veteranfinder.co.uk
+      - NEXT_PUBLIC_SITE_URL=https://staging.veteranfinder.co.uk
 
 images:
   - name: veteranfinder-api

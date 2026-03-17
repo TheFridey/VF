@@ -179,6 +179,7 @@ class TestEmailService {
   async sendVerificationApproved(): Promise<void> {}
   async sendVerificationRejected(): Promise<void> {}
   async sendNewConnectionNotification(): Promise<void> {}
+  async sendPartnershipEnquiry(): Promise<void> {}
   async sendSlaBreachAlert(): Promise<void> {}
 }
 

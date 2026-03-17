@@ -72,7 +72,6 @@ Those Docker builds run correctly because they build inside Linux containers.
 | API docs | `http://localhost:3000/api/docs` | Swagger |
 | Web app | `http://localhost:3001` | Member app |
 | Admin app | `http://localhost:3002` | Admin console |
-| Mailpit UI | `http://localhost:8025` | Local mail viewer |
 | PostgreSQL | `localhost:5432` | Docker |
 | Redis | `localhost:6379` | Docker |
 
@@ -88,7 +87,6 @@ Default local services:
 
 - PostgreSQL
 - Redis
-- Mailpit
 
 Optional:
 
@@ -167,6 +165,14 @@ The API example file is the source of truth for local setup. Important variables
 - `CLOUDINARY_*`
 - `STRIPE_*`
 - `RESEND_API_KEY`
+- `FROM_EMAIL`
+- `CONTACT_EMAIL`
+- `SUPPORT_EMAIL`
+- `PRIVACY_EMAIL`
+- `DPO_EMAIL`
+- `SAFETY_EMAIL`
+- `LEGAL_EMAIL`
+- `PARTNERSHIPS_EMAIL_TO`
 - `APP_URL`
 - `TURN_*`
 - `VAPID_*`
@@ -459,10 +465,16 @@ npx prisma migrate reset --force
 
 ### Local email testing
 
-Use Mailpit:
+Transactional and website contact emails use Resend.
 
-- SMTP: `localhost:1025`
-- UI: `http://localhost:8025`
+For full end-to-end email testing locally, set:
+
+- `RESEND_API_KEY`
+- `FROM_EMAIL`
+- the relevant alias env vars such as `SUPPORT_EMAIL` and `PRIVACY_EMAIL`
+- `PARTNERSHIPS_EMAIL_TO`
+
+Without a Resend key, the API logs email activity in dev mode instead of delivering it.
 
 ## Recommended dev flow
 

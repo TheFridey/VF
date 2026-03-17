@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Shield, ArrowLeft } from 'lucide-react';
+import { CONTACT_EMAILS } from '@/lib/contact-emails';
 
 export default function PrivacyPolicyPage() {
   return (
@@ -40,7 +41,7 @@ export default function PrivacyPolicyPage() {
             </p>
             <p>
               <strong>Data Controller:</strong> VeteranFinder Ltd<br />
-              <strong>Contact:</strong> privacy@veteranfinder.com<br />
+              <strong>Contact:</strong> {CONTACT_EMAILS.privacy}<br />
               <strong>Registered Address:</strong> [To be confirmed upon incorporation]
             </p>
           </section>
@@ -157,7 +158,7 @@ export default function PrivacyPolicyPage() {
               <li><strong>Rights Related to Automated Decision-Making:</strong> Not be subject to solely automated decisions with legal effects</li>
             </ul>
             <p className="mt-4">
-              To exercise any of these rights, please contact us at <strong>privacy@veteranfinder.com</strong> or 
+              To exercise any of these rights, please contact us at <strong>{CONTACT_EMAILS.privacy}</strong> or 
               use the account settings in the app. We will respond within one month.
             </p>
           </section>
@@ -211,8 +212,8 @@ export default function PrivacyPolicyPage() {
               If you have questions about this Privacy Policy or wish to exercise your rights:
             </p>
             <ul className="list-none space-y-2 mt-4">
-              <li><strong>Email:</strong> privacy@veteranfinder.com</li>
-              <li><strong>Data Protection Officer:</strong> dpo@veteranfinder.com</li>
+              <li><strong>Email:</strong> {CONTACT_EMAILS.privacy}</li>
+              <li><strong>Data Protection Officer:</strong> {CONTACT_EMAILS.dpo}</li>
               <li><strong>Postal Address:</strong> [To be confirmed upon incorporation]</li>
             </ul>
             <p className="mt-4">

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Shield, Heart, Users, Lock, Award, ArrowLeft, CheckCircle } from 'lucide-react';
+import { CONTACT_EMAILS, toMailto } from '@/lib/contact-emails';
 
 export default function AboutUsPage() {
   return (
@@ -207,7 +208,7 @@ export default function AboutUsPage() {
           <div className="text-center">
             <p className="text-muted-foreground">
               Interested in joining our team or partnering with us?<br />
-              Contact us at <a href="mailto:hello@veteranfinder.com" className="text-primary hover:underline">hello@veteranfinder.com</a>
+              Contact us at <a href={toMailto(CONTACT_EMAILS.hello)} className="text-primary hover:underline">{CONTACT_EMAILS.hello}</a>
             </p>
           </div>
         </div>
@@ -220,20 +221,20 @@ export default function AboutUsPage() {
           <div className="grid md:grid-cols-3 gap-8 text-center">
             <div>
               <h3 className="font-semibold mb-2">General Enquiries</h3>
-              <a href="mailto:hello@veteranfinder.com" className="text-primary hover:underline">
-                hello@veteranfinder.com
+              <a href={toMailto(CONTACT_EMAILS.hello)} className="text-primary hover:underline">
+                {CONTACT_EMAILS.hello}
               </a>
             </div>
             <div>
               <h3 className="font-semibold mb-2">Support</h3>
-              <a href="mailto:support@veteranfinder.com" className="text-primary hover:underline">
-                support@veteranfinder.com
+              <a href={toMailto(CONTACT_EMAILS.support)} className="text-primary hover:underline">
+                {CONTACT_EMAILS.support}
               </a>
             </div>
             <div>
               <h3 className="font-semibold mb-2">Privacy Concerns</h3>
-              <a href="mailto:privacy@veteranfinder.com" className="text-primary hover:underline">
-                privacy@veteranfinder.com
+              <a href={toMailto(CONTACT_EMAILS.privacy)} className="text-primary hover:underline">
+                {CONTACT_EMAILS.privacy}
               </a>
             </div>
           </div>

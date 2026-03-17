@@ -125,8 +125,9 @@ db_password        = "your-secure-password"
 jwt_secret         = "your-jwt-secret-min-32-chars"
 jwt_refresh_secret = "your-jwt-refresh-secret"
 encryption_key     = "your-32-char-encryption-key"
-smtp_user          = "your-smtp-username"
-smtp_pass          = "your-smtp-password"
+resend_api_key     = "re_your_resend_api_key"
+from_email         = "VeteranFinder <noreply@veteranfinder.co.uk>"
+partnerships_email_to = "partnerships@veteranfinder.co.uk"
 ```
 
 Apply with secrets:
@@ -217,7 +218,8 @@ Local services:
 - Web: http://localhost:3001
 - PostgreSQL: localhost:5432
 - Redis: localhost:6379
-- Mailpit UI: http://localhost:8025
+
+Email delivery is handled by Resend in deployed environments. Without a `RESEND_API_KEY`, the API logs email activity instead of sending it.
 
 ## CI/CD
 

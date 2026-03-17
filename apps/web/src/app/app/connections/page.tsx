@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { Users, MessageCircle, UserMinus, Loader2, Shield } from 'lucide-react';
+import { Users, MessageCircle, UserMinus, Loader2, Shield, ArrowRight, Link2, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -44,6 +45,7 @@ export default function ConnectionsPage() {
   const connections: Connection[] = Array.isArray(data)
     ? data
     : (data?.data || data?.connections || []);
+  const biaConnections = connections.filter((connection) => connection.connectionType === 'BROTHERS_IN_ARMS').length;
 
   const handleRemove = () => {
     if (selectedConnection) removeMutation.mutate(selectedConnection.id);
@@ -51,30 +53,69 @@ export default function ConnectionsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">My Connections</h1>
-          <p className="text-sm text-muted-foreground mt-1">Veterans you've connected with through VeteranFinder</p>
-        </div>
-        <Badge variant="outline">{connections.length} total</Badge>
-      </div>
+    <div className="w-full space-y-8 px-4 py-6 sm:px-6 lg:px-8 xl:space-y-10">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+        <Card className="overflow-hidden border-primary/15 bg-gradient-to-br from-primary/10 via-background to-background">
+          <CardContent className="p-6 sm:p-7 xl:p-8">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+              <div className="space-y-3">
+                <Badge variant="outline" className="border-primary/20 bg-primary/10 text-primary">
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                  Your Network
+                </Badge>
+                <div>
+                  <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Connections</h1>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+                    Keep your reconnections close, pick conversations back up quickly, and stay anchored to the people you&apos;ve found again.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:w-full sm:max-w-md">
+                <div className="rounded-2xl border bg-background/80 p-4 shadow-sm">
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Total</p>
+                  <p className="mt-2 text-2xl font-semibold">{connections.length}</p>
+                </div>
+                <div className="rounded-2xl border bg-background/80 p-4 shadow-sm">
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">BIA</p>
+                  <p className="mt-2 text-2xl font-semibold">{biaConnections}</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70 bg-card/70">
+          <CardContent className="flex h-full flex-col justify-between p-6">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Next step</p>
+              <p className="mt-2 text-xl font-semibold">Keep conversations active</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Jump back into messages fast so new reconnections keep building momentum.
+              </p>
+            </div>
+            <Link href="/app/messages" className="mt-5 inline-flex items-center text-sm font-medium text-primary">
+              Open Messages
+              <ArrowRight className="ml-1.5 h-4 w-4" />
+            </Link>
+          </CardContent>
+        </Card>
+      </section>
 
       {connections.length === 0 ? (
-        <Card className="text-center py-12">
+        <Card className="py-14 text-center">
           <CardContent>
-            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
               <Users className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-medium mb-2">No connections yet</h3>
-            <p className="text-muted-foreground mb-4">
+            <h3 className="mb-2 text-lg font-medium">No connections yet</h3>
+            <p className="mx-auto mb-4 max-w-xl text-muted-foreground">
               Use Brothers in Arms to find veterans you may have served alongside and start building your network.
             </p>
             <Link href="/app/brothers">
@@ -83,74 +124,118 @@ export default function ConnectionsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {connections.map((connection) => (
-            <Card key={connection.id} className="overflow-hidden">
-              <CardContent className="p-0">
-                <div className="relative">
-                  <div className="aspect-square bg-muted flex items-center justify-center">
-                    {connection.otherUser.profileImageUrl ? (
-                      <img
-                        src={connection.otherUser.profileImageUrl}
-                        alt={connection.otherUser.displayName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Avatar name={connection.otherUser.displayName} size="xl" />
-                    )}
-                  </div>
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">Your Veteran Network</h2>
+              <p className="text-sm text-muted-foreground">Built for quick scanning, fast messaging, and easy follow-up.</p>
+            </div>
+            <Badge variant="outline" className="px-2.5 py-1">{connections.length} total</Badge>
+          </div>
 
-                  <div className="absolute top-2 right-2">
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        connection.connectionType === 'BROTHERS_IN_ARMS'
-                          ? 'bg-primary/90 text-white border-0'
-                          : 'bg-muted',
-                      )}
-                    >
-                      <Shield className="h-3 w-3 mr-1" />
-                      {connection.connectionType === 'BROTHERS_IN_ARMS' ? 'BIA' : 'Community'}
-                    </Badge>
-                  </div>
-                </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {connections.map((connection, index) => (
+              <motion.div
+                key={connection.id}
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.26, delay: index * 0.03 }}
+                whileHover={{ y: -4 }}
+                className="h-full"
+              >
+                <Card className="group h-full overflow-hidden border-border/70 bg-card/90 shadow-sm transition-all hover:border-primary/25 hover:shadow-xl hover:shadow-primary/5">
+                  <CardContent className="flex h-full flex-col p-0">
+                    <div className="relative">
+                      <div className="aspect-[4/3] bg-gradient-to-br from-primary/12 via-muted to-muted/60">
+                        {connection.otherUser.profileImageUrl ? (
+                          <img
+                            src={connection.otherUser.profileImageUrl}
+                            alt={connection.otherUser.displayName}
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center">
+                            <Avatar name={connection.otherUser.displayName} size="xl" />
+                          </div>
+                        )}
+                      </div>
 
-                <div className="p-4">
-                  <h3 className="font-semibold text-lg mb-1">{connection.otherUser.displayName}</h3>
+                      <div className="absolute inset-x-0 top-0 flex items-start justify-between p-3">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'backdrop-blur-sm',
+                            connection.connectionType === 'BROTHERS_IN_ARMS'
+                              ? 'border-primary/20 bg-primary/90 text-white'
+                              : 'bg-background/80',
+                          )}
+                        >
+                          <Shield className="mr-1 h-3 w-3" />
+                          {connection.connectionType === 'BROTHERS_IN_ARMS' ? 'BIA' : 'Community'}
+                        </Badge>
+                        {connection.overlapScore ? (
+                          <Badge variant="outline" className="border-background/30 bg-background/85 backdrop-blur-sm">
+                            {Math.round(connection.overlapScore * 100)}% overlap
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </div>
 
-                  {connection.overlapScore && (
-                    <p className="text-sm text-muted-foreground mb-2">
-                      {Math.round(connection.overlapScore * 100)}% service overlap
-                    </p>
-                  )}
+                    <div className="flex flex-1 flex-col p-5">
+                      <div>
+                        <h3 className="text-lg font-semibold">{connection.otherUser.displayName}</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Connected {formatRelativeTime(connection.createdAt)}
+                        </p>
+                      </div>
 
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Connected {formatRelativeTime(connection.createdAt)}
-                  </p>
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl border bg-muted/35 p-3">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Connection</p>
+                          <p className="mt-2 text-sm font-medium">
+                            {connection.connectionType === 'BROTHERS_IN_ARMS' ? 'Shared veteran context' : 'Community network'}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border bg-muted/35 p-3">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Status</p>
+                          <p className="mt-2 text-sm font-medium">Ready to message</p>
+                        </div>
+                      </div>
 
-                  <div className="flex gap-2">
-                    <Link href={`/app/messages?match=${connection.id}`} className="flex-1">
-                      <Button size="sm" className="w-full">
-                        <MessageCircle className="h-4 w-4 mr-1" />
-                        Message
+                      <div className="mt-5 flex gap-2">
+                        <Link href={`/app/messages?match=${connection.id}`} className="flex-1">
+                          <Button size="sm" className="w-full">
+                            <MessageCircle className="mr-1.5 h-4 w-4" />
+                            Message
+                          </Button>
+                        </Link>
+                        <Link href={`/app/profile/${connection.otherUser.id}`} className="flex-1">
+                          <Button size="sm" variant="outline" className="w-full">
+                            <Link2 className="mr-1.5 h-4 w-4" />
+                            View
+                          </Button>
+                        </Link>
+                      </div>
+
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setSelectedConnection(connection);
+                          setShowRemoveModal(true);
+                        }}
+                        className="mt-2 text-muted-foreground hover:text-destructive"
+                      >
+                        <UserMinus className="mr-1.5 h-4 w-4" />
+                        Remove connection
                       </Button>
-                    </Link>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedConnection(connection);
-                        setShowRemoveModal(true);
-                      }}
-                    >
-                      <UserMinus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </section>
       )}
 
       <Modal

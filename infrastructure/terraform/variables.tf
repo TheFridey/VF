@@ -159,27 +159,8 @@ variable "encryption_key" {
 }
 
 # Email configuration
-variable "smtp_host" {
-  description = "SMTP host"
-  type        = string
-  default     = ""
-}
-
-variable "smtp_port" {
-  description = "SMTP port"
-  type        = string
-  default     = "587"
-}
-
-variable "smtp_user" {
-  description = "SMTP username"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "smtp_pass" {
-  description = "SMTP password"
+variable "resend_api_key" {
+  description = "Resend API key for transactional email"
   type        = string
   default     = ""
   sensitive   = true
@@ -188,5 +169,11 @@ variable "smtp_pass" {
 variable "from_email" {
   description = "From email address"
   type        = string
-  default     = "noreply@veteranfinder.com"
+  default     = "VeteranFinder <noreply@veteranfinder.co.uk>"
+}
+
+variable "partnerships_email_to" {
+  description = "Destination address for partnership enquiries"
+  type        = string
+  default     = "partnerships@veteranfinder.co.uk"
 }

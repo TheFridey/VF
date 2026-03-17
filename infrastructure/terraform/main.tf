@@ -152,11 +152,9 @@ module "ecs" {
     JWT_SECRET              = var.jwt_secret
     JWT_REFRESH_SECRET      = var.jwt_refresh_secret
     ENCRYPTION_KEY          = var.encryption_key
-    SMTP_HOST               = var.smtp_host
-    SMTP_PORT               = var.smtp_port
-    SMTP_USER               = var.smtp_user
-    SMTP_PASS               = var.smtp_pass
+    RESEND_API_KEY          = var.resend_api_key
     FROM_EMAIL              = var.from_email
+    PARTNERSHIPS_EMAIL_TO   = var.partnerships_email_to
     FRONTEND_URL            = "https://${var.domain_name}"
     API_URL                 = "https://api.${var.domain_name}"
   }

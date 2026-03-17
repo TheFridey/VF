@@ -16,13 +16,13 @@ metadata:
 spec:
   tls:
     - hosts:
-        - veteranfinder.com
-        - www.veteranfinder.com
-        - api.veteranfinder.com
+        - veteranfinder.co.uk
+        - www.veteranfinder.co.uk
+        - api.veteranfinder.co.uk
       secretName: veteranfinder-tls
   rules:
     # Main website
-    - host: veteranfinder.com
+    - host: veteranfinder.co.uk
       http:
         paths:
           - path: /
@@ -33,7 +33,7 @@ spec:
                 port:
                   number: 80
     # www redirect handled at DNS or add annotation
-    - host: www.veteranfinder.com
+    - host: www.veteranfinder.co.uk
       http:
         paths:
           - path: /
@@ -44,7 +44,7 @@ spec:
                 port:
                   number: 80
     # API subdomain
-    - host: api.veteranfinder.com
+    - host: api.veteranfinder.co.uk
       http:
         paths:
           - path: /
@@ -63,7 +63,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: admin@veteranfinder.com
+    email: admin@veteranfinder.co.uk
     privateKeySecretRef:
       name: letsencrypt-prod-key
     solvers:

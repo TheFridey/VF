@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Navbar } from './navbar';
+import { FloatingChatDock } from '@/components/messaging/floating-chat-dock';
 import { Loader2 } from 'lucide-react';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -71,10 +72,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (!user) return null;
 
   const isFullBleedRoute = pathname.startsWith('/app/bia/forums')
+    || pathname === '/app'
     || pathname === '/app/bia/directory'
     || pathname === '/app/bia/mentorship'
     || pathname === '/app/bia/careers'
+    || pathname === '/app/brothers'
+    || pathname === '/app/messages'
+    || pathname === '/app/connections'
     || pathname === '/app/premium';
+  const showFloatingChatDock = pathname !== '/app/onboarding' && !pathname.startsWith('/app/messages');
 
   return (
     <div className="min-h-screen bg-background">
@@ -86,6 +92,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       )}>
         {children}
       </main>
+      {showFloatingChatDock && <FloatingChatDock />}
     </div>
   );
 }

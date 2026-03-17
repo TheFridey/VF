@@ -123,6 +123,9 @@ export function validateEnv(config: Record<string, unknown>) {
     if (!isNonEmpty(env.APP_URL)) {
       errors.push('APP_URL is required when RESEND_API_KEY is set');
     }
+    if (!isNonEmpty(env.PARTNERSHIPS_EMAIL_TO)) {
+      errors.push('PARTNERSHIPS_EMAIL_TO is required when RESEND_API_KEY is set');
+    }
   }
 
   if (errors.length > 0) {

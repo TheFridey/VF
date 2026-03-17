@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Shield, ArrowLeft } from 'lucide-react';
+import { CONTACT_EMAILS } from '@/lib/contact-emails';
 
 export default function TermsOfServicePage() {
   return (
@@ -255,7 +256,7 @@ export default function TermsOfServicePage() {
             </p>
             <p className="mt-4">
               Before initiating legal proceedings, you agree to attempt to resolve disputes informally by 
-              contacting us at legal@veteranfinder.com.
+              contacting us at {CONTACT_EMAILS.legal}.
             </p>
           </section>
 
@@ -283,8 +284,8 @@ export default function TermsOfServicePage() {
               If you have questions about these Terms:
             </p>
             <ul className="list-none space-y-2 mt-4">
-              <li><strong>Email:</strong> legal@veteranfinder.com</li>
-              <li><strong>Support:</strong> support@veteranfinder.com</li>
+              <li><strong>Email:</strong> {CONTACT_EMAILS.legal}</li>
+              <li><strong>Support:</strong> {CONTACT_EMAILS.support}</li>
               <li><strong>Postal Address:</strong> [To be confirmed upon incorporation]</li>
             </ul>
           </section>

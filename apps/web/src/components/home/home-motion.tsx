@@ -10,7 +10,7 @@ type RevealProps = {
   distance?: number;
 };
 
-function usePrefersReducedMotion() {
+export function usePrefersReducedMotion() {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   useEffect(() => {

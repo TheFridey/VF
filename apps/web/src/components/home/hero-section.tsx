@@ -25,20 +25,18 @@ const sceneClass = (active: boolean) =>
   ].join(' ');
 
 export function HeroSection() {
-  const prefersReducedMotion =
-    typeof window !== 'undefined'
-      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      : false;
   const [activePhrase, setActivePhrase] = useState(0);
   const [typedPhrase, setTypedPhrase] = useState('');
   const [isDeletingPhrase, setIsDeletingPhrase] = useState(false);
   const [visualStage, setVisualStage] = useState(0);
 
   useEffect(() => {
-    if (prefersReducedMotion) return;
     const currentPhrase = phrases[activePhrase];
     const typingDelay = isDeletingPhrase ? 55 : 110;
     const pauseDelay = isDeletingPhrase ? 360 : 1500;
+    const shouldPause =
+      typedPhrase === currentPhrase ||
+      (isDeletingPhrase && typedPhrase.length === 0);
 
     const timeout = window.setTimeout(() => {
       if (!isDeletingPhrase) {
@@ -58,19 +56,18 @@ export function HeroSection() {
 
       setIsDeletingPhrase(false);
       setActivePhrase((current) => (current + 1) % phrases.length);
-    }, typedPhrase === currentPhrase || typedPhrase.length === 0 ? pauseDelay : typingDelay);
+    }, shouldPause ? pauseDelay : typingDelay);
 
     return () => window.clearTimeout(timeout);
-  }, [activePhrase, isDeletingPhrase, typedPhrase, prefersReducedMotion]);
+  }, [activePhrase, isDeletingPhrase, typedPhrase]);
 
   useEffect(() => {
-    if (prefersReducedMotion) return;
     const interval = window.setInterval(() => {
       setVisualStage((current) => (current + 1) % 3);
     }, 3200);
 
     return () => window.clearInterval(interval);
-  }, [prefersReducedMotion]);
+  }, []);
 
   return (
     <section className="relative isolate flex min-h-screen items-center overflow-hidden border-b border-sky-100 bg-[linear-gradient(180deg,#f4faff_0%,#f9fcff_42%,#ffffff_100%)] pt-24">

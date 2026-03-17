@@ -90,13 +90,14 @@ export default function DashboardPage() {
   const connectionCount = (connections as any)?.connections?.length ?? 0;
   const unreadMessages  = unreadCounts?.total || 0;
   const recentConvos    = (conversations as any)?.conversations?.slice(0, 3) || [];
+  const membershipLabel = isBiaPlus ? 'BIA+' : isMember ? 'BIA' : 'FREE';
 
   // Greeting based on time of day
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-5xl">
+    <div className="w-full px-4 py-8 sm:px-6 lg:px-8">
 
       {/* Hero greeting */}
       <div className="mb-8">
@@ -161,16 +162,17 @@ export default function DashboardPage() {
       )}
 
       {/* Stats row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+      <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
         <StatCard label="Connections" value={connectionCount} icon={Link2} />
         <StatCard label="Unread messages" value={unreadMessages} icon={MessageCircle} />
         <StatCard label="Community" value="UK Veterans" icon={Shield} />
+        <StatCard label="Membership" value={membershipLabel} icon={Award} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.75fr)] 2xl:grid-cols-[minmax(0,1.8fr)_minmax(360px,0.8fr)]">
 
         {/* Left column - main actions */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-6">
 
           {/* Recent conversations */}
           <div>
@@ -183,9 +185,9 @@ export default function DashboardPage() {
             </div>
 
             {recentConvos.length > 0 ? (
-              <div className="space-y-2">
+              <div className="grid gap-3 xl:grid-cols-2">
                 {recentConvos.map((convo: any) => (
-                  <Link key={convo.connectionId} href={`/app/messages/${convo.connectionId}`}
+                  <Link key={convo.connectionId} href={`/app/messages?match=${convo.connectionId}`}
                     className="flex items-center space-x-3 p-3 rounded-xl border bg-card hover:bg-accent/50 transition-colors group">
                     <div className="relative">
                       <Avatar src={convo.user?.photoUrl} name={convo.user?.displayName} size="md" />
@@ -226,7 +228,7 @@ export default function DashboardPage() {
           {/* Quick actions */}
           <div>
             <h2 className="text-base font-semibold mb-3">Quick Actions</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 2xl:grid-cols-2">
               {isVerified && (
                 <QuickLink
                   href="/app/brothers"
