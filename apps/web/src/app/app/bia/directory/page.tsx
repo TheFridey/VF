@@ -4,16 +4,15 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import {
-  Briefcase, Globe, MapPin, Crown, Star, Plus, Filter, ExternalLink, Building2,
+  Briefcase, Globe, MapPin, Crown, Star, Plus, ExternalLink, Building2,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { useAuthStore } from '@/stores/auth-store';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
+import { ForumShell, ForumStage, ForumPanel } from '@/components/bia/forum-shell';
+import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
 const CATEGORIES = [
@@ -23,7 +22,6 @@ const CATEGORIES = [
 
 export default function BusinessDirectoryPage() {
   const router = useRouter();
-  const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showListForm, setShowListForm] = useState(false);
@@ -61,92 +59,98 @@ export default function BusinessDirectoryPage() {
   const listings = data?.listings || [];
 
   return (
-    <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <Building2 className="w-6 h-6 text-green-400" />
-          <h1 className="text-2xl font-bold text-white">Veterans Business Directory</h1>
-        </div>
-        <p className="text-gray-400">Businesses run by our BIA+ Members.</p>
-      </div>
-
-      {/* BIA+ upgrade banner */}
-      <div className="bg-gradient-to-r from-amber-900/30 to-orange-900/20 border border-amber-600/30 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <Crown className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+    <ForumStage>
+      <ForumShell>
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="font-semibold text-white text-sm">
-              {isBiaPlus ? 'You can list your business here' : 'Want to list your business?'}
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {isBiaPlus
-                ? 'As a BIA+ member, your business is visible to the entire VeteranFinder community.'
-                : 'Upgrade to BIA+ to add your veteran-owned business to the directory.'}
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400/80">Brothers in Arms</p>
+            <h1 className="mt-1 text-2xl font-bold text-white sm:text-3xl">Veterans Business Directory</h1>
+            <p className="mt-1 text-sm text-slate-300/80">Veteran-owned businesses from the BIA+ community.</p>
           </div>
+          {isBiaPlus && (
+            <button
+              onClick={() => setShowListForm(true)}
+              className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-amber-400"
+            >
+              <Plus className="h-4 w-4" />
+              {myListing ? 'Update Listing' : 'List My Business'}
+            </button>
+          )}
         </div>
-        {isBiaPlus ? (
-          <Button onClick={() => setShowListForm(true)} size="sm" className="bg-amber-600 hover:bg-amber-500 gap-2 shrink-0">
-            <Plus className="w-4 h-4" />
-            {myListing ? 'Update Listing' : 'List My Business'}
-          </Button>
-        ) : (
-          <Button onClick={() => router.push('/app/premium')} size="sm" className="bg-amber-600 hover:bg-amber-500 shrink-0">
-            Upgrade to BIA+
-          </Button>
+
+        {!isBiaPlus && (
+          <ForumPanel className="px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Crown className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-200">List your veteran-owned business</p>
+                  <p className="mt-0.5 text-sm text-slate-300/80">
+                    Upgrade to BIA+ to add your business and reach the entire VeteranFinder community.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => router.push('/app/premium')}
+                className="shrink-0 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-amber-400"
+              >
+                Upgrade to BIA+
+              </button>
+            </div>
+          </ForumPanel>
         )}
-      </div>
 
-      {/* Category filter */}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-              selectedCategory === cat
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {/* Listings */}
-      {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner className="w-8 h-8 text-green-500" /></div>
-      ) : listings.length === 0 ? (
-        <div className="text-center py-16 text-gray-500">
-          <Building2 className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p>No businesses listed yet in this category.</p>
+        <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-1">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={cn(
+                'whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-medium transition-all',
+                selectedCategory === cat
+                  ? 'border-emerald-400/40 bg-emerald-500/20 text-emerald-300'
+                  : 'border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200',
+              )}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {listings.map((biz: any) => (
-            <Card key={biz.id} className="bg-gray-800/60 border-gray-700/50 hover:border-green-500/30 transition-all">
-              <CardContent className="p-5">
+
+        {isLoading ? (
+          <div className="flex justify-center py-16">
+            <Spinner className="h-8 w-8 text-emerald-400" />
+          </div>
+        ) : listings.length === 0 ? (
+          <div className="flex flex-col items-center py-20 text-center">
+            <Building2 className="mb-3 h-12 w-12 text-slate-500 opacity-30" />
+            <p className="text-sm text-slate-400">No businesses listed yet in this category.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {listings.map((biz: any) => (
+              <ForumPanel key={biz.id} className="cursor-default p-5 transition-all hover:border-emerald-400/25">
                 <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
-                    {biz.logoUrl
-                      ? <img src={biz.logoUrl} alt={biz.name} className="w-full h-full object-cover" />
-                      : <Briefcase className="w-6 h-6 text-gray-400" />
-                    }
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/8">
+                    {biz.logoUrl ? (
+                      <img src={biz.logoUrl} alt={biz.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <Briefcase className="h-5 w-5 text-slate-400" />
+                    )}
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-semibold text-white">{biz.name}</h3>
-                      <Badge className="bg-green-600/20 text-green-400 border-green-600/30 text-xs shrink-0">
+                      <h3 className="leading-tight font-semibold text-white">{biz.name}</h3>
+                      <span className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300">
                         {biz.category}
-                      </Badge>
+                      </span>
                     </div>
-                    <p className="text-sm text-gray-400 mt-1 line-clamp-2">{biz.description}</p>
-                    <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
+                    <p className="mt-1.5 line-clamp-2 text-sm leading-6 text-slate-300/80">{biz.description}</p>
+                    <div className="mt-3 flex items-center gap-3 text-xs text-slate-400/70">
                       {biz.location && (
                         <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />{biz.location}
+                          <MapPin className="h-3 w-3" />
+                          {biz.location}
                         </span>
                       )}
                       {biz.website && (
@@ -154,85 +158,89 @@ export default function BusinessDirectoryPage() {
                           href={biz.website}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
+                          className="flex items-center gap-1 text-emerald-300/80 transition-colors hover:text-emerald-200"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <Globe className="w-3 h-3" />Website
-                          <ExternalLink className="w-2.5 h-2.5" />
+                          <Globe className="h-3 w-3" />
+                          Website
+                          <ExternalLink className="h-2.5 w-2.5" />
                         </a>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-700/50">
-                      <div className="w-5 h-5 rounded-full bg-gray-600 overflow-hidden">
-                        {biz.user?.profile?.profileImageUrl
-                          ? <img src={biz.user.profile.profileImageUrl} alt="" className="w-full h-full object-cover" />
-                          : <Star className="w-3 h-3 m-1 text-amber-400" />
-                        }
+                    <div className="mt-3 flex items-center gap-2 border-t border-white/8 pt-3">
+                      <div className="h-5 w-5 overflow-hidden rounded-full border border-white/10 bg-white/8">
+                        {biz.user?.profile?.profileImageUrl ? (
+                          <img src={biz.user.profile.profileImageUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <Star className="m-1 h-3 w-3 text-amber-300" />
+                        )}
                       </div>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-slate-400/70">
                         {biz.user?.profile?.displayName || 'BIA+ Member'}
                       </span>
-                      <Badge className="ml-auto bg-amber-600/20 text-amber-400 border-amber-600/30 text-xs">BIA+</Badge>
+                      <span className="ml-auto rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-300">
+                        BIA+
+                      </span>
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              </ForumPanel>
+            ))}
+          </div>
+        )}
 
-      {/* List Business Modal */}
-      <Modal isOpen={showListForm} onClose={() => setShowListForm(false)} title={myListing ? 'Update Your Listing' : 'List Your Business'}>
-        <div className="space-y-4">
-          {[
-            { key: 'name', label: 'Business Name', placeholder: 'Your business name' },
-            { key: 'location', label: 'Location', placeholder: 'e.g. Manchester, UK' },
-            { key: 'website', label: 'Website (optional)', placeholder: 'https://' },
-          ].map(({ key, label, placeholder }) => (
-            <div key={key}>
-              <label className="text-sm text-gray-400 mb-1 block">{label}</label>
-              <Input
-                value={(form as any)[key]}
-                onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
-                placeholder={placeholder}
+        <Modal isOpen={showListForm} onClose={() => setShowListForm(false)} title={myListing ? 'Update Your Listing' : 'List Your Business'}>
+          <div className="space-y-4">
+            {[
+              { key: 'name', label: 'Business Name', placeholder: 'Your business name' },
+              { key: 'location', label: 'Location', placeholder: 'e.g. Manchester, UK' },
+              { key: 'website', label: 'Website (optional)', placeholder: 'https://' },
+            ].map(({ key, label, placeholder }) => (
+              <div key={key}>
+                <label className="mb-1 block text-sm text-slate-300/80">{label}</label>
+                <Input
+                  value={(form as any)[key]}
+                  onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                  placeholder={placeholder}
+                  className="border-white/15 bg-white/8 text-white placeholder:text-slate-400 focus-visible:ring-emerald-400"
+                />
+              </div>
+            ))}
+            <div>
+              <label className="mb-1 block text-sm text-slate-300/80">Category</label>
+              <select
+                value={form.category}
+                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                className="w-full rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-400"
+              >
+                <option value="">Select category...</option>
+                {CATEGORIES.slice(1).map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-slate-300/80">Description</label>
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="Tell veterans what your business offers..."
+                rows={4}
+                className="w-full resize-none rounded-lg border border-white/15 bg-white/8 p-3 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
               />
             </div>
-          ))}
-          <div>
-            <label className="text-sm text-gray-400 mb-1 block">Category</label>
-            <select
-              value={form.category}
-              onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))}
-              className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-green-500"
-            >
-              <option value="">Select category...</option>
-              {CATEGORIES.slice(1).map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <p className="text-xs text-slate-400/70">Listings are reviewed before going live. Usually approved within 24 hours.</p>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="ghost" onClick={() => setShowListForm(false)}>Cancel</Button>
+              <Button
+                onClick={() => createMutation.mutate()}
+                disabled={!form.name || !form.description || !form.category || createMutation.isPending}
+                className="bg-emerald-500 font-semibold text-black hover:bg-emerald-400"
+              >
+                {createMutation.isPending ? <Spinner className="h-4 w-4" /> : 'Submit for Review'}
+              </Button>
+            </div>
           </div>
-          <div>
-            <label className="text-sm text-gray-400 mb-1 block">Description</label>
-            <textarea
-              value={form.description}
-              onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="Tell veterans what your business offers..."
-              rows={4}
-              className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg p-3 text-sm text-white placeholder-gray-500 resize-none focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-          </div>
-          <p className="text-xs text-gray-500">Listings are reviewed before going live. Usually approved within 24 hours.</p>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setShowListForm(false)}>Cancel</Button>
-            <Button
-              onClick={() => createMutation.mutate()}
-              disabled={!form.name || !form.description || !form.category || createMutation.isPending}
-              className="bg-green-600 hover:bg-green-500"
-            >
-              {createMutation.isPending ? <Spinner className="w-4 h-4" /> : 'Submit for Review'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-    </div>
+        </Modal>
+      </ForumShell>
+    </ForumStage>
   );
 }

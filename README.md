@@ -25,6 +25,11 @@ apps/admin (:3002) --/                      \-> Redis (:6379)
 
 Both frontend apps use `/api/*` rewrites to talk to the API. Authentication is cookie-based, with HttpOnly cookies set by the API.
 
+## Admin
+
+All admin access is via the standalone `apps/admin` app on port `3002`.
+The previous transitional `/admin/*` routes inside `apps/web` have been removed.
+
 ## Current stack
 
 - Node.js 20
@@ -173,7 +178,6 @@ Minimum local values:
 ```dotenv
 NEXT_PUBLIC_API_URL=http://localhost:3000
 NEXT_PUBLIC_SITE_URL=http://localhost:3001
-NEXT_PUBLIC_ADMIN_APP_URL=http://localhost:3002
 ```
 
 Optional:

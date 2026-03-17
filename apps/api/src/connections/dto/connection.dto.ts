@@ -1,32 +1,32 @@
-import { IsOptional, IsEnum, IsUUID } from 'class-validator';
+import { IsOptional, IsEnum } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-export enum MatchType {
+export enum ConnectionTypeFilter {
   BROTHERS = 'brothers',
 }
 
-export enum MatchStatus {
+export enum ConnectionStatusFilter {
   ACTIVE = 'active',
   UNMATCHED = 'unmatched',
   BLOCKED = 'blocked',
 }
 
 export class MatchFiltersDto {
-  @ApiPropertyOptional({ enum: MatchType })
+  @ApiPropertyOptional({ enum: ConnectionTypeFilter })
   @IsOptional()
-  @IsEnum(MatchType)
-  type?: MatchType;
+  @IsEnum(ConnectionTypeFilter)
+  type?: ConnectionTypeFilter;
 
-  @ApiPropertyOptional({ enum: MatchStatus })
+  @ApiPropertyOptional({ enum: ConnectionStatusFilter })
   @IsOptional()
-  @IsEnum(MatchStatus)
-  status?: MatchStatus;
+  @IsEnum(ConnectionStatusFilter)
+  status?: ConnectionStatusFilter;
 }
 
 export class ConnectionDto {
   id: string;
-  type: MatchType;
-  status: MatchStatus;
+  type: ConnectionTypeFilter;
+  status: ConnectionStatusFilter;
   matchedUser: {
     id: string;
     displayName: string;

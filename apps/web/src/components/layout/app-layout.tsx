@@ -70,13 +70,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (!user) return null;
 
-  const isForumRoute = pathname.startsWith('/app/bia/forums');
+  const isFullBleedRoute = pathname.startsWith('/app/bia/forums')
+    || pathname === '/app/bia/directory'
+    || pathname === '/app/bia/mentorship'
+    || pathname === '/app/bia/careers'
+    || pathname === '/app/premium';
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className={cn(
-        isForumRoute
+        isFullBleedRoute
           ? 'w-full max-w-none px-0 py-0'
           : 'container mx-auto px-4 py-6',
       )}>

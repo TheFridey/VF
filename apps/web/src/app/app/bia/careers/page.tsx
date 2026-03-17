@@ -3,12 +3,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { BookOpen, ExternalLink, Download, Lock, Filter, Briefcase, GraduationCap, Heart, FileText, TrendingUp } from 'lucide-react';
+import { BookOpen, ExternalLink, Download, Lock, Briefcase, GraduationCap, Heart, FileText, TrendingUp } from 'lucide-react';
 import { api } from '@/lib/api';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { ForumShell, ForumStage, ForumPanel } from '@/components/bia/forum-shell';
+import { cn } from '@/lib/utils';
 
 const CATEGORY_ICONS: Record<string, any> = {
   'CV & Interview': FileText,
@@ -19,7 +18,7 @@ const CATEGORY_ICONS: Record<string, any> = {
   'Benefits & Entitlements': BookOpen,
 };
 
-// Curated starter resources — admins can add more via DB
+// Curated starter resources â€” admins can add more via DB
 const STARTER_RESOURCES = [
   {
     id: 'res-1',
@@ -39,7 +38,7 @@ const STARTER_RESOURCES = [
   },
   {
     id: 'res-3',
-    title: 'RFEA – The Forces Employment Charity',
+    title: 'RFEA - The Forces Employment Charity',
     description: 'Provides lifelong employment support to ex-forces personnel, reservists, and their families. Free CV reviews and job placement.',
     category: 'CV & Interview',
     url: 'https://www.rfea.org.uk',
@@ -100,109 +99,121 @@ export default function CareerResourcesPage() {
     enabled: isBiaPlus,
   });
 
-  if (!isBiaPlus) return (
-    <div className="max-w-2xl mx-auto p-6">
-      <div className="bg-gray-800/60 border border-amber-600/30 rounded-xl p-8 text-center space-y-4">
-        <Lock className="w-12 h-12 text-amber-400 mx-auto" />
-        <h2 className="text-xl font-bold text-white">Career Resources</h2>
-        <p className="text-gray-400">Access curated career resources, CV tools, job boards, and transition guides — exclusively for BIA+ members.</p>
-        <Button onClick={() => router.push('/app/premium')} className="bg-amber-600 hover:bg-amber-500">
-          Upgrade to BIA+
-        </Button>
-      </div>
-    </div>
-  );
-
-  // Combine DB resources with starter resources
   const dbResources = data?.resources || [];
-  const allResources = [...STARTER_RESOURCES, ...dbResources].filter(r =>
+  const filteredResources = [...STARTER_RESOURCES, ...dbResources].filter((r) =>
     selectedCategory === 'All' || r.category === selectedCategory,
   );
 
   const allCategories = ['All', ...Object.keys(CATEGORY_ICONS)];
 
   return (
-    <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">Career Resources</h1>
-        <p className="text-gray-400 mt-1">Curated tools and organisations to support your next chapter after service.</p>
-      </div>
-
-      {/* Category filter */}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-        {allCategories.map((cat) => {
-          const Icon = CATEGORY_ICONS[cat];
-          return (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                selectedCategory === cat
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
-              }`}
-            >
-              {Icon && <Icon className="w-3.5 h-3.5" />}
-              {cat}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Resources grid */}
-      {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner className="w-8 h-8 text-green-500" /></div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {allResources.map((resource: any) => {
-            const Icon = CATEGORY_ICONS[resource.category] || BookOpen;
-            return (
-              <Card key={resource.id} className="bg-gray-800/60 border-gray-700/50 hover:border-green-500/30 transition-all group">
-                <CardContent className="p-5 h-full flex flex-col">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center shrink-0 group-hover:bg-green-500/20 transition-colors">
-                      <Icon className="w-5 h-5 text-green-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-white group-hover:text-green-300 transition-colors leading-snug">
-                        {resource.title}
-                      </h3>
-                      <Badge className="mt-1 bg-gray-700 text-gray-300 border-gray-600 text-xs">
-                        {resource.category}
-                      </Badge>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-400 leading-relaxed flex-1">{resource.description}</p>
-                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-700/50">
-                    {resource.url && (
-                      <a
-                        href={resource.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-sm text-green-400 hover:text-green-300 font-medium transition-colors"
-                      >
-                        Visit Website
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    )}
-                    {resource.fileUrl && (
-                      <a
-                        href={resource.fileUrl}
-                        download
-                        className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 font-medium transition-colors ml-auto"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        Download
-                      </a>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+    <ForumStage>
+      <ForumShell>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400/80">Brothers in Arms</p>
+          <h1 className="mt-1 text-2xl font-bold text-white sm:text-3xl">Career Resources</h1>
+          <p className="mt-1 text-sm text-slate-300/80">Practical resources and opportunities for veterans in transition.</p>
         </div>
-      )}
-    </div>
+
+        {!isBiaPlus && (
+          <ForumPanel className="px-5 py-8 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-400/25 bg-amber-400/10">
+              <Lock className="h-6 w-6 text-amber-300" />
+            </div>
+            <h2 className="text-lg font-semibold text-white">Career resources require BIA+</h2>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-slate-300/80">
+              Access curated career resources, CV tools, job boards, and transition guides exclusively for BIA+ members.
+            </p>
+            <button
+              onClick={() => router.push('/app/premium')}
+              className="mt-5 rounded-xl bg-amber-500 px-6 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-amber-400"
+            >
+              Upgrade to BIA+
+            </button>
+          </ForumPanel>
+        )}
+
+        {isBiaPlus && (
+          <>
+            <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-1">
+              {allCategories.map((cat) => {
+                const Icon = CATEGORY_ICONS[cat];
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={cn(
+                      'flex whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-medium transition-all',
+                      selectedCategory === cat
+                        ? 'border-emerald-400/40 bg-emerald-500/20 text-emerald-300'
+                        : 'border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200',
+                    )}
+                  >
+                    {Icon && <Icon className="mr-1.5 h-3.5 w-3.5" />}
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
+
+            {isLoading ? (
+              <div className="flex justify-center py-16">
+                <Spinner className="h-8 w-8 text-emerald-400" />
+              </div>
+            ) : filteredResources.length === 0 ? (
+              <div className="flex flex-col items-center py-20 text-center">
+                <BookOpen className="mb-3 h-12 w-12 text-slate-500 opacity-30" />
+                <p className="text-sm text-slate-400">No resources found for this category.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredResources.map((resource: any) => {
+                  const Icon = CATEGORY_ICONS[resource.category] || BookOpen;
+                  return (
+                    <ForumPanel key={resource.id} className="p-5 transition-all hover:border-emerald-400/25">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/25 bg-emerald-400/10">
+                          <Icon className="h-4 w-4 text-emerald-300" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="leading-snug font-semibold text-white">{resource.title}</h3>
+                          <span className="mt-1 inline-block rounded-full border border-white/12 bg-white/8 px-2.5 py-0.5 text-[11px] text-slate-300/80">
+                            {resource.category}
+                          </span>
+                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-300/80">{resource.description}</p>
+                          <div className="mt-3 flex items-center gap-3">
+                            {resource.url && (
+                              <a
+                                href={resource.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-300 transition-colors hover:text-emerald-200"
+                              >
+                                Visit resource
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            )}
+                            {resource.fileUrl && (
+                              <a
+                                href={resource.fileUrl}
+                                download
+                                className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-300 transition-colors hover:text-amber-200"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                                Download
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </ForumPanel>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </ForumShell>
+    </ForumStage>
   );
 }
