@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { CONTACT_EMAILS, toMailto } from '@/lib/contact-emails';
+import { VeteranFinderLogo } from '@/components/brand/veteranfinder-logo';
 
 const SUBJECT_OPTIONS = [
   { value: 'general', label: 'General Enquiry' },
@@ -63,8 +64,7 @@ export default function ContactPage() {
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
         <div className="container mx-auto flex items-center justify-between px-4 py-4">
           <Link href="/" className="flex items-center space-x-2">
-            <Shield className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">VeteranFinder</span>
+            <VeteranFinderLogo markClassName="h-9" textClassName="text-xl font-bold" />
           </Link>
           <Link href="/" className="flex items-center text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="mr-1 h-4 w-4" />

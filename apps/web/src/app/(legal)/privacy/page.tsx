@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { Shield, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { CONTACT_EMAILS } from '@/lib/contact-emails';
+import { VeteranFinderLogo } from '@/components/brand/veteranfinder-logo';
 
 export default function PrivacyPolicyPage() {
   return (
@@ -11,8 +12,7 @@ export default function PrivacyPolicyPage() {
       <header className="border-b bg-background/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
-            <Shield className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">VeteranFinder</span>
+            <VeteranFinderLogo markClassName="h-9" textClassName="text-xl font-bold" />
           </Link>
           <Link href="/" className="flex items-center text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4 mr-1" />

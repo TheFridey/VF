@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Shield } from 'lucide-react';
+import { VeteranFinderLogo } from '@/components/brand/veteranfinder-logo';
 
 export function Footer() {
   const year = new Date().getFullYear();
@@ -12,8 +12,10 @@ export function Footer() {
         <div className="grid gap-8 sm:grid-cols-3">
           <div>
             <div className="mb-3 flex items-center gap-2">
-              <Shield className="h-5 w-5 text-emerald-700" />
-              <span className="font-semibold text-slate-950">VeteranFinder</span>
+              <VeteranFinderLogo
+                markClassName="h-6"
+                textClassName="font-semibold text-slate-950"
+              />
             </div>
             <p className="text-sm leading-6 text-slate-600">
               A trust-first veteran reconnection platform focused on verification, privacy, moderation, and useful

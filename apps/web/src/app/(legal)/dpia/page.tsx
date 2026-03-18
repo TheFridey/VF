@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Shield, ArrowLeft, FileText, AlertTriangle, CheckCircle, Lock, Eye, Trash2 } from 'lucide-react';
+import { VeteranFinderLogo } from '@/components/brand/veteranfinder-logo';
 
 export default function DPIAPage() {
   return (
@@ -10,8 +11,7 @@ export default function DPIAPage() {
       <header className="border-b bg-background/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
-            <Shield className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">VeteranFinder</span>
+            <VeteranFinderLogo markClassName="h-9" textClassName="text-xl font-bold" />
           </Link>
           <Link href="/" className="flex items-center text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4 mr-1" />

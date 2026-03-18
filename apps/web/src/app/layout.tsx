@@ -11,6 +11,11 @@ export const metadata: Metadata = {
   title: 'VeteranFinder | Veteran Reconnection and Verified Community Access',
   description: 'A trust-first platform for veterans to reconnect, verify their status, and access moderated community spaces.',
   keywords: ['veterans', 'reconnection', 'verification', 'community', 'regiment forums'],
+  icons: {
+    icon: '/veteranfinder-mark.svg',
+    shortcut: '/veteranfinder-mark.svg',
+    apple: '/veteranfinder-mark.svg',
+  },
 };
 
 export default function RootLayout({

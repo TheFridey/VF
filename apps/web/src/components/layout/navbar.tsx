@@ -13,6 +13,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
+import { VeteranFinderLogo } from '@/components/brand/veteranfinder-logo';
 
 const biaMenuItems = [
   { href: '/app/bia/forums',     label: 'Forums',             icon: BookOpen,   description: 'Private veteran discussions',  memberOnly: true  },
@@ -220,10 +221,11 @@ export function Navbar() {
 
           {/* Logo */}
           <Link href="/app" className="flex items-center space-x-2.5 shrink-0">
-            <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary">
-              <Shield className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-lg font-bold tracking-tight hidden sm:inline">VeteranFinder</span>
+            <VeteranFinderLogo
+              priority
+              markClassName="h-7 sm:h-8"
+              textClassName="hidden text-lg font-bold tracking-tight text-foreground sm:inline"
+            />
           </Link>
 
           {/* Desktop nav */}

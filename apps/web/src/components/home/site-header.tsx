@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { VeteranFinderLogo } from '@/components/brand/veteranfinder-logo';
 
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
@@ -27,8 +27,11 @@ export function SiteHeader() {
     >
       <div className="flex w-full items-center justify-between px-6 py-4 sm:px-8 lg:px-10 xl:px-14 2xl:px-20">
         <Link href="/" className="flex items-center gap-2 text-slate-950">
-          <Shield className="h-7 w-7 text-sky-600" />
-          <span className="text-lg font-semibold tracking-tight">VeteranFinder</span>
+          <VeteranFinderLogo
+            priority
+            markClassName="h-8 sm:h-9"
+            textClassName="text-lg font-semibold tracking-tight text-slate-950"
+          />
         </Link>
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" className="text-slate-700 hover:text-slate-950">

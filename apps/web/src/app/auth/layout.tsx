@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Shield } from 'lucide-react';
+import { VeteranFinderLogo } from '@/components/brand/veteranfinder-logo';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -8,8 +8,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <header className="border-b">
         <div className="container mx-auto px-4 py-4">
           <Link href="/" className="flex items-center space-x-2">
-            <Shield className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">VeteranFinder</span>
+            <VeteranFinderLogo markClassName="h-9" textClassName="text-xl font-bold" />
           </Link>
         </div>
       </header>
