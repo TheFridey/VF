@@ -62,6 +62,27 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     });
   }
 
+  private extractToken(socket: AuthenticatedSocket): string | null {
+    const authToken = socket.handshake.auth?.token ||
+      socket.handshake.headers?.authorization?.replace('Bearer ', '');
+
+    if (authToken) {
+      return authToken;
+    }
+
+    const cookieHeader = socket.handshake.headers?.cookie;
+    if (!cookieHeader) {
+      return null;
+    }
+
+    const accessTokenCookie = cookieHeader
+      .split(';')
+      .map((cookie) => cookie.trim())
+      .find((cookie) => cookie.startsWith('access_token='));
+
+    return accessTokenCookie ? decodeURIComponent(accessTokenCookie.slice('access_token='.length)) : null;
+  }
+
   private async authenticateSocket(socket: AuthenticatedSocket) {
     const clientIp = (socket.handshake.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
       ?? socket.handshake.address
@@ -76,8 +97,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       throw new Error('Connection rate limit exceeded');
     }
 
-    const token = socket.handshake.auth?.token ||
-      socket.handshake.headers?.authorization?.replace('Bearer ', '');
+    const token = this.extractToken(socket);
 
     if (!token) {
       throw new Error('Authentication token required');

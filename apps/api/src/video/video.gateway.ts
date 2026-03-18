@@ -25,6 +25,11 @@ interface CallSession {
   connectionId: string;
   status: 'ringing' | 'connected' | 'ended';
   startedAt: Date;
+  iceServers: Array<{
+    urls: string[];
+    username: string;
+    credential: string;
+  }>;
 }
 
 @WebSocketGateway({
@@ -39,7 +44,7 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   server: Server;
 
   private readonly logger = new Logger(VideoGateway.name);
-  private connectedUsers: Map<string, string> = new Map(); // userId -> socketId
+  private connectedUsers: Map<string, string[]> = new Map(); // userId -> socketIds
   private activeCalls: Map<string, CallSession> = new Map(); // callId -> session
   private callTimeouts: Map<string, NodeJS.Timeout> = new Map();
 
@@ -60,9 +65,29 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     });
   }
 
-  private async authenticateSocket(socket: AuthenticatedSocket) {
-    const token = socket.handshake.auth?.token ||
+  private extractToken(socket: AuthenticatedSocket): string | null {
+    const authToken = socket.handshake.auth?.token ||
       socket.handshake.headers?.authorization?.replace('Bearer ', '');
+
+    if (authToken) {
+      return authToken;
+    }
+
+    const cookieHeader = socket.handshake.headers?.cookie;
+    if (!cookieHeader) {
+      return null;
+    }
+
+    const accessTokenCookie = cookieHeader
+      .split(';')
+      .map((cookie) => cookie.trim())
+      .find((cookie) => cookie.startsWith('access_token='));
+
+    return accessTokenCookie ? decodeURIComponent(accessTokenCookie.slice('access_token='.length)) : null;
+  }
+
+  private async authenticateSocket(socket: AuthenticatedSocket) {
+    const token = this.extractToken(socket);
 
     if (!token) {
       throw new Error('Authentication token required');
@@ -75,13 +100,27 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     socket.userId = String(payload.sub);
   }
 
+  private getSocketIds(userId: string): string[] {
+    return this.connectedUsers.get(userId) || [];
+  }
+
+  private emitToUser(userId: string, event: string, payload: unknown) {
+    this.getSocketIds(userId).forEach((socketId) => {
+      this.server.to(socketId).emit(event, payload);
+    });
+  }
+
   async handleConnection(socket: AuthenticatedSocket) {
     try {
       if (!socket.userId) {
         socket.disconnect(true);
         return;
       }
-      this.connectedUsers.set(socket.userId!, socket.id);
+
+      const existingSockets = this.getSocketIds(socket.userId);
+      if (!existingSockets.includes(socket.id)) {
+        this.connectedUsers.set(socket.userId, [...existingSockets, socket.id]);
+      }
 
       this.logger.log(`Video: User ${socket.userId!} connected`);
 
@@ -93,14 +132,19 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   handleDisconnect(socket: AuthenticatedSocket) {
     if (!socket.userId) return;
 
-    // End any active calls
-    for (const [callId, session] of this.activeCalls.entries()) {
-      if (session.callerId === socket.userId || session.calleeId === socket.userId) {
-        this.endCall(callId, 'disconnected');
+    const updatedSockets = this.getSocketIds(socket.userId).filter((socketId) => socketId !== socket.id);
+    if (updatedSockets.length > 0) {
+      this.connectedUsers.set(socket.userId, updatedSockets);
+    } else {
+      this.connectedUsers.delete(socket.userId);
+
+      // End any active calls only when the user's last socket disconnects.
+      for (const [callId, session] of this.activeCalls.entries()) {
+        if (session.callerId === socket.userId || session.calleeId === socket.userId) {
+          this.endCall(callId, 'disconnected');
+        }
       }
     }
-
-    this.connectedUsers.delete(socket.userId);
     this.logger.log(`Video: User ${socket.userId} disconnected`);
   }
 
@@ -150,7 +194,8 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
         connectionType: ConnectionType.BROTHERS_IN_ARMS,
       },
     });
-    const iceServers = this.getTurnCredentials() ? [this.getTurnCredentials()!] : [];
+    const turnCredentials = this.getTurnCredentials();
+    const iceServers = turnCredentials ? [turnCredentials] : [];
 
     if (!match) {
       socket.emit('call:error', { message: 'Cannot call this user' });
@@ -158,8 +203,8 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     }
 
     // Check if callee is online
-    const calleeSocketId = this.connectedUsers.get(data.calleeId);
-    if (!calleeSocketId) {
+    const calleeSocketIds = this.getSocketIds(data.calleeId);
+    if (calleeSocketIds.length === 0) {
       socket.emit('call:error', { message: 'User is not available for video call' });
       return;
     }
@@ -181,6 +226,7 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
       connectionId: data.connectionId,
       status: 'ringing',
       startedAt: new Date(),
+      iceServers,
     };
 
     this.activeCalls.set(callId, session);
@@ -199,16 +245,17 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     });
 
     // Notify callee
-    this.server.to(calleeSocketId).emit('call:incoming', {
+    this.emitToUser(data.calleeId, 'call:incoming', {
       callId,
       callerId: socket.userId,
       callerName: caller?.profile?.displayName || 'Unknown',
       callerImage: caller?.profile?.profileImageUrl,
       connectionId: data.connectionId,
+      iceServers: session.iceServers,
     });
 
     // Confirm to caller
-    socket.emit('call:ringing', { callId });
+    socket.emit('call:ringing', { callId, iceServers: session.iceServers });
 
     // Auto-end call after 30 seconds if not answered
     const timeout = setTimeout(() => {
@@ -239,12 +286,17 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
 
     session.status = 'connected';
 
-    const callerSocketId = this.connectedUsers.get(session.callerId);
-    if (callerSocketId) {
-      this.server.to(callerSocketId).emit('call:accepted', { callId: data.callId });
+    if (this.getSocketIds(session.callerId).length > 0) {
+      this.emitToUser(session.callerId, 'call:accepted', {
+        callId: data.callId,
+        iceServers: session.iceServers,
+      });
     }
 
-    socket.emit('call:connected', { callId: data.callId });
+    this.emitToUser(session.calleeId, 'call:connected', {
+      callId: data.callId,
+      iceServers: session.iceServers,
+    });
   }
 
   /**
@@ -299,10 +351,8 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     if (!session) return;
 
     const targetId = session.callerId === socket.userId ? session.calleeId : session.callerId;
-    const targetSocketId = this.connectedUsers.get(targetId);
-
-    if (targetSocketId) {
-      this.server.to(targetSocketId).emit('webrtc:offer', {
+    if (this.getSocketIds(targetId).length > 0) {
+      this.emitToUser(targetId, 'webrtc:offer', {
         callId: data.callId,
         offer: data.offer,
       });
@@ -323,10 +373,8 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     if (!session) return;
 
     const targetId = session.callerId === socket.userId ? session.calleeId : session.callerId;
-    const targetSocketId = this.connectedUsers.get(targetId);
-
-    if (targetSocketId) {
-      this.server.to(targetSocketId).emit('webrtc:answer', {
+    if (this.getSocketIds(targetId).length > 0) {
+      this.emitToUser(targetId, 'webrtc:answer', {
         callId: data.callId,
         answer: data.answer,
       });
@@ -347,10 +395,8 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     if (!session) return;
 
     const targetId = session.callerId === socket.userId ? session.calleeId : session.callerId;
-    const targetSocketId = this.connectedUsers.get(targetId);
-
-    if (targetSocketId) {
-      this.server.to(targetSocketId).emit('webrtc:ice-candidate', {
+    if (this.getSocketIds(targetId).length > 0) {
+      this.emitToUser(targetId, 'webrtc:ice-candidate', {
         callId: data.callId,
         candidate: data.candidate,
       });
@@ -370,15 +416,8 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
       this.callTimeouts.delete(callId);
     }
 
-    const callerSocketId = this.connectedUsers.get(session.callerId);
-    const calleeSocketId = this.connectedUsers.get(session.calleeId);
-
-    if (callerSocketId) {
-      this.server.to(callerSocketId).emit('call:ended', { callId, reason });
-    }
-    if (calleeSocketId) {
-      this.server.to(calleeSocketId).emit('call:ended', { callId, reason });
-    }
+    this.emitToUser(session.callerId, 'call:ended', { callId, reason });
+    this.emitToUser(session.calleeId, 'call:ended', { callId, reason });
 
     this.activeCalls.delete(callId);
     this.logger.log(`Call ${callId} ended: ${reason}`);
@@ -388,7 +427,7 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
    * Check if user is available for video call
    */
   isUserAvailable(userId: string): boolean {
-    if (!this.connectedUsers.has(userId)) return false;
+    if (this.getSocketIds(userId).length === 0) return false;
 
     // Check if user is already in a call
     for (const session of this.activeCalls.values()) {

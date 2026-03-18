@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ArrowLeft, Ban, Flag, Loader2, MessageCircle, Mic, MicOff, MoreVertical,
-  Phone, PhoneOff, Search, Send, Sparkles, User, Video, VideoOff,
+  ArrowLeft, Ban, Flag, Loader2, MessageCircle, MoreVertical,
+  Search, Send, Sparkles, User, Video,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '@/lib/api';
@@ -17,87 +17,19 @@ import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
 import { cn, formatRelativeTime } from '@/lib/utils';
+import { buildVideoRoute } from '@/lib/video-client';
 import { dedupeMessagesForDisplay } from '@/components/messaging/message-display';
 import { getLatestUnreadIncomingMessageId, shouldIssueReadSync } from '@/components/messaging/read-sync';
-import type { Conversation, ConversationUser, Message } from '@/components/messaging/types';
-
-function VideoCallModal({ isOpen, onClose, callee }: { isOpen: boolean; onClose: () => void; callee: ConversationUser }) {
-  const [callState, setCallState] = useState<'connecting' | 'ringing' | 'connected' | 'ended'>('connecting');
-  const [isMuted, setIsMuted] = useState(false);
-  const [isVideoOff, setIsVideoOff] = useState(false);
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setCallState('connecting');
-    const timer = setTimeout(() => setCallState('ringing'), 1000);
-    return () => clearTimeout(timer);
-  }, [isOpen]);
-
-  const handleEndCall = () => {
-    setCallState('ended');
-    setTimeout(onClose, 450);
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="">
-      <div className="-m-6 overflow-hidden rounded-lg bg-gradient-to-b from-slate-900 to-black">
-        <div className="relative flex min-h-[420px] items-center justify-center bg-slate-800">
-          {callState === 'connected' ? (
-            <>
-              <video ref={remoteVideoRef} className="h-full w-full object-cover" autoPlay playsInline />
-              <div className="absolute bottom-4 right-4 h-24 w-32 overflow-hidden rounded-lg border-2 border-white/20 bg-slate-700">
-                <video ref={localVideoRef} className="h-full w-full object-cover" autoPlay playsInline muted />
-              </div>
-            </>
-          ) : (
-            <div className="text-center text-white">
-              <Avatar src={callee.photoUrl} name={callee.displayName} size="xl" className="mx-auto mb-4 ring-4 ring-white/20" />
-              <h3 className="mb-2 text-xl font-semibold">{callee.displayName}</h3>
-              <p className="flex items-center justify-center gap-2 text-white/60">
-                {callState === 'connecting' && <><Loader2 className="h-4 w-4 animate-spin" />Connecting...</>}
-                {callState === 'ringing' && <><Phone className="h-4 w-4 animate-pulse" />Ringing...</>}
-                {callState === 'ended' && 'Call ended'}
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-center gap-4 p-6">
-          <button
-            onClick={() => setIsMuted((current) => !current)}
-            className={cn('rounded-full p-4 transition-colors', isMuted ? 'bg-red-500 text-white' : 'bg-white/10 text-white hover:bg-white/20')}
-          >
-            {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-          </button>
-          <button onClick={handleEndCall} className="rounded-full bg-red-500 p-4 text-white transition-colors hover:bg-red-600">
-            <PhoneOff className="h-6 w-6" />
-          </button>
-          <button
-            onClick={() => setIsVideoOff((current) => !current)}
-            className={cn('rounded-full p-4 transition-colors', isVideoOff ? 'bg-red-500 text-white' : 'bg-white/10 text-white hover:bg-white/20')}
-          >
-            {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
-          </button>
-        </div>
-
-        <div className="px-6 pb-4 text-center">
-          <p className="text-xs text-white/40">Video calls are a Premium feature</p>
-        </div>
-      </div>
-    </Modal>
-  );
-}
+import type { Conversation, Message } from '@/components/messaging/types';
 
 export default function MessagesPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [messageInput, setMessageInput] = useState('');
   const [showActions, setShowActions] = useState(false);
-  const [showVideoCall, setShowVideoCall] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [reportReason, setReportReason] = useState('HARASSMENT');
@@ -281,12 +213,24 @@ export default function MessagesPage() {
   };
 
   const handleVideoCall = () => {
-    setShowVideoCall(true);
+    if (!selectedConversation || selectedConversation.connectionType !== 'BROTHERS_IN_ARMS') {
+      toast.error('Video calling is available on active BIA conversations only');
+      return;
+    }
+
+    router.push(
+      buildVideoRoute({
+        connectionId: selectedConversation.connectionId,
+        peerId: selectedConversation.user.id,
+        peerName: selectedConversation.user.displayName,
+        peerPhotoUrl: selectedConversation.user.photoUrl,
+      }),
+    );
     setShowActions(false);
   };
 
   return (
-    <div className="relative flex h-[calc(100vh-theme(spacing.32))] min-h-[720px] overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.1),transparent_22%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_35%),hsl(var(--background))]">
+    <div className="relative flex h-[calc(100dvh-theme(spacing.16))] min-h-[calc(100dvh-theme(spacing.16))] overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.1),transparent_22%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_35%),hsl(var(--background))]">
       <aside className={cn('flex w-full flex-col border-r border-border/70 bg-background/80 backdrop-blur-sm md:w-[380px] xl:w-[430px] 2xl:w-[480px]', selectedConversation && 'hidden md:flex')}>
         <div className="border-b border-border/70 px-5 py-5">
           <div className="flex items-start justify-between gap-3">
@@ -404,9 +348,11 @@ export default function MessagesPage() {
                   <p className="text-sm text-muted-foreground">Continue the conversation from wherever you are in the app.</p>
                 </div>
                 <div className="hidden items-center gap-2 sm:flex">
-                  <button onClick={handleVideoCall} className="rounded-full p-2 text-primary transition-colors hover:bg-primary/10" title="Video Call">
-                    <Video className="h-5 w-5" />
-                  </button>
+                  {selectedConversation.connectionType === 'BROTHERS_IN_ARMS' && (
+                    <button onClick={handleVideoCall} className="rounded-full p-2 text-primary transition-colors hover:bg-primary/10" title="Video Call">
+                      <Video className="h-5 w-5" />
+                    </button>
+                  )}
                   <Link href={`/app/profile/${selectedConversation.user.id}`} className="rounded-full p-2 transition-colors hover:bg-muted" title="View Profile">
                     <User className="h-5 w-5" />
                   </Link>
@@ -427,10 +373,12 @@ export default function MessagesPage() {
                           <User className="h-4 w-4" />
                           View Profile
                         </Link>
-                        <button onClick={handleVideoCall} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-muted">
-                          <Video className="h-4 w-4" />
-                          Video Call
-                        </button>
+                        {selectedConversation.connectionType === 'BROTHERS_IN_ARMS' && (
+                          <button onClick={handleVideoCall} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-muted">
+                            <Video className="h-4 w-4" />
+                            Video Call
+                          </button>
+                        )}
                         <button
                           onClick={() => { setShowActions(false); setShowReportModal(true); }}
                           className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-muted"
@@ -537,8 +485,6 @@ export default function MessagesPage() {
           </div>
         )}
       </section>
-
-      {selectedConversation && <VideoCallModal isOpen={showVideoCall} onClose={() => setShowVideoCall(false)} callee={selectedConversation.user} />}
 
       {showReportModal && selectedConversation && (
         <Modal isOpen={showReportModal} onClose={() => setShowReportModal(false)} title={`Report ${selectedConversation.user.displayName}`} description="Reports are reviewed by our moderation team, typically within 24 hours." size="md">

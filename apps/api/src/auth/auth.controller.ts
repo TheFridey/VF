@@ -104,6 +104,24 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post('socket-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Create short-lived token for authenticated WebSocket connections' })
+  async createSocketToken(@CurrentUser() user: AuthenticatedUser) {
+    const token = this.jwtService.sign(
+      {
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+        scope: 'realtime',
+      },
+      { expiresIn: '5m' },
+    );
+
+    return { token };
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout user' })

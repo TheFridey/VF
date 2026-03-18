@@ -32,6 +32,10 @@ function isUrl(value: string | undefined) {
   }
 }
 
+function hasPrefix(value: string | undefined, prefix: string) {
+  return isNonEmpty(value) && value.startsWith(prefix);
+}
+
 export function validateEnv(config: Record<string, unknown>) {
   const env = config as Record<string, string | undefined>;
   const errors: string[] = [];
@@ -112,6 +116,8 @@ export function validateEnv(config: Record<string, unknown>) {
     ].forEach((key) => {
       if (!isNonEmpty(env[key])) {
         errors.push(`${key} is required when Stripe is enabled`);
+      } else if (!hasPrefix(env[key], 'price_')) {
+        errors.push(`${key} must be a Stripe price ID starting with price_`);
       }
     });
   }

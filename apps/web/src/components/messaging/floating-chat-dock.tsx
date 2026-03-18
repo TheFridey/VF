@@ -2,22 +2,29 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronLeft, ExternalLink, Loader2, MessageCircle, Send, Sparkles } from 'lucide-react';
+import { ChevronLeft, ExternalLink, Loader2, MessageCircle, Phone, PhoneOff, Send, Sparkles, Video } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
+import { useVideoCallStore } from '@/stores/video-call-store';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn, formatRelativeTime } from '@/lib/utils';
+import { buildVideoRoute } from '@/lib/video-client';
 import { dedupeMessagesForDisplay } from './message-display';
 import { getLatestUnreadIncomingMessageId, shouldIssueReadSync } from './read-sync';
 import type { Conversation, Message } from './types';
 
 export function FloatingChatDock() {
+  const router = useRouter();
   const { user } = useAuthStore();
+  const incomingCall = useVideoCallStore((state) => state.incomingCall);
+  const acceptIncomingCall = useVideoCallStore((state) => state.acceptIncomingCall);
+  const rejectIncomingCall = useVideoCallStore((state) => state.rejectIncomingCall);
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -123,6 +130,12 @@ export function FloatingChatDock() {
   );
 
   useEffect(() => {
+    if (incomingCall) {
+      setIsOpen(false);
+    }
+  }, [incomingCall]);
+
+  useEffect(() => {
     if (!isOpen) {
       autoSelectedOnOpenRef.current = false;
       return;
@@ -224,6 +237,22 @@ export function FloatingChatDock() {
     }
   };
 
+  const handleVideoCall = () => {
+    if (!selectedConversation || selectedConversation.connectionType !== 'BROTHERS_IN_ARMS') {
+      return;
+    }
+
+    router.push(
+      buildVideoRoute({
+        connectionId: selectedConversation.connectionId,
+        peerId: selectedConversation.user.id,
+        peerName: selectedConversation.user.displayName,
+        peerPhotoUrl: selectedConversation.user.photoUrl,
+      }),
+    );
+    setIsOpen(false);
+  };
+
   if (!user?.id) {
     return null;
   }
@@ -261,6 +290,15 @@ export function FloatingChatDock() {
                         {selectedConversation.connectionType === 'BROTHERS_IN_ARMS' ? 'BIA conversation' : 'Community conversation'}
                       </p>
                     </div>
+                    {selectedConversation.connectionType === 'BROTHERS_IN_ARMS' && (
+                      <button
+                        onClick={handleVideoCall}
+                        className="rounded-full border border-border p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        title="Start video call"
+                      >
+                        <Video className="h-4 w-4" />
+                      </button>
+                    )}
                     <Link
                       href={`/app/messages?match=${selectedConversation.connectionId}`}
                       className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -421,29 +459,84 @@ export function FloatingChatDock() {
           )}
         </AnimatePresence>
 
-        <motion.button
-          ref={buttonRef}
-          type="button"
-          whileTap={{ scale: 0.97 }}
-          whileHover={{ y: -2 }}
-          onClick={() => setIsOpen((current) => !current)}
-          className="group flex items-center gap-3 rounded-full border border-primary/15 bg-background/95 px-4 py-3 shadow-[0_18px_48px_rgba(0,0,0,0.18)] backdrop-blur-xl transition-colors hover:bg-background"
-        >
-          <div className="relative flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <MessageCircle className="h-5 w-5" />
-            {totalUnread > 0 ? (
-              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-                {totalUnread > 99 ? '99+' : totalUnread}
-              </span>
-            ) : null}
-          </div>
-          <div className="hidden text-left sm:block">
-            <p className="text-sm font-semibold">Quick chat</p>
-            <p className="text-xs text-muted-foreground">
-              {totalUnread > 0 ? `${totalUnread} unread message${totalUnread === 1 ? '' : 's'}` : 'Jump back into a conversation'}
-            </p>
-          </div>
-        </motion.button>
+        <AnimatePresence mode="wait">
+          {incomingCall ? (
+            <motion.div
+              key="incoming-call-card"
+              initial={{ opacity: 0, y: 18, scale: 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 14, scale: 0.94 }}
+              transition={{ duration: 0.22 }}
+              className="w-[min(24rem,calc(100vw-1rem))] overflow-hidden rounded-[28px] border border-emerald-300/20 bg-background/95 shadow-[0_22px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl"
+            >
+              <div className="relative overflow-hidden px-4 py-4">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_38%),linear-gradient(135deg,rgba(14,165,233,0.08),transparent_55%)]" />
+                <div className="relative flex items-center gap-3">
+                  <div className="relative">
+                    <Avatar
+                      src={incomingCall.callerImage || undefined}
+                      name={incomingCall.callerName}
+                      size="md"
+                      className="ring-4 ring-emerald-400/15"
+                    />
+                    <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400">
+                      <span className="h-2 w-2 animate-ping rounded-full bg-emerald-950/70" />
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{incomingCall.callerName} is calling...</p>
+                    <p className="text-xs text-muted-foreground">Incoming BIA call</p>
+                  </div>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
+                    <Phone className="h-4 w-4 animate-pulse" />
+                  </div>
+                </div>
+
+                <div className="relative mt-4 flex items-center gap-3">
+                  <button
+                    onClick={() => rejectIncomingCall?.()}
+                    className="flex flex-1 items-center justify-center rounded-2xl border border-border/80 bg-background/80 px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                  >
+                    <PhoneOff className="mr-2 h-4 w-4" />
+                    Decline
+                  </button>
+                  <button
+                    onClick={() => acceptIncomingCall?.()}
+                    className="flex flex-1 items-center justify-center rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-emerald-950 transition-colors hover:bg-emerald-400"
+                  >
+                    <Phone className="mr-2 h-4 w-4" />
+                    Answer
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.button
+              key="chat-dock-button"
+              ref={buttonRef}
+              type="button"
+              whileTap={{ scale: 0.97 }}
+              whileHover={{ y: -2 }}
+              onClick={() => setIsOpen((current) => !current)}
+              className="group flex items-center gap-3 rounded-full border border-primary/15 bg-background/95 px-4 py-3 shadow-[0_18px_48px_rgba(0,0,0,0.18)] backdrop-blur-xl transition-colors hover:bg-background"
+            >
+              <div className="relative flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <MessageCircle className="h-5 w-5" />
+                {totalUnread > 0 ? (
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                    {totalUnread > 99 ? '99+' : totalUnread}
+                  </span>
+                ) : null}
+              </div>
+              <div className="hidden text-left sm:block">
+                <p className="text-sm font-semibold">Quick chat</p>
+                <p className="text-xs text-muted-foreground">
+                  {totalUnread > 0 ? `${totalUnread} unread message${totalUnread === 1 ? '' : 's'}` : 'Jump back into a conversation'}
+                </p>
+              </div>
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

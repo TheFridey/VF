@@ -42,6 +42,13 @@ const TIER_FEATURES = {
   },
 };
 
+const DEV_PRICE_ALIASES = {
+  price_bia_basic_monthly: 'BIA_BASIC_MONTHLY',
+  price_bia_basic_annual: 'BIA_BASIC_ANNUAL',
+  price_bia_plus_monthly: 'BIA_PLUS_MONTHLY',
+  price_bia_plus_annual: 'BIA_PLUS_ANNUAL',
+} as const;
+
 @Injectable()
 export class SubscriptionsService {
   private readonly logger = new Logger(SubscriptionsService.name);
@@ -53,6 +60,19 @@ export class SubscriptionsService {
 
   private getTierFeatures(tier: MembershipTier) {
     return TIER_FEATURES[tier] ?? TIER_FEATURES.FREE;
+  }
+
+  private getConfiguredPrices() {
+    return this.stripeService.PRICES;
+  }
+
+  private resolvePriceId(priceId: string): string {
+    const aliasKey = DEV_PRICE_ALIASES[priceId as keyof typeof DEV_PRICE_ALIASES];
+    if (!aliasKey) {
+      return priceId;
+    }
+
+    return this.getConfiguredPrices()[aliasKey] || priceId;
   }
 
   async getOrCreateMembership(userId: string) {
@@ -72,19 +92,10 @@ export class SubscriptionsService {
       throw new BadRequestException('Membership payments are not configured');
     }
 
-    const validPrices = [
-      this.stripeService.PRICES.BIA_BASIC_MONTHLY,
-      this.stripeService.PRICES.BIA_BASIC_ANNUAL,
-      this.stripeService.PRICES.BIA_PLUS_MONTHLY,
-      this.stripeService.PRICES.BIA_PLUS_ANNUAL,
-      // Dev aliases
-      'price_bia_basic_monthly',
-      'price_bia_basic_annual',
-      'price_bia_plus_monthly',
-      'price_bia_plus_annual',
-    ].filter(Boolean);
+    const resolvedPriceId = this.resolvePriceId(priceId);
+    const validPrices = Object.values(this.getConfiguredPrices()).filter(Boolean);
 
-    if (!validPrices.includes(priceId)) {
+    if (!validPrices.includes(resolvedPriceId)) {
       throw new BadRequestException('Invalid price ID');
     }
 
@@ -99,7 +110,7 @@ export class SubscriptionsService {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
     const session = await this.stripeService.createCheckoutSession(
       customer.id,
-      priceId,
+      resolvedPriceId,
       `${frontendUrl}/app/settings?membership=success`,
       `${frontendUrl}/app/settings?membership=cancelled`,
     );
@@ -254,18 +265,16 @@ export class SubscriptionsService {
   private determineTier(priceId?: string): MembershipTier {
     if (!priceId) return MembershipTier.FREE;
 
+    const resolvedPriceId = this.resolvePriceId(priceId);
+
     if (
-      priceId === this.stripeService.PRICES.BIA_BASIC_MONTHLY ||
-      priceId === this.stripeService.PRICES.BIA_BASIC_ANNUAL  ||
-      priceId === 'price_bia_basic_monthly' ||
-      priceId === 'price_bia_basic_annual'
+      resolvedPriceId === this.stripeService.PRICES.BIA_BASIC_MONTHLY ||
+      resolvedPriceId === this.stripeService.PRICES.BIA_BASIC_ANNUAL
     ) return MembershipTier.BIA_BASIC;
 
     if (
-      priceId === this.stripeService.PRICES.BIA_PLUS_MONTHLY ||
-      priceId === this.stripeService.PRICES.BIA_PLUS_ANNUAL  ||
-      priceId === 'price_bia_plus_monthly' ||
-      priceId === 'price_bia_plus_annual'
+      resolvedPriceId === this.stripeService.PRICES.BIA_PLUS_MONTHLY ||
+      resolvedPriceId === this.stripeService.PRICES.BIA_PLUS_ANNUAL
     ) return MembershipTier.BIA_PLUS;
 
     return MembershipTier.FREE;

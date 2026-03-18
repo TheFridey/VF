@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Navbar } from './navbar';
 import { FloatingChatDock } from '@/components/messaging/floating-chat-dock';
+import { IncomingCallProvider } from '@/components/video/incoming-call-provider';
 import { Loader2 } from 'lucide-react';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -78,9 +79,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     || pathname === '/app/bia/careers'
     || pathname === '/app/brothers'
     || pathname === '/app/messages'
+    || pathname.startsWith('/app/video')
     || pathname === '/app/connections'
     || pathname === '/app/premium';
-  const showFloatingChatDock = pathname !== '/app/onboarding' && !pathname.startsWith('/app/messages');
+  const showFloatingChatDock = pathname !== '/app/onboarding' && !pathname.startsWith('/app/messages') && !pathname.startsWith('/app/video');
 
   return (
     <div className="min-h-screen bg-background">
@@ -92,6 +94,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       )}>
         {children}
       </main>
+      <IncomingCallProvider />
       {showFloatingChatDock && <FloatingChatDock />}
     </div>
   );

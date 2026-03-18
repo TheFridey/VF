@@ -191,6 +191,11 @@ class ApiClient {
     return response.data;
   }
 
+  async createSocketToken() {
+    const response = await this.client.post('/auth/socket-token');
+    return response.data;
+  }
+
   async verifyEmail(token: string) {
     const response = await this.client.post('/auth/verify-email', { token });
     return response.data;
@@ -437,6 +442,11 @@ class ApiClient {
   // ── Subscriptions ─────────────────────────────────────────────────────────────
   async getSubscription() {
     const response = await this.client.get('/subscriptions/me');
+    return response.data;
+  }
+
+  async getSubscriptionPrices() {
+    const response = await this.client.get('/subscriptions/prices');
     return response.data;
   }
 

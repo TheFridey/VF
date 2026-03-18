@@ -35,6 +35,19 @@ interface Membership {
   cancelAtPeriodEnd: boolean;
 }
 
+interface SubscriptionPrices {
+  bia: {
+    basic: {
+      monthly: { priceId: string; price: number; currency: string };
+      annual: { priceId: string; price: number; currency: string };
+    };
+    plus: {
+      monthly: { priceId: string; price: number; currency: string };
+      annual: { priceId: string; price: number; currency: string };
+    };
+  };
+}
+
 const PRICING = {
   basic: { monthly: 6.99, annual: 55.99 },
   plus: { monthly: 14.99, annual: 119.99 },
@@ -186,6 +199,11 @@ export default function MembershipPage() {
     queryFn: () => api.getSubscription(),
   });
 
+  const { data: subscriptionPrices } = useQuery<SubscriptionPrices>({
+    queryKey: ['subscription-prices'],
+    queryFn: () => api.getSubscriptionPrices(),
+  });
+
   const checkoutMutation = useMutation({
     mutationFn: (priceId: string) => api.createCheckoutSession(priceId),
     onSuccess: (data) => {
@@ -204,6 +222,15 @@ export default function MembershipPage() {
 
   const getOriginalPrice = (monthly: number) =>
     billingPeriod === 'annual' ? monthly * 12 : undefined;
+
+  const startCheckout = (priceId?: string) => {
+    if (!priceId) {
+      toast.error('Subscription pricing is unavailable right now');
+      return;
+    }
+
+    checkoutMutation.mutate(priceId);
+  };
 
   if (isLoading) {
     return (
@@ -312,10 +339,10 @@ export default function MembershipPage() {
             disabled={!isVerifiedVeteran}
             disabledMessage="Verified veteran status required"
             onSelect={() =>
-              checkoutMutation.mutate(
+              startCheckout(
                 billingPeriod === 'monthly'
-                  ? 'price_bia_basic_monthly'
-                  : 'price_bia_basic_annual',
+                  ? subscriptionPrices?.bia.basic.monthly.priceId
+                  : subscriptionPrices?.bia.basic.annual.priceId,
               )
             }
             loading={checkoutMutation.isPending}
@@ -333,10 +360,10 @@ export default function MembershipPage() {
             disabled={!isVerifiedVeteran}
             disabledMessage="Verified veteran status required"
             onSelect={() =>
-              checkoutMutation.mutate(
+              startCheckout(
                 billingPeriod === 'monthly'
-                  ? 'price_bia_plus_monthly'
-                  : 'price_bia_plus_annual',
+                  ? subscriptionPrices?.bia.plus.monthly.priceId
+                  : subscriptionPrices?.bia.plus.annual.priceId,
               )
             }
             loading={checkoutMutation.isPending}
