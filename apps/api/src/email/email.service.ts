@@ -37,7 +37,7 @@ export class EmailService {
     this.contactEmail = process.env.CONTACT_EMAIL || 'hello@veteranfinder.co.uk';
     this.supportEmail = process.env.SUPPORT_EMAIL || 'support@veteranfinder.co.uk';
     this.privacyEmail = process.env.PRIVACY_EMAIL || 'privacy@veteranfinder.co.uk';
-    this.legalEmail = process.env.LEGAL_EMAIL || 'legal@veteranfinder.co.uk';
+    this.legalEmail = process.env.LEGAL_EMAIL || this.privacyEmail;
     this.partnershipsEmail = process.env.PARTNERSHIPS_EMAIL_TO || 'partnerships@veteranfinder.co.uk';
 
     if (apiKey) {
