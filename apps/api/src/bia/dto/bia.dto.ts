@@ -81,3 +81,49 @@ export class RespondMentorRequestDto {
   @IsBoolean()
   accept: boolean;
 }
+
+export class CreateBusinessJobListingDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(120)
+  title: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  employmentType: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  location?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  summary?: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(20)
+  @MaxLength(4000)
+  description: string;
+}
+
+export class UpdateBusinessJobStatusDto {
+  @ApiProperty()
+  @IsBoolean()
+  isActive: boolean;
+}
+
+export class ApplyBusinessJobDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  message?: string;
+}

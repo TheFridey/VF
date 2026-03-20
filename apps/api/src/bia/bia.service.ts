@@ -7,8 +7,10 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import {
   CreateThreadDto, CreatePostDto, CreateBusinessListingDto,
   CreateMentorProfileDto, SendMentorRequestDto,
+  CreateBusinessJobListingDto, ApplyBusinessJobDto,
 } from './dto/bia.dto';
 import { UK_REGIMENTS } from '../common/constants/regiments';
+import { CloudinaryService } from '../uploads/cloudinary.service';
 
 const BIA_TIERS = ['BIA_BASIC', 'BIA_PLUS'];
 const BIA_PLUS_TIERS = ['BIA_PLUS'];
@@ -23,6 +25,7 @@ export class BiaService {
     private prisma: PrismaService,
     private redis: RedisService,
     private subscriptions: SubscriptionsService,
+    private cloudinary: CloudinaryService,
   ) {}
 
   private async isStaffUser(userId: string) {
@@ -267,11 +270,18 @@ export class BiaService {
     const where: any = { isApproved: true };
     if (category) where.category = category;
 
-    const listings = await this.prisma.businessListing.findMany({
+    const listings = await (this.prisma as any).businessListing.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       include: {
         user: { select: { profile: { select: { displayName: true, profileImageUrl: true } } } },
+        jobs: {
+          where: { isActive: true },
+          orderBy: { createdAt: 'desc' },
+          include: {
+            _count: { select: { applications: true } },
+          },
+        },
       },
     });
 
@@ -297,7 +307,129 @@ export class BiaService {
 
   async getMyListing(userId: string) {
     await this.requireFeature(userId, 'businessDirectory');
-    return this.prisma.businessListing.findFirst({ where: { userId } });
+    const listing = await (this.prisma as any).businessListing.findFirst({
+      where: { userId },
+      include: {
+        jobs: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            applications: {
+              orderBy: { createdAt: 'desc' },
+              include: {
+                applicant: {
+                  select: {
+                    email: true,
+                    profile: { select: { displayName: true, profileImageUrl: true } },
+                  },
+                },
+              },
+            },
+            _count: { select: { applications: true } },
+          },
+        },
+      },
+    });
+
+    if (!listing) return null;
+
+    return {
+      ...listing,
+      jobs: listing.jobs.map((job: any) => ({
+        ...job,
+        applications: job.applications.map((application: any) => ({
+          ...application,
+          cvDownloadUrl: this.cloudinary.getAuthenticatedUrl(application.cvPublicId, 'raw'),
+        })),
+      })),
+    };
+  }
+
+  async createBusinessJobListing(userId: string, dto: CreateBusinessJobListingDto) {
+    await this.requireFeature(userId, 'businessDirectory');
+
+    const listing = await this.prisma.businessListing.findFirst({ where: { userId } });
+    if (!listing) {
+      throw new BadRequestException('Create your business listing before adding job openings.');
+    }
+
+    return (this.prisma as any).jobListing.create({
+      data: {
+        businessListingId: listing.id,
+        title: dto.title,
+        employmentType: dto.employmentType,
+        location: dto.location,
+        summary: dto.summary,
+        description: dto.description,
+      },
+    });
+  }
+
+  async updateBusinessJobListingStatus(userId: string, jobId: string, isActive: boolean) {
+    await this.requireFeature(userId, 'businessDirectory');
+
+    const job = await (this.prisma as any).jobListing.findUnique({
+      where: { id: jobId },
+      include: { businessListing: true },
+    });
+
+    if (!job || job.businessListing.userId !== userId) {
+      throw new NotFoundException('Job listing not found.');
+    }
+
+    return (this.prisma as any).jobListing.update({
+      where: { id: jobId },
+      data: { isActive },
+    });
+  }
+
+  async applyToBusinessJobListing(
+    userId: string,
+    jobId: string,
+    dto: ApplyBusinessJobDto,
+    file: Express.Multer.File,
+  ) {
+    const job = await (this.prisma as any).jobListing.findUnique({
+      where: { id: jobId },
+      include: { businessListing: true },
+    });
+    if (!job || !job.isActive || !job.businessListing.isApproved) {
+      throw new NotFoundException('Job listing not found.');
+    }
+    if (job.businessListing.userId === userId) {
+      throw new BadRequestException('You cannot apply to your own job listing.');
+    }
+
+    const existingApplication = await (this.prisma as any).jobApplication.findFirst({
+      where: { jobListingId: jobId, applicantId: userId },
+      select: { id: true },
+    });
+    if (existingApplication) {
+      throw new BadRequestException('You have already applied to this role.');
+    }
+
+    const applicant = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: { select: { displayName: true } },
+      },
+    });
+    if (!applicant) throw new NotFoundException('Applicant not found.');
+
+    const upload = await this.cloudinary.uploadDocument(file, 'job-applications', userId);
+
+    return (this.prisma as any).jobApplication.create({
+      data: {
+        jobListingId: jobId,
+        applicantId: userId,
+        name: applicant.profile?.displayName || applicant.email,
+        email: applicant.email,
+        message: dto.message?.trim() || null,
+        cvPublicId: upload.publicId,
+        cvFileName: file.originalname,
+        cvMimeType: file.mimetype,
+        cvBytes: file.size,
+      },
+    });
   }
 
   // ─── Mentorship ───────────────────────────────────────────────────────────

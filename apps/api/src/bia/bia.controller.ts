@@ -1,7 +1,9 @@
 import {
   Controller, Get, Post, Body, Param, Query, UseGuards,
-  HttpCode, HttpStatus, ParseIntPipe, DefaultValuePipe,
+  HttpCode, HttpStatus, ParseIntPipe, DefaultValuePipe, Patch,
+  UseInterceptors, UploadedFile, ParseFilePipe, MaxFileSizeValidator, FileTypeValidator,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -10,7 +12,9 @@ import { BiaService } from './bia.service';
 import {
   CreateThreadDto, CreatePostDto, CreateBusinessListingDto,
   CreateMentorProfileDto, SendMentorRequestDto, RespondMentorRequestDto,
+  CreateBusinessJobListingDto, UpdateBusinessJobStatusDto, ApplyBusinessJobDto,
 } from './dto/bia.dto';
+import { DOCUMENT_UPLOAD_FILE_TYPE, DOCUMENT_UPLOAD_MAX_BYTES } from '../uploads/upload-validation';
 
 @ApiTags('BIA')
 @ApiBearerAuth()
@@ -92,6 +96,45 @@ export class BiaController {
     @Body() dto: CreateBusinessListingDto,
   ) {
     return this.biaService.createBusinessListing(userId, dto);
+  }
+
+  @Post('directory/jobs')
+  @ApiOperation({ summary: 'Create a job listing for my business (BIA+)' })
+  createJobListing(
+    @CurrentUser('id') userId: string,
+    @Body() dto: CreateBusinessJobListingDto,
+  ) {
+    return this.biaService.createBusinessJobListing(userId, dto);
+  }
+
+  @Patch('directory/jobs/:jobId')
+  @ApiOperation({ summary: 'Update business job listing status (BIA+ owner)' })
+  updateJobListingStatus(
+    @CurrentUser('id') userId: string,
+    @Param('jobId') jobId: string,
+    @Body() dto: UpdateBusinessJobStatusDto,
+  ) {
+    return this.biaService.updateBusinessJobListingStatus(userId, jobId, dto.isActive);
+  }
+
+  @Post('directory/jobs/:jobId/apply')
+  @ApiOperation({ summary: 'Apply to a business directory job with CV upload' })
+  @UseInterceptors(FileInterceptor('file'))
+  applyToJobListing(
+    @CurrentUser('id') userId: string,
+    @Param('jobId') jobId: string,
+    @Body() dto: ApplyBusinessJobDto,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: DOCUMENT_UPLOAD_MAX_BYTES }),
+          new FileTypeValidator({ fileType: DOCUMENT_UPLOAD_FILE_TYPE }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    return this.biaService.applyToBusinessJobListing(userId, jobId, dto, file);
   }
 
   // ─── Mentorship ───────────────────────────────────────────────────────────

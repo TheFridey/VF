@@ -12,6 +12,15 @@ export interface CloudinaryUploadResult {
   bytes: number;
 }
 
+export interface CloudinaryDocumentUploadResult {
+  publicId: string;
+  url: string;
+  secureUrl: string;
+  format: string;
+  bytes: number;
+  originalFilename?: string;
+}
+
 @Injectable()
 export class CloudinaryService {
   private readonly logger = new Logger(CloudinaryService.name);
@@ -87,6 +96,69 @@ export class CloudinaryService {
             height: result.height,
             format: result.format,
             bytes: result.bytes,
+          });
+        },
+      );
+
+      uploadStream.end(file.buffer);
+    });
+  }
+
+  async uploadDocument(
+    file: Express.Multer.File,
+    folder: string = 'documents',
+    userId?: string,
+  ): Promise<CloudinaryDocumentUploadResult> {
+    return new Promise((resolve, reject) => {
+      const allowedTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ];
+      if (!allowedTypes.includes(file.mimetype)) {
+        reject(new BadRequestException('Invalid file type. Allowed: PDF, DOC, DOCX'));
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        reject(new BadRequestException('File too large. Maximum size is 10MB'));
+        return;
+      }
+
+      const uploadOptions: any = {
+        folder: `veteranfinder/${folder}`,
+        resource_type: 'raw',
+        type: 'authenticated',
+        allowed_formats: ['pdf', 'doc', 'docx'],
+        use_filename: true,
+        unique_filename: true,
+      };
+
+      if (userId) {
+        uploadOptions.public_id = `${userId}_${Date.now()}`;
+      }
+
+      const uploadStream = cloudinary.uploader.upload_stream(
+        uploadOptions,
+        (error: UploadApiErrorResponse | undefined, result: UploadApiResponse | undefined) => {
+          if (error) {
+            this.logger.error(`Cloudinary document upload failed: ${error.message}`);
+            reject(new BadRequestException('Failed to upload document'));
+            return;
+          }
+
+          if (!result) {
+            reject(new BadRequestException('Upload failed - no result'));
+            return;
+          }
+
+          resolve({
+            publicId: result.public_id,
+            url: result.url,
+            secureUrl: result.secure_url,
+            format: result.format,
+            bytes: result.bytes,
+            originalFilename: file.originalname,
           });
         },
       );

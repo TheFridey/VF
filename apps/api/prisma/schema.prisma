@@ -148,6 +148,7 @@ model User {
   forumThreads         ForumThread[]        @relation("ForumThreadAuthor")
   forumPosts           ForumPost[]          @relation("ForumPostAuthor")
   businessListing      BusinessListing?
+  jobApplications     JobApplication[]    @relation("JobApplicationApplicant")
   mentorProfile        MentorProfile?
   mentorRequests       MentorRequest[]      @relation("MentorRequestMentee")
   careerResources      CareerResource[]     @relation("CareerResourceAuthor")
@@ -468,11 +469,54 @@ model BusinessListing {
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs JobListing[]
 
   @@index([userId])
   @@index([category])
   @@index([isApproved])
   @@map("business_listings")
+}
+
+model JobListing {
+  id                String    @id @default(uuid())
+  businessListingId String    @map("business_listing_id")
+  title             String
+  employmentType    String    @map("employment_type")
+  location          String?
+  summary           String?
+  description       String
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  businessListing BusinessListing @relation(fields: [businessListingId], references: [id], onDelete: Cascade)
+  applications    JobApplication[]
+
+  @@index([businessListingId, isActive])
+  @@index([createdAt])
+  @@map("job_listings")
+}
+
+model JobApplication {
+  id             String    @id @default(uuid())
+  jobListingId   String    @map("job_listing_id")
+  applicantId    String    @map("applicant_id")
+  name           String
+  email          String
+  message        String?
+  cvPublicId     String    @map("cv_public_id")
+  cvFileName     String    @map("cv_file_name")
+  cvMimeType     String    @map("cv_mime_type")
+  cvBytes        Int       @map("cv_bytes")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  jobListing JobListing @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
+  applicant  User       @relation("JobApplicationApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
+
+  @@index([jobListingId, createdAt])
+  @@index([applicantId])
+  @@map("job_applications")
 }
 
 model MentorProfile {

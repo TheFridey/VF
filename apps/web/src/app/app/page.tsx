@@ -275,7 +275,7 @@ export default function DashboardPage() {
             <div className="space-y-2">
               {[
                 { href: '/app/bia/forums',     label: 'Forums',             icon: BookOpen,   memberOnly: true  },
-                { href: '/app/bia/directory',  label: 'Business Directory', icon: Building2,  memberOnly: true  },
+                { href: '/app/bia/directory',  label: 'Business Directory', icon: Building2,  memberOnly: false },
                 { href: '/app/bia/mentorship', label: 'Mentorship',         icon: Users,      memberOnly: true  },
                 { href: '/app/bia/careers',    label: 'Career Resources',   icon: Briefcase,  memberOnly: false },
               ].map(({ href, label, icon: Icon, memberOnly }) => {

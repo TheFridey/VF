@@ -2,6 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 
 export const PHOTO_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 export const PHOTO_UPLOAD_FILE_TYPE = /^image\/(jpeg|png|webp|gif)$/;
+export const DOCUMENT_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+export const DOCUMENT_UPLOAD_FILE_TYPE = /^(application\/pdf|application\/msword|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document)$/;
 
 export const VERIFICATION_MAX_FILES = 5;
 

@@ -507,6 +507,27 @@ class ApiClient {
     return response.data;
   }
 
+  async createBusinessJobListing(data: Record<string, unknown>) {
+    const response = await this.client.post('/bia/directory/jobs', data);
+    return response.data;
+  }
+
+  async updateBusinessJobListingStatus(jobId: string, isActive: boolean) {
+    const response = await this.client.patch(`/bia/directory/jobs/${jobId}`, { isActive });
+    return response.data;
+  }
+
+  async applyToBusinessJobListing(jobId: string, data: { message?: string; file: File }) {
+    const formData = new FormData();
+    if (data.message) formData.append('message', data.message);
+    formData.append('file', data.file);
+
+    const response = await this.client.post(`/bia/directory/jobs/${jobId}/apply`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
   // ── BIA Mentorship ────────────────────────────────────────────────────────────
   async getMentors() {
     const response = await this.client.get('/bia/mentorship');

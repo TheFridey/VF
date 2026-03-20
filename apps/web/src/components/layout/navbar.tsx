@@ -19,7 +19,7 @@ import { UrgentHelpButton } from '@/components/support/urgent-help-button';
 
 const biaMenuItems = [
   { href: '/app/bia/forums',     label: 'Forums',             icon: BookOpen,   description: 'Private veteran discussions', requiredAccess: 'forums' },
-  { href: '/app/bia/directory',  label: 'Business Directory', icon: Building2,  description: 'Veteran-owned businesses',     requiredAccess: 'plus' },
+  { href: '/app/bia/directory',  label: 'Business Directory', icon: Building2,  description: 'Veteran-owned businesses and jobs', requiredAccess: 'public' },
   { href: '/app/bia/mentorship', label: 'Mentorship',         icon: Users,      description: 'Connect with mentors',         requiredAccess: 'plus' },
   { href: '/app/bia/careers',    label: 'Career Resources',   icon: Briefcase,  description: 'Jobs and career support',      requiredAccess: 'plus' },
 ];
@@ -65,7 +65,11 @@ function BIADropdown({
           <div className="p-1.5">
             {biaMenuItems.map((item) => {
               const Icon = item.icon;
-              const locked = item.requiredAccess === 'plus' ? !hasBiaPlusAccess : !hasForumsAccess;
+              const locked = item.requiredAccess === 'plus'
+                ? !hasBiaPlusAccess
+                : item.requiredAccess === 'forums'
+                  ? !hasForumsAccess
+                  : false;
               const badgeLabel = item.requiredAccess === 'plus' ? 'BIA+' : 'BIA';
               return (
                 <Link key={item.href} href={locked ? '/app/premium' : item.href} onClick={() => setOpen(false)}
@@ -355,7 +359,11 @@ export function Navbar() {
                 {mobileBIAOpen && (
                   <div className="ml-4 pl-4 border-l space-y-0.5">
                     {biaMenuItems.map(({ href, label, icon: Icon, requiredAccess }) => {
-                      const locked = requiredAccess === 'plus' ? !biaAccess.hasBiaPlusAccess : !biaAccess.hasForumsAccess;
+                      const locked = requiredAccess === 'plus'
+                        ? !biaAccess.hasBiaPlusAccess
+                        : requiredAccess === 'forums'
+                          ? !biaAccess.hasForumsAccess
+                          : false;
                       const badgeLabel = requiredAccess === 'plus' ? 'BIA+' : 'BIA';
                       return (
                         <Link key={href} href={locked ? '/app/premium' : href} onClick={() => setMobileMenuOpen(false)}
