@@ -78,6 +78,10 @@ const DIRECTORY_MODAL_CLASSNAME = 'rounded-[28px] border border-white/10 bg-[lin
 const DIRECTORY_MODAL_TITLE_CLASSNAME = 'text-xl font-semibold text-white';
 const DIRECTORY_MODAL_CONTENT_CLASSNAME = 'text-slate-100';
 const DIRECTORY_MODAL_CLOSE_CLASSNAME = 'text-slate-400 hover:bg-white/10 hover:text-white focus:ring-emerald-400';
+const DIRECTORY_LABEL_CLASSNAME = 'mb-1 block text-sm font-medium text-slate-200';
+const DIRECTORY_FIELD_CLASSNAME = '!border-slate-200 !bg-slate-50 !text-slate-950 !placeholder:text-slate-400 caret-slate-950 [-webkit-text-fill-color:#0f172a] focus-visible:!ring-emerald-400 focus-visible:!ring-offset-slate-950';
+const DIRECTORY_TEXTAREA_CLASSNAME = 'w-full resize-none rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-950 placeholder:text-slate-400 caret-slate-950 [-webkit-text-fill-color:#0f172a] focus:outline-none focus:ring-1 focus:ring-emerald-400';
+const DIRECTORY_SELECT_CLASSNAME = 'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 caret-slate-950 [-webkit-text-fill-color:#0f172a] focus:outline-none focus:ring-1 focus:ring-emerald-400';
 
 export default function BusinessDirectoryPage() {
   const router = useRouter();
@@ -554,34 +558,34 @@ export default function BusinessDirectoryPage() {
               { key: 'website', label: 'Website (optional)', placeholder: 'https://' },
             ].map(({ key, label, placeholder }) => (
               <div key={key}>
-                <label className="mb-1 block text-sm text-slate-300/80">{label}</label>
+                <label className={DIRECTORY_LABEL_CLASSNAME}>{label}</label>
                 <Input
                   value={businessForm[key as keyof BusinessFormState]}
                   onChange={(e) => setBusinessForm((form) => ({ ...form, [key]: e.target.value }))}
                   placeholder={placeholder}
-                  className="border-white/15 bg-white/8 text-white placeholder:text-slate-400 focus-visible:ring-emerald-400"
+                  className={DIRECTORY_FIELD_CLASSNAME}
                 />
               </div>
             ))}
             <div>
-              <label className="mb-1 block text-sm text-slate-300/80">Category</label>
+              <label className={DIRECTORY_LABEL_CLASSNAME}>Category</label>
               <select
                 value={businessForm.category}
                 onChange={(e) => setBusinessForm((form) => ({ ...form, category: e.target.value }))}
-                className="w-full rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                className={DIRECTORY_SELECT_CLASSNAME}
               >
                 <option value="">Select category...</option>
                 {CATEGORIES.slice(1).map((category) => <option key={category} value={category}>{category}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm text-slate-300/80">Description</label>
+              <label className={DIRECTORY_LABEL_CLASSNAME}>Description</label>
               <textarea
                 value={businessForm.description}
                 onChange={(e) => setBusinessForm((form) => ({ ...form, description: e.target.value }))}
                 placeholder="Tell veterans what your business offers..."
                 rows={4}
-                className="w-full resize-none rounded-lg border border-white/15 bg-white/8 p-3 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                className={DIRECTORY_TEXTAREA_CLASSNAME}
               />
             </div>
             <p className="text-xs text-slate-400/70">Listings are reviewed before going live. Edits go back into review.</p>
@@ -609,52 +613,52 @@ export default function BusinessDirectoryPage() {
         >
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm text-slate-300/80">Role title</label>
+              <label className={DIRECTORY_LABEL_CLASSNAME}>Role title</label>
               <Input
                 value={jobForm.title}
                 onChange={(e) => setJobForm((form) => ({ ...form, title: e.target.value }))}
                 placeholder="e.g. Operations Manager"
-                className="border-white/15 bg-white/8 text-white placeholder:text-slate-400 focus-visible:ring-emerald-400"
+                className={DIRECTORY_FIELD_CLASSNAME}
               />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm text-slate-300/80">Employment type</label>
+                <label className={DIRECTORY_LABEL_CLASSNAME}>Employment type</label>
                 <select
                   value={jobForm.employmentType}
                   onChange={(e) => setJobForm((form) => ({ ...form, employmentType: e.target.value }))}
-                  className="w-full rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                  className={DIRECTORY_SELECT_CLASSNAME}
                 >
                   {EMPLOYMENT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm text-slate-300/80">Location</label>
+                <label className={DIRECTORY_LABEL_CLASSNAME}>Location</label>
                 <Input
                   value={jobForm.location}
                   onChange={(e) => setJobForm((form) => ({ ...form, location: e.target.value }))}
                   placeholder="e.g. London / Remote"
-                  className="border-white/15 bg-white/8 text-white placeholder:text-slate-400 focus-visible:ring-emerald-400"
+                  className={DIRECTORY_FIELD_CLASSNAME}
                 />
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-sm text-slate-300/80">Short summary (optional)</label>
+              <label className={DIRECTORY_LABEL_CLASSNAME}>Short summary (optional)</label>
               <Input
                 value={jobForm.summary}
                 onChange={(e) => setJobForm((form) => ({ ...form, summary: e.target.value }))}
                 placeholder="One-line overview for directory cards"
-                className="border-white/15 bg-white/8 text-white placeholder:text-slate-400 focus-visible:ring-emerald-400"
+                className={DIRECTORY_FIELD_CLASSNAME}
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-slate-300/80">Role description</label>
+              <label className={DIRECTORY_LABEL_CLASSNAME}>Role description</label>
               <textarea
                 value={jobForm.description}
                 onChange={(e) => setJobForm((form) => ({ ...form, description: e.target.value }))}
                 placeholder="Describe the role, expectations, and who it suits."
                 rows={5}
-                className="w-full resize-none rounded-lg border border-white/15 bg-white/8 p-3 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                className={DIRECTORY_TEXTAREA_CLASSNAME}
               />
             </div>
             <div className="flex justify-end gap-3 pt-2">
@@ -693,17 +697,17 @@ export default function BusinessDirectoryPage() {
               </div>
             )}
             <div>
-              <label className="mb-1 block text-sm text-slate-300/80">Message (optional)</label>
+              <label className={DIRECTORY_LABEL_CLASSNAME}>Message (optional)</label>
               <textarea
                 value={applicationForm.message}
                 onChange={(e) => setApplicationForm((form) => ({ ...form, message: e.target.value }))}
                 placeholder="Add a short introduction for the employer."
                 rows={4}
-                className="w-full resize-none rounded-lg border border-white/15 bg-white/8 p-3 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                className={DIRECTORY_TEXTAREA_CLASSNAME}
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-slate-300/80">Upload your CV</label>
+              <label className={DIRECTORY_LABEL_CLASSNAME}>Upload your CV</label>
               <input
                 type="file"
                 accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
