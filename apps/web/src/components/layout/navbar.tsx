@@ -15,6 +15,7 @@ import { api } from '@/lib/api';
 import { getBiaAccessState } from '@/lib/bia-access';
 import { useQuery } from '@tanstack/react-query';
 import { VeteranFinderLogo } from '@/components/brand/veteranfinder-logo';
+import { UrgentHelpButton } from '@/components/support/urgent-help-button';
 
 const biaMenuItems = [
   { href: '/app/bia/forums',     label: 'Forums',             icon: BookOpen,   description: 'Private veteran discussions', requiredAccess: 'forums' },
@@ -288,6 +289,7 @@ export function Navbar() {
               hasBiaPlusAccess={biaAccess.hasBiaPlusAccess}
             />
             {showPremiumCta && premiumLink()}
+            <UrgentHelpButton compact className="shrink-0" />
           </div>
 
           {/* Right side */}
@@ -325,6 +327,7 @@ export function Navbar() {
             })}
 
             {showPremiumCta && premiumLink(true)}
+            <UrgentHelpButton label="Need help" onOpen={() => setMobileMenuOpen(false)} />
 
             {/* Messages */}
             <Link href="/app/messages" onClick={() => setMobileMenuOpen(false)}

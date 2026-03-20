@@ -75,7 +75,19 @@ const toneClasses = {
   support: 'border-border bg-muted/40',
 } as const;
 
-export function UrgentHelpButton() {
+type UrgentHelpButtonProps = {
+  className?: string;
+  compact?: boolean;
+  label?: string;
+  onOpen?: () => void;
+};
+
+export function UrgentHelpButton({
+  className,
+  compact = false,
+  label = 'Need help',
+  onOpen,
+}: UrgentHelpButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const currentTime = useMemo(
     () => new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
@@ -102,26 +114,22 @@ export function UrgentHelpButton() {
 
   return (
     <>
-      <div className="fixed bottom-4 left-4 z-[1000] sm:bottom-5 sm:left-5">
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          className={cn(
-            'group flex items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive px-4 py-3 text-left text-destructive-foreground shadow-lg shadow-destructive/20 transition-all hover:-translate-y-0.5 hover:bg-destructive/95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2',
-            'max-w-[calc(100vw-2rem)] sm:max-w-none',
-          )}
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/14">
-            <AlertTriangle className="h-5 w-5" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold leading-none">I Need Help</span>
-            <span className="mt-1 block text-xs text-destructive-foreground/85">
-              Immediate veteran support
-            </span>
-          </span>
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={() => {
+          onOpen?.();
+          setIsOpen(true);
+        }}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+          compact ? 'h-10 justify-center px-3' : 'w-full justify-start px-4 py-3',
+          className,
+        )}
+        aria-label="Open urgent support options"
+      >
+        <AlertTriangle className="h-4 w-4 text-amber-600" />
+        <span>{label}</span>
+      </button>
 
       {isOpen && (
         <>
