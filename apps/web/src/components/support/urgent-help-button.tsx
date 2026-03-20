@@ -134,92 +134,95 @@ export function UrgentHelpButton({
       {isOpen && (
         <>
           <div className="fixed inset-0 z-[1100] bg-black/60" onClick={() => setIsOpen(false)} />
-          <div className="fixed inset-0 z-[1101] flex items-center justify-center p-4">
-            <div className="relative w-full max-w-3xl rounded-3xl bg-background shadow-2xl">
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="absolute right-4 top-4 rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                aria-label="Close support popup"
-              >
-                <X className="h-5 w-5" />
-              </button>
+          <div className="fixed inset-0 z-[1101] overflow-y-auto p-4 sm:p-6">
+            <div className="flex min-h-full items-start justify-center py-4 sm:py-8">
+              <div className="relative w-full max-w-3xl rounded-3xl bg-background shadow-2xl">
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="absolute right-4 top-4 rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                  aria-label="Close support popup"
+                >
+                  <X className="h-5 w-5" />
+                </button>
 
-              <div className="border-b border-border px-6 pb-5 pt-6">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-destructive">
-                  Immediate Support
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold text-foreground">
-                  Help is available right now
-                </h2>
-                <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                  If you need urgent support, use one of these official UK services. If there is immediate danger, call 999 now.
-                </p>
-              </div>
+                <div className="border-b border-border px-6 pb-5 pt-6">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-destructive">
+                    Immediate Support
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold text-foreground">
+                    Help is available right now
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                    If you need urgent support, use one of these official UK services. If there is immediate danger, call 999 now.
+                  </p>
+                </div>
 
-              <div className="max-h-[80vh] overflow-y-auto p-6">
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4">
-                    <p className="text-sm font-semibold text-foreground">
-                      If there is immediate danger, call 999 now or go to A&amp;E.
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      These contacts are available right away. Local time: {currentTime}.
-                    </p>
-                  </div>
+                <div className="max-h-[min(78vh,720px)] overflow-y-auto p-6">
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4">
+                      <p className="text-sm font-semibold text-foreground">
+                        If there is immediate danger, call 999 now or go to A&amp;E.
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        These contacts are available right away. Local time: {currentTime}.
+                      </p>
+                    </div>
 
-                  <div className="grid gap-3">
-                    {supportOptions.map((option) => {
-                      const Icon = option.icon;
+                    <div className="grid gap-3">
+                      {supportOptions.map((option) => {
+                        const Icon = option.icon;
 
-                      return (
-                        <div key={option.title} className={cn('rounded-2xl border p-4', toneClasses[option.tone])}>
-                          <div className="flex items-start gap-3">
-                            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background">
-                              <Icon className="h-5 w-5 text-foreground" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <h3 className="text-sm font-semibold text-foreground">{option.title}</h3>
-                              <p className="mt-1 text-sm text-muted-foreground">{option.description}</p>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <a
-                                  href={option.primaryHref}
-                                  className="inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-                                >
-                                  {option.primaryLabel}
-                                </a>
-                                {option.secondaryHref && option.secondaryLabel && (
+                        return (
+                          <div key={option.title} className={cn('rounded-2xl border p-4', toneClasses[option.tone])}>
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background">
+                                <Icon className="h-5 w-5 text-foreground" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h3 className="text-sm font-semibold text-foreground">{option.title}</h3>
+                                <p className="mt-1 text-sm text-muted-foreground">{option.description}</p>
+                                <div className="mt-3 flex flex-wrap gap-2">
                                   <a
-                                    href={option.secondaryHref}
-                                    className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+                                    href={option.primaryHref}
+                                    className="inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                                   >
-                                    {option.secondaryLabel}
+                                    {option.primaryLabel}
                                   </a>
-                                )}
-                                {option.infoHref && option.infoLabel && (
-                                  <a
-                                    href={option.infoHref}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 rounded-md px-2 py-2 text-sm font-medium text-primary transition-colors hover:text-primary/80"
-                                  >
-                                    <span>{option.infoLabel}</span>
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                  </a>
-                                )}
+                                  {option.secondaryHref && option.secondaryLabel && (
+                                    <a
+                                      href={option.secondaryHref}
+                                      className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+                                    >
+                                      {option.secondaryLabel}
+                                    </a>
+                                  )}
+                                  {option.infoHref && option.infoLabel && (
+                                    <a
+                                      href={option.infoHref}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 rounded-md px-2 py-2 text-sm font-medium text-primary transition-colors hover:text-primary/80"
+                                    >
+                                      <span>{option.infoLabel}</span>
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    </a>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
 
-                  <p className="text-xs text-muted-foreground">
-                    VeteranFinder cannot provide emergency support directly. If you are at immediate risk, call 999.
-                  </p>
+                    <p className="text-xs text-muted-foreground">
+                      VeteranFinder cannot provide emergency support directly. If you are at immediate risk, call 999.
+                    </p>
+                  </div>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </>
