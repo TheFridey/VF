@@ -12,6 +12,12 @@ interface ModalProps {
   description?: string;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  className?: string;
+  contentClassName?: string;
+  titleClassName?: string;
+  descriptionClassName?: string;
+  closeButtonClassName?: string;
+  backdropClassName?: string;
 }
 
 const sizeClasses = {
@@ -21,7 +27,20 @@ const sizeClasses = {
   xl: 'max-w-xl',
 };
 
-export function Modal({ isOpen, onClose, title, description, children, size = 'md' }: ModalProps) {
+export function Modal({
+  isOpen,
+  onClose,
+  title,
+  description,
+  children,
+  size = 'md',
+  className,
+  contentClassName,
+  titleClassName,
+  descriptionClassName,
+  closeButtonClassName,
+  backdropClassName,
+}: ModalProps) {
   // Close on escape key
   React.useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -49,7 +68,7 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-50 bg-black/50"
+            className={cn('fixed inset-0 z-50 bg-black/50', backdropClassName)}
           />
 
           {/* Modal */}
@@ -59,14 +78,18 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               className={cn(
-                'relative w-full bg-background rounded-lg shadow-lg',
-                sizeClasses[size]
+                'relative w-full rounded-lg bg-background shadow-lg',
+                sizeClasses[size],
+                className,
               )}
             >
               {/* Close button */}
               <button
                 onClick={onClose}
-                className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                className={cn(
+                  'absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                  closeButtonClassName,
+                )}
               >
                 <X className="h-4 w-4" />
                 <span className="sr-only">Close</span>
@@ -75,15 +98,15 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
               {/* Header */}
               {(title || description) && (
                 <div className="p-6 pb-0">
-                  {title && <h2 className="text-lg font-semibold">{title}</h2>}
+                  {title && <h2 className={cn('text-lg font-semibold', titleClassName)}>{title}</h2>}
                   {description && (
-                    <p className="mt-1.5 text-sm text-muted-foreground">{description}</p>
+                    <p className={cn('mt-1.5 text-sm text-muted-foreground', descriptionClassName)}>{description}</p>
                   )}
                 </div>
               )}
 
               {/* Content */}
-              <div className="p-6">{children}</div>
+              <div className={cn('p-6', contentClassName)}>{children}</div>
             </motion.div>
           </div>
         </>

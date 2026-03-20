@@ -74,6 +74,11 @@ const EMPTY_APPLICATION_FORM: ApplicationFormState = {
   file: null,
 };
 
+const DIRECTORY_MODAL_CLASSNAME = 'rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(8,15,23,0.98))] text-slate-100 shadow-[0_28px_90px_rgba(0,0,0,0.48)] backdrop-blur-xl';
+const DIRECTORY_MODAL_TITLE_CLASSNAME = 'text-xl font-semibold text-white';
+const DIRECTORY_MODAL_CONTENT_CLASSNAME = 'text-slate-100';
+const DIRECTORY_MODAL_CLOSE_CLASSNAME = 'text-slate-400 hover:bg-white/10 hover:text-white focus:ring-emerald-400';
+
 export default function BusinessDirectoryPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -533,7 +538,15 @@ export default function BusinessDirectoryPage() {
           </div>
         )}
 
-        <Modal isOpen={showListForm} onClose={() => setShowListForm(false)} title={myListing ? 'Update Your Listing' : 'List Your Business'}>
+        <Modal
+          isOpen={showListForm}
+          onClose={() => setShowListForm(false)}
+          title={myListing ? 'Update Your Listing' : 'List Your Business'}
+          className={DIRECTORY_MODAL_CLASSNAME}
+          contentClassName={DIRECTORY_MODAL_CONTENT_CLASSNAME}
+          titleClassName={DIRECTORY_MODAL_TITLE_CLASSNAME}
+          closeButtonClassName={DIRECTORY_MODAL_CLOSE_CLASSNAME}
+        >
           <div className="space-y-4">
             {[
               { key: 'name', label: 'Business Name', placeholder: 'Your business name' },
@@ -573,7 +586,7 @@ export default function BusinessDirectoryPage() {
             </div>
             <p className="text-xs text-slate-400/70">Listings are reviewed before going live. Edits go back into review.</p>
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="ghost" onClick={() => setShowListForm(false)}>Cancel</Button>
+              <Button variant="ghost" onClick={() => setShowListForm(false)} className="text-slate-300 hover:bg-white/10 hover:text-white">Cancel</Button>
               <Button
                 onClick={() => createListingMutation.mutate()}
                 disabled={!businessForm.name || !businessForm.description || !businessForm.category || createListingMutation.isPending}
@@ -585,7 +598,15 @@ export default function BusinessDirectoryPage() {
           </div>
         </Modal>
 
-        <Modal isOpen={showJobForm} onClose={() => setShowJobForm(false)} title="Add Job Listing">
+        <Modal
+          isOpen={showJobForm}
+          onClose={() => setShowJobForm(false)}
+          title="Add Job Listing"
+          className={DIRECTORY_MODAL_CLASSNAME}
+          contentClassName={DIRECTORY_MODAL_CONTENT_CLASSNAME}
+          titleClassName={DIRECTORY_MODAL_TITLE_CLASSNAME}
+          closeButtonClassName={DIRECTORY_MODAL_CLOSE_CLASSNAME}
+        >
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-sm text-slate-300/80">Role title</label>
@@ -637,7 +658,7 @@ export default function BusinessDirectoryPage() {
               />
             </div>
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="ghost" onClick={() => setShowJobForm(false)}>Cancel</Button>
+              <Button variant="ghost" onClick={() => setShowJobForm(false)} className="text-slate-300 hover:bg-white/10 hover:text-white">Cancel</Button>
               <Button
                 onClick={() => createJobMutation.mutate()}
                 disabled={!jobForm.title || !jobForm.employmentType || !jobForm.description || createJobMutation.isPending}
@@ -656,6 +677,10 @@ export default function BusinessDirectoryPage() {
             setApplicationForm(EMPTY_APPLICATION_FORM);
           }}
           title={selectedJob ? `Apply for ${selectedJob.title}` : 'Apply'}
+          className={DIRECTORY_MODAL_CLASSNAME}
+          contentClassName={DIRECTORY_MODAL_CONTENT_CLASSNAME}
+          titleClassName={DIRECTORY_MODAL_TITLE_CLASSNAME}
+          closeButtonClassName={DIRECTORY_MODAL_CLOSE_CLASSNAME}
         >
           <div className="space-y-4">
             {selectedJob && (
@@ -705,6 +730,7 @@ export default function BusinessDirectoryPage() {
                   setSelectedJob(null);
                   setApplicationForm(EMPTY_APPLICATION_FORM);
                 }}
+                className="text-slate-300 hover:bg-white/10 hover:text-white"
               >
                 Cancel
               </Button>
