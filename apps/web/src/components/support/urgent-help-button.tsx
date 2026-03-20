@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, ExternalLink, HeartHandshake, MessageSquareText, Phone, X, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -131,7 +132,7 @@ export function UrgentHelpButton({
         <span>{label}</span>
       </button>
 
-      {isOpen && (
+      {isOpen && typeof document !== 'undefined' && createPortal(
         <>
           <div className="fixed inset-0 z-[1100] bg-black/60" onClick={() => setIsOpen(false)} />
           <div className="fixed inset-0 z-[1101] overflow-y-auto p-4 sm:p-6">
@@ -224,7 +225,8 @@ export function UrgentHelpButton({
               </div>
             </div>
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </>
   );
