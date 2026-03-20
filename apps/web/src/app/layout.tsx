@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import { Providers } from './providers';
 import { CookieConsent } from '@/components/cookie-consent';
 import { ConditionalToaster } from '@/components/layout/conditional-toaster';
+import { UrgentHelpButton } from '@/components/support/urgent-help-button';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <Providers>
           {children}
+          <UrgentHelpButton />
           <CookieConsent />
           <ConditionalToaster />
         </Providers>
