@@ -25,7 +25,17 @@ export class BiaService {
     private subscriptions: SubscriptionsService,
   ) {}
 
+  private async isStaffUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    return !!user && ADMIN_ROLES.includes(user.role as string);
+  }
+
   private async requireFeature(userId: string, feature: 'privateForums' | 'theBunker' | 'businessDirectory' | 'mentorshipTools' | 'careerResources') {
+    if (await this.isStaffUser(userId)) return;
     const hasAccess = await this.subscriptions.checkFeatureAccess(userId, feature as any);
     if (!hasAccess) throw new ForbiddenException('This feature requires a BIA membership. Upgrade your plan to access.');
   }
@@ -97,17 +107,18 @@ export class BiaService {
   // ─── Forums ───────────────────────────────────────────────────────────────
 
   async getCategories(userId: string) {
+    const isStaff = await this.isStaffUser(userId);
     const sub = await this.prisma.membership.findUnique({ where: { userId } });
     const tier = sub?.tier || 'FREE';
-    const isBiaPlus = BIA_PLUS_TIERS.includes(tier);
-    const isBia = BIA_TIERS.includes(tier);
+    const isBiaPlus = isStaff || BIA_PLUS_TIERS.includes(tier);
+    const isBia = isStaff || BIA_TIERS.includes(tier);
 
     if (!isBia) throw new ForbiddenException('BIA membership required to access forums.');
 
     // Cache key includes tier so BIA and BIA_PLUS get their own cached results
-    const cacheKey = `bia:categories:${isBiaPlus ? 'plus' : 'basic'}`;
+    const cacheKey = `bia:categories:${isStaff ? 'staff' : isBiaPlus ? 'plus' : 'basic'}`;
     const cached = await this.redis.cacheGet(cacheKey);
-    if (cached) return { categories: cached, tier };
+    if (cached) return { categories: cached, tier: isStaff ? 'STAFF' : tier };
 
     const allowedTiers = isBiaPlus ? ['BIA', 'BIA_PLUS'] : ['BIA'];
 
@@ -131,8 +142,8 @@ export class BiaService {
       return { ...cat, threadCount: cat._count.threads, latestThread: latest };
     }));
 
-    this.redis.cacheSet(`bia:categories:${isBiaPlus ? 'plus' : 'basic'}`, enriched, CATEGORIES_CACHE_TTL).catch(() => {});
-    return { categories: enriched, tier };
+    this.redis.cacheSet(cacheKey, enriched, CATEGORIES_CACHE_TTL).catch(() => {});
+    return { categories: enriched, tier: isStaff ? 'STAFF' : tier };
   }
 
   async getThreads(userId: string, categorySlug: string, page = 1, limit = 20) {
@@ -285,12 +296,14 @@ export class BiaService {
   }
 
   async getMyListing(userId: string) {
+    await this.requireFeature(userId, 'businessDirectory');
     return this.prisma.businessListing.findFirst({ where: { userId } });
   }
 
   // ─── Mentorship ───────────────────────────────────────────────────────────
 
-  async getMentors() {
+  async getMentors(userId: string) {
+    await this.requireFeature(userId, 'mentorshipTools');
     const mentors = await this.prisma.mentorProfile.findMany({
       where: { isActive: true },
       include: {
@@ -329,6 +342,7 @@ export class BiaService {
   }
 
   async respondToMentorRequest(userId: string, requestId: string, accept: boolean) {
+    await this.requireFeature(userId, 'mentorshipTools');
     const request = await this.prisma.mentorRequest.findUnique({
       where: { id: requestId },
       include: { mentor: true },
@@ -343,6 +357,7 @@ export class BiaService {
   }
 
   async getMyMentorRequests(userId: string) {
+    await this.requireFeature(userId, 'mentorshipTools');
     const profile = await this.prisma.mentorProfile.findUnique({ where: { userId } });
     const incoming = profile
       ? await this.prisma.mentorRequest.findMany({
@@ -363,7 +378,8 @@ export class BiaService {
 
   // ─── Career Resources ─────────────────────────────────────────────────────
 
-  async getCareerResources(category?: string) {
+  async getCareerResources(userId: string, category?: string) {
+    await this.requireFeature(userId, 'careerResources');
     const where: any = { isPublished: true };
     if (category) where.category = category;
 

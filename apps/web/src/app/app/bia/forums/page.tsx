@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { ForumBreadcrumbs, ForumPanel, ForumShell, ForumStage } from '@/components/bia/forum-shell';
+import { useBiaPageAccess } from '@/hooks/use-bia-page-access';
 import { formatRelativeTime, cn } from '@/lib/utils';
 
 const ICONS: Record<string, any> = {
@@ -113,13 +114,15 @@ function CategoryCard({
 
 export default function ForumsPage() {
   const router = useRouter();
+  const access = useBiaPageAccess('forums');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['bia-forums'],
     queryFn: () => api.getBiaForumCategories(),
+    enabled: access.canAccess,
   });
 
-  if (isLoading) {
+  if (access.shouldBlockRender || isLoading) {
     return (
       <ForumStage>
         <div className="flex h-64 items-center justify-center">

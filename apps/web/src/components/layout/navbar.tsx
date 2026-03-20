@@ -12,17 +12,26 @@ import { useAuthStore } from '@/stores/auth-store';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
+import { getBiaAccessState } from '@/lib/bia-access';
 import { useQuery } from '@tanstack/react-query';
 import { VeteranFinderLogo } from '@/components/brand/veteranfinder-logo';
 
 const biaMenuItems = [
-  { href: '/app/bia/forums',     label: 'Forums',             icon: BookOpen,   description: 'Private veteran discussions',  memberOnly: true  },
-  { href: '/app/bia/directory',  label: 'Business Directory', icon: Building2,  description: 'Veteran-owned businesses',      memberOnly: true  },
-  { href: '/app/bia/mentorship', label: 'Mentorship',         icon: Users,      description: 'Connect with mentors',          memberOnly: true  },
-  { href: '/app/bia/careers',    label: 'Career Resources',   icon: Briefcase,  description: 'Jobs and career support',       memberOnly: false },
+  { href: '/app/bia/forums',     label: 'Forums',             icon: BookOpen,   description: 'Private veteran discussions', requiredAccess: 'forums' },
+  { href: '/app/bia/directory',  label: 'Business Directory', icon: Building2,  description: 'Veteran-owned businesses',     requiredAccess: 'plus' },
+  { href: '/app/bia/mentorship', label: 'Mentorship',         icon: Users,      description: 'Connect with mentors',         requiredAccess: 'plus' },
+  { href: '/app/bia/careers',    label: 'Career Resources',   icon: Briefcase,  description: 'Jobs and career support',      requiredAccess: 'plus' },
 ];
 
-function BIADropdown({ isMember, isVerified }: { isMember: boolean; isVerified: boolean }) {
+function BIADropdown({
+  canSeeBia,
+  hasForumsAccess,
+  hasBiaPlusAccess,
+}: {
+  canSeeBia: boolean;
+  hasForumsAccess: boolean;
+  hasBiaPlusAccess: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -32,7 +41,7 @@ function BIADropdown({ isMember, isVerified }: { isMember: boolean; isVerified: 
   const leave = () => { timeout.current = setTimeout(() => setOpen(false), 150); };
   useEffect(() => () => { if (timeout.current) clearTimeout(timeout.current); }, []);
 
-  if (!isVerified) return null;
+  if (!canSeeBia) return null;
 
   return (
     <div className="relative" onMouseEnter={enter} onMouseLeave={leave}>
@@ -49,12 +58,14 @@ function BIADropdown({ isMember, isVerified }: { isMember: boolean; isVerified: 
         <div className="absolute top-full left-0 mt-1 w-72 rounded-lg border bg-popover shadow-lg overflow-hidden z-50">
           <div className="px-4 py-3 bg-primary/5 border-b">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">BIA Community</p>
-            {!isMember && <p className="text-xs text-muted-foreground mt-0.5">Some features require BIA membership</p>}
+            {!hasForumsAccess && <p className="text-xs text-muted-foreground mt-0.5">Choose a plan to unlock BIA access</p>}
+            {hasForumsAccess && !hasBiaPlusAccess && <p className="text-xs text-muted-foreground mt-0.5">Some features require BIA+ membership</p>}
           </div>
           <div className="p-1.5">
             {biaMenuItems.map((item) => {
               const Icon = item.icon;
-              const locked = item.memberOnly && !isMember;
+              const locked = item.requiredAccess === 'plus' ? !hasBiaPlusAccess : !hasForumsAccess;
+              const badgeLabel = item.requiredAccess === 'plus' ? 'BIA+' : 'BIA';
               return (
                 <Link key={item.href} href={locked ? '/app/premium' : item.href} onClick={() => setOpen(false)}
                   className={cn(
@@ -73,7 +84,7 @@ function BIADropdown({ isMember, isVerified }: { isMember: boolean; isVerified: 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">{item.label}</span>
-                      {locked && <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 ml-2">BIA</Badge>}
+                      {locked && <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 ml-2">{badgeLabel}</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground">{item.description}</p>
                   </div>
@@ -81,12 +92,12 @@ function BIADropdown({ isMember, isVerified }: { isMember: boolean; isVerified: 
               );
             })}
           </div>
-          {!isMember && (
+          {!hasBiaPlusAccess && (
             <div className="p-3 border-t bg-muted/30">
               <Link href="/app/premium" onClick={() => setOpen(false)}
                 className="flex items-center justify-center w-full px-3 py-2 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors">
                 <Award className="h-3.5 w-3.5 mr-1.5" />
-                Unlock Full BIA Access
+                View BIA Plans
               </Link>
             </div>
           )}
@@ -190,9 +201,13 @@ export function Navbar() {
   });
 
   const totalUnread = unreadCounts?.total || 0;
-  const isMember   = membership?.tier !== 'FREE';
-  const isVeteran  = user?.role?.includes('VETERAN');
-  const isVerified = user?.role === 'VETERAN_VERIFIED' || user?.role === 'VETERAN_MEMBER';
+  const isBiaPlus = membership?.tier === 'BIA_PLUS';
+  const biaAccess = getBiaAccessState(user?.role, membership?.tier);
+  const hasPaidMembership = membership?.tier !== 'FREE';
+  const isAdmin = user?.role === 'ADMIN';
+  const isModerator = user?.role === 'MODERATOR';
+  const isVeteran = user?.role?.includes('VETERAN') || isAdmin || isModerator;
+  const showPremiumCta = biaAccess.canSeeBia && !isBiaPlus && !biaAccess.isStaff;
 
   const handleLogout = async () => {
     try { await api.logout(); } catch { /* ignore */ } finally {
@@ -210,6 +225,25 @@ export function Navbar() {
       )}>
         <Icon className="h-4 w-4" />
         <span>{label}</span>
+      </Link>
+    );
+  };
+
+  const premiumLink = (mobile = false) => {
+    const active = pathname === '/app/premium';
+    return (
+      <Link href="/app/premium" className={cn(
+        'flex items-center justify-center space-x-1.5 rounded-md text-sm font-semibold transition-colors',
+        mobile
+          ? active
+            ? 'bg-primary text-primary-foreground px-4 py-3'
+            : 'bg-primary/10 text-primary hover:bg-primary/15 px-4 py-3'
+          : active
+            ? 'bg-primary text-primary-foreground px-4 py-2'
+            : 'bg-primary/10 text-primary hover:bg-primary/15 px-4 py-2',
+      )}>
+        <Award className="h-4 w-4" />
+        <span>Premium</span>
       </Link>
     );
   };
@@ -248,7 +282,12 @@ export function Navbar() {
               )}
             </Link>
 
-            <BIADropdown isMember={isMember} isVerified={!!isVerified} />
+            <BIADropdown
+              canSeeBia={biaAccess.canSeeBia}
+              hasForumsAccess={biaAccess.hasForumsAccess}
+              hasBiaPlusAccess={biaAccess.hasBiaPlusAccess}
+            />
+            {showPremiumCta && premiumLink()}
           </div>
 
           {/* Right side */}
@@ -285,6 +324,8 @@ export function Navbar() {
               );
             })}
 
+            {showPremiumCta && premiumLink(true)}
+
             {/* Messages */}
             <Link href="/app/messages" onClick={() => setMobileMenuOpen(false)}
               className={cn('flex items-center justify-between px-4 py-3 rounded-md text-sm font-medium transition-colors',
@@ -297,7 +338,7 @@ export function Navbar() {
             </Link>
 
             {/* BIA expandable */}
-            {isVerified && (
+            {biaAccess.canSeeBia && (
               <>
                 <button onClick={() => setMobileBIAOpen(!mobileBIAOpen)}
                   className={cn('flex items-center justify-between w-full px-4 py-3 rounded-md text-sm font-medium transition-colors',
@@ -310,8 +351,9 @@ export function Navbar() {
                 </button>
                 {mobileBIAOpen && (
                   <div className="ml-4 pl-4 border-l space-y-0.5">
-                    {biaMenuItems.map(({ href, label, icon: Icon, memberOnly }) => {
-                      const locked = memberOnly && !isMember;
+                    {biaMenuItems.map(({ href, label, icon: Icon, requiredAccess }) => {
+                      const locked = requiredAccess === 'plus' ? !biaAccess.hasBiaPlusAccess : !biaAccess.hasForumsAccess;
+                      const badgeLabel = requiredAccess === 'plus' ? 'BIA+' : 'BIA';
                       return (
                         <Link key={href} href={locked ? '/app/premium' : href} onClick={() => setMobileMenuOpen(false)}
                           className="flex items-center justify-between px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:bg-accent transition-colors">
@@ -319,7 +361,7 @@ export function Navbar() {
                             <Icon className="h-4 w-4" />
                             <span>{label}</span>
                           </div>
-                          {locked && <Badge variant="outline" className="text-[10px] h-4 px-1.5">BIA</Badge>}
+                          {locked && <Badge variant="outline" className="text-[10px] h-4 px-1.5">{badgeLabel}</Badge>}
                         </Link>
                       );
                     })}
@@ -334,7 +376,7 @@ export function Navbar() {
                 <Avatar src={user?.profile?.profileImageUrl} name={user?.profile?.displayName || user?.email} size="sm" />
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{user?.profile?.displayName || 'Veteran'}</p>
-                  {isMember && <p className="text-xs text-primary font-medium">{membership?.tier === 'BIA_PLUS' ? 'BIA+ Member' : 'BIA Member'}</p>}
+                  {hasPaidMembership && <p className="text-xs text-primary font-medium">{isBiaPlus ? 'BIA+ Member' : 'BIA Member'}</p>}
                 </div>
               </div>
               {[

@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuthStore } from '@/stores/auth-store';
 import { ForumBreadcrumbs, ForumPanel, ForumShell, ForumStage } from '@/components/bia/forum-shell';
+import { useBiaPageAccess } from '@/hooks/use-bia-page-access';
 import { cn, formatBranch, formatRelativeTime } from '@/lib/utils';
 
 function getAccent(tier?: string) {
@@ -45,12 +46,15 @@ export default function ThreadViewPage() {
   const { threadId } = useParams() as { threadId: string };
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const access = useBiaPageAccess('forums');
   const [reply, setReply] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['forum-thread', threadId],
     queryFn: () => api.getForumThread(threadId),
+    enabled: access.canAccess,
+    retry: false,
   });
 
   const postMutation = useMutation({
@@ -64,12 +68,54 @@ export default function ThreadViewPage() {
     onError: () => toast.error('Failed to post reply'),
   });
 
-  if (isLoading) {
+  if (access.shouldBlockRender || isLoading) {
     return (
       <ForumStage>
         <div className="flex h-64 items-center justify-center">
           <Spinner className="h-8 w-8 text-emerald-400" />
         </div>
+      </ForumStage>
+    );
+  }
+
+  if (error) {
+    return (
+      <ForumStage>
+        <ForumShell className="max-w-4xl">
+          <ForumPanel className="p-6 sm:p-8">
+            <div className="flex gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-400/10">
+                <Lock className="h-6 w-6 text-amber-300" />
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.28em] text-amber-300/80">Thread unavailable</p>
+                  <h1 className="mt-2 text-2xl font-semibold text-white">This discussion is not available on your current plan</h1>
+                </div>
+                <p className="max-w-2xl text-sm leading-7 text-slate-300">
+                  Head back to the forum overview or view the current BIA plans to unlock the private discussions you need.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => router.push('/app/bia/forums')}
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/10"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to forums
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push('/app/premium')}
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-2.5 text-sm font-medium text-slate-950 transition-colors hover:bg-emerald-300"
+                  >
+                    View BIA Plans
+                  </button>
+                </div>
+              </div>
+            </div>
+          </ForumPanel>
+        </ForumShell>
       </ForumStage>
     );
   }

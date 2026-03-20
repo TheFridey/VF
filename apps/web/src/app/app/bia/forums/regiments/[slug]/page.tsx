@@ -16,6 +16,7 @@ import { api } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { ForumPanel, ForumShell, ForumStage } from '@/components/bia/forum-shell';
+import { useBiaPageAccess } from '@/hooks/use-bia-page-access';
 import { REGIMENT_BRANCH_LABELS, type RegimentBranch } from '@/lib/regiments';
 import { cn, formatRelativeTime } from '@/lib/utils';
 
@@ -37,14 +38,16 @@ const BRANCH_COLOURS: Record<string, string> = {
 export default function RegimentForumPage() {
   const router = useRouter();
   const { slug } = useParams() as { slug: string };
+  const access = useBiaPageAccess('forums');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['regiment-forums', slug],
     queryFn: () => api.getRegimentForumCategories(slug),
     retry: false,
+    enabled: access.canAccess,
   });
 
-  if (isLoading) {
+  if (access.shouldBlockRender || isLoading) {
     return (
       <ForumStage>
         <div className="flex h-64 items-center justify-center">

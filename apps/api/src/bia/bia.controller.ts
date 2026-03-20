@@ -99,7 +99,7 @@ export class BiaController {
   @Get('mentorship')
   @ApiOperation({ summary: 'Get available mentors (BIA+)' })
   getMentors(@CurrentUser('id') userId: string) {
-    return this.biaService.getMentors();
+    return this.biaService.getMentors(userId);
   }
 
   @Post('mentorship/profile')
@@ -145,7 +145,7 @@ export class BiaController {
     @CurrentUser('id') userId: string,
     @Query('category') category?: string,
   ) {
-    return this.biaService.getCareerResources(category);
+    return this.biaService.getCareerResources(userId, category);
   }
 
   // ─── Regiment Forums ──────────────────────────────────────────────────────

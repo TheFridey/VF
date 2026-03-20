@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuthStore } from '@/stores/auth-store';
 import { ForumPanel, ForumShell, ForumStage } from '@/components/bia/forum-shell';
+import { useBiaPageAccess } from '@/hooks/use-bia-page-access';
 import { REGIMENT_BRANCH_LABELS, getRegimentsByBranch, type RegimentBranch } from '@/lib/regiments';
 import { cn } from '@/lib/utils';
 
@@ -38,12 +39,14 @@ const BRANCH_COLOURS: Record<RegimentBranch, { badge: string; dot: string; borde
 export default function RegimentsPage() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const access = useBiaPageAccess('forums');
   const [query, setQuery] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['regiments'],
     queryFn: () => api.getRegiments(),
     staleTime: 30_000,
+    enabled: access.canAccess,
   });
 
   const myRegiment = (user as any)?.veteranDetails?.regiment as string | undefined;
@@ -64,7 +67,7 @@ export default function RegimentsPage() {
     slug.toLowerCase().includes(lowerQuery)
   );
 
-  if (isLoading) {
+  if (access.shouldBlockRender || isLoading) {
     return (
       <ForumStage>
         <div className="flex h-64 items-center justify-center">

@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
 import { ForumShell, ForumStage, ForumPanel } from '@/components/bia/forum-shell';
+import { useBiaPageAccess } from '@/hooks/use-bia-page-access';
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
@@ -23,6 +24,7 @@ const CATEGORIES = [
 export default function BusinessDirectoryPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const access = useBiaPageAccess('plus');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showListForm, setShowListForm] = useState(false);
   const [form, setForm] = useState({ name: '', description: '', category: '', website: '', location: '' });
@@ -30,6 +32,7 @@ export default function BusinessDirectoryPage() {
   const { data: subData } = useQuery({
     queryKey: ['subscription'],
     queryFn: () => api.getSubscription(),
+    enabled: access.canAccess,
   });
 
   const isBiaPlus = ['BIA_PLUS'].includes(subData?.tier);
@@ -37,12 +40,13 @@ export default function BusinessDirectoryPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['business-directory', selectedCategory],
     queryFn: () => api.getBusinessDirectory(selectedCategory === 'All' ? undefined : selectedCategory),
+    enabled: access.canAccess,
   });
 
   const { data: myListing } = useQuery({
     queryKey: ['my-listing'],
     queryFn: () => api.getMyBusinessListing(),
-    enabled: isBiaPlus,
+    enabled: access.canAccess && isBiaPlus,
   });
 
   const createMutation = useMutation({
@@ -57,6 +61,16 @@ export default function BusinessDirectoryPage() {
   });
 
   const listings = data?.listings || [];
+
+  if (access.shouldBlockRender) {
+    return (
+      <ForumStage>
+        <div className="flex h-64 items-center justify-center">
+          <Spinner className="h-8 w-8 text-emerald-400" />
+        </div>
+      </ForumStage>
+    );
+  }
 
   return (
     <ForumStage>

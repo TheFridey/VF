@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
 import { ForumShell, ForumStage, ForumPanel } from '@/components/bia/forum-shell';
+import { useBiaPageAccess } from '@/hooks/use-bia-page-access';
 import { cn, formatBranch, formatRelativeTime } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
@@ -22,24 +23,29 @@ const SPECIALISMS = [
 export default function MentorshipPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const access = useBiaPageAccess('plus');
   const [tab, setTab] = useState<'find' | 'requests' | 'become'>('find');
   const [selectedMentor, setSelectedMentor] = useState<any>(null);
   const [requestMessage, setRequestMessage] = useState('');
   const [mentorForm, setMentorForm] = useState({ specialisms: [] as string[], bio: '', availability: '' });
 
-  const { data: subData } = useQuery({ queryKey: ['subscription'], queryFn: () => api.getSubscription() });
+  const { data: subData } = useQuery({
+    queryKey: ['subscription'],
+    queryFn: () => api.getSubscription(),
+    enabled: access.canAccess,
+  });
   const isBiaPlus = ['BIA_PLUS'].includes(subData?.tier);
 
   const { data: mentorsData, isLoading: mentorsLoading } = useQuery({
     queryKey: ['mentors'],
     queryFn: () => api.getMentors(),
-    enabled: isBiaPlus,
+    enabled: access.canAccess && isBiaPlus,
   });
 
   const { data: requestsData } = useQuery({
     queryKey: ['mentor-requests'],
     queryFn: () => api.getMentorRequests(),
-    enabled: isBiaPlus,
+    enabled: access.canAccess && isBiaPlus,
   });
 
   const sendRequestMutation = useMutation({
@@ -74,6 +80,16 @@ export default function MentorshipPage() {
   const incoming = requestsData?.incoming || [];
   const outgoing = requestsData?.outgoing || [];
   const myProfile = requestsData?.myProfile;
+
+  if (access.shouldBlockRender) {
+    return (
+      <ForumStage>
+        <div className="flex h-64 items-center justify-center">
+          <Spinner className="h-8 w-8 text-emerald-400" />
+        </div>
+      </ForumStage>
+    );
+  }
 
   return (
     <ForumStage>

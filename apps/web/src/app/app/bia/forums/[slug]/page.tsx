@@ -21,6 +21,7 @@ import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import { ForumBreadcrumbs, ForumPanel, ForumShell, ForumStage } from '@/components/bia/forum-shell';
+import { useBiaPageAccess } from '@/hooks/use-bia-page-access';
 import { cn, formatRelativeTime } from '@/lib/utils';
 
 function getAccent(tier?: string) {
@@ -51,13 +52,16 @@ export default function ThreadListPage() {
   const router = useRouter();
   const { slug } = useParams() as { slug: string };
   const queryClient = useQueryClient();
+  const access = useBiaPageAccess('forums');
   const [showNewThread, setShowNewThread] = useState(false);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['forum-threads', slug],
     queryFn: () => api.getForumThreads(slug),
+    enabled: access.canAccess,
+    retry: false,
   });
 
   const createMutation = useMutation({
@@ -73,12 +77,46 @@ export default function ThreadListPage() {
     onError: () => toast.error('Failed to create thread'),
   });
 
-  if (isLoading) {
+  if (access.shouldBlockRender || isLoading) {
     return (
       <ForumStage>
         <div className="flex h-64 items-center justify-center">
           <Spinner className="h-8 w-8 text-emerald-400" />
         </div>
+      </ForumStage>
+    );
+  }
+
+  if (error) {
+    return (
+      <ForumStage>
+        <ForumShell className="max-w-4xl">
+          <ForumPanel className="p-6 sm:p-8">
+            <div className="flex gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-400/10">
+                <Lock className="h-6 w-6 text-amber-300" />
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.28em] text-amber-300/80">Room unavailable</p>
+                  <h1 className="mt-2 text-2xl font-semibold text-white">This forum needs a higher BIA plan or is no longer available</h1>
+                </div>
+                <p className="max-w-2xl text-sm leading-7 text-slate-300">
+                  Return to the forum overview or view the current BIA plans to unlock the rooms that fit your membership.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <Button variant="outline" onClick={() => router.push('/app/bia/forums')} className="border-white/10 bg-white/5 text-slate-200 hover:bg-white/10">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to forums
+                  </Button>
+                  <Button onClick={() => router.push('/app/premium')} className="bg-emerald-400 text-slate-950 hover:bg-emerald-300">
+                    View BIA Plans
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </ForumPanel>
+        </ForumShell>
       </ForumStage>
     );
   }

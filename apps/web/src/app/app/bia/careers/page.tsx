@@ -7,6 +7,7 @@ import { BookOpen, ExternalLink, Download, Lock, Briefcase, GraduationCap, Heart
 import { api } from '@/lib/api';
 import { Spinner } from '@/components/ui/spinner';
 import { ForumShell, ForumStage, ForumPanel } from '@/components/bia/forum-shell';
+import { useBiaPageAccess } from '@/hooks/use-bia-page-access';
 import { cn } from '@/lib/utils';
 
 const CATEGORY_ICONS: Record<string, any> = {
@@ -88,15 +89,20 @@ const STARTER_RESOURCES = [
 
 export default function CareerResourcesPage() {
   const router = useRouter();
+  const access = useBiaPageAccess('plus');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
-  const { data: subData } = useQuery({ queryKey: ['subscription'], queryFn: () => api.getSubscription() });
+  const { data: subData } = useQuery({
+    queryKey: ['subscription'],
+    queryFn: () => api.getSubscription(),
+    enabled: access.canAccess,
+  });
   const isBiaPlus = ['BIA_PLUS'].includes(subData?.tier);
 
   const { data, isLoading } = useQuery({
     queryKey: ['career-resources', selectedCategory],
     queryFn: () => api.getCareerResources(selectedCategory === 'All' ? undefined : selectedCategory),
-    enabled: isBiaPlus,
+    enabled: access.canAccess && isBiaPlus,
   });
 
   const dbResources = data?.resources || [];
@@ -105,6 +111,16 @@ export default function CareerResourcesPage() {
   );
 
   const allCategories = ['All', ...Object.keys(CATEGORY_ICONS)];
+
+  if (access.shouldBlockRender) {
+    return (
+      <ForumStage>
+        <div className="flex h-64 items-center justify-center">
+          <Spinner className="h-8 w-8 text-emerald-400" />
+        </div>
+      </ForumStage>
+    );
+  }
 
   return (
     <ForumStage>
