@@ -223,7 +223,6 @@ export function UrgentHelpButton({
                 </div>
               </div>
             </div>
-            </div>
           </div>
         </>
       )}
