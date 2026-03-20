@@ -16,6 +16,7 @@ import { ForumShell, ForumStage, ForumPanel } from '@/components/bia/forum-shell
 import { useAuthStore } from '@/stores/auth-store';
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
+import type { AxiosError } from 'axios';
 
 const CATEGORIES = [
   'All', 'Consulting', 'Security', 'Technology', 'Construction', 'Logistics',
@@ -83,6 +84,13 @@ const DIRECTORY_FIELD_CLASSNAME = '!border-slate-200 !bg-slate-50 !text-slate-95
 const DIRECTORY_TEXTAREA_CLASSNAME = 'w-full resize-none rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-950 placeholder:text-slate-400 caret-slate-950 [-webkit-text-fill-color:#0f172a] focus:outline-none focus:ring-1 focus:ring-emerald-400';
 const DIRECTORY_SELECT_CLASSNAME = 'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 caret-slate-950 [-webkit-text-fill-color:#0f172a] focus:outline-none focus:ring-1 focus:ring-emerald-400';
 
+function getErrorMessage(error: unknown, fallback: string) {
+  const axiosError = error as AxiosError<{ message?: string | string[] }>;
+  const message = axiosError?.response?.data?.message;
+  if (Array.isArray(message)) return message[0] || fallback;
+  return message || fallback;
+}
+
 export default function BusinessDirectoryPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -149,7 +157,7 @@ export default function BusinessDirectoryPage() {
       toast.success(myListing ? 'Business listing updated and resubmitted for review.' : 'Listing submitted for review.');
       setShowListForm(false);
     },
-    onError: () => toast.error('Failed to submit listing'),
+    onError: (error) => toast.error(getErrorMessage(error, 'Failed to submit listing')),
   });
 
   const createJobMutation = useMutation({
@@ -166,7 +174,7 @@ export default function BusinessDirectoryPage() {
       setJobForm(EMPTY_JOB_FORM);
       setShowJobForm(false);
     },
-    onError: () => toast.error('Failed to add job listing'),
+    onError: (error) => toast.error(getErrorMessage(error, 'Failed to add job listing')),
   });
 
   const updateJobStatusMutation = useMutation({
@@ -175,7 +183,7 @@ export default function BusinessDirectoryPage() {
       refreshDirectory();
       toast.success(variables.isActive ? 'Job listing reopened.' : 'Job listing closed.');
     },
-    onError: () => toast.error('Failed to update job status'),
+    onError: (error) => toast.error(getErrorMessage(error, 'Failed to update job status')),
   });
 
   const applyMutation = useMutation({
@@ -194,7 +202,7 @@ export default function BusinessDirectoryPage() {
       setSelectedJob(null);
       setApplicationForm(EMPTY_APPLICATION_FORM);
     },
-    onError: () => toast.error('Failed to submit application'),
+    onError: (error) => toast.error(getErrorMessage(error, 'Failed to submit application')),
   });
 
   const listings = data?.listings || [];
@@ -665,12 +673,15 @@ export default function BusinessDirectoryPage() {
               <Button variant="ghost" onClick={() => setShowJobForm(false)} className="text-slate-300 hover:bg-white/10 hover:text-white">Cancel</Button>
               <Button
                 onClick={() => createJobMutation.mutate()}
-                disabled={!jobForm.title || !jobForm.employmentType || !jobForm.description || createJobMutation.isPending}
+                disabled={!jobForm.title.trim() || !jobForm.employmentType || jobForm.description.trim().length < 20 || createJobMutation.isPending}
                 className="bg-emerald-500 font-semibold text-black hover:bg-emerald-400"
               >
                 {createJobMutation.isPending ? <Spinner className="h-4 w-4" /> : 'Publish Job'}
               </Button>
             </div>
+            {jobForm.description.trim().length > 0 && jobForm.description.trim().length < 20 && (
+              <p className="text-xs text-amber-300">Add a bit more detail. Role descriptions need at least 20 characters.</p>
+            )}
           </div>
         </Modal>
 

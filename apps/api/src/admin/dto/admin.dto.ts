@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsInt,
   IsArray,
+  IsBoolean,
   Min,
   Max,
   IsDateString,
@@ -189,14 +190,17 @@ export class GetListingsDto {
 export class UpdateThreadDto {
   @ApiPropertyOptional()
   @IsOptional()
+  @IsBoolean()
   isLocked?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsBoolean()
   isPinned?: boolean;
 }
 
 export class UpdateListingDto {
   @ApiProperty()
+  @IsBoolean()
   isApproved: boolean;
 }
