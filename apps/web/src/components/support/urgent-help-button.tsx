@@ -1,10 +1,23 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ExternalLink, HeartHandshake, MessageSquareText, Phone, X } from 'lucide-react';
+import { AlertTriangle, ExternalLink, HeartHandshake, MessageSquareText, Phone, X, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const supportOptions = [
+type SupportOption = {
+  title: string;
+  description: string;
+  primaryLabel: string;
+  primaryHref: string;
+  icon: LucideIcon;
+  tone: 'critical' | 'support';
+  secondaryLabel?: string;
+  secondaryHref?: string;
+  infoHref?: string;
+  infoLabel?: string;
+};
+
+const supportOptions: SupportOption[] = [
   {
     title: 'Emergency',
     description: 'If you or someone else is in immediate danger, call emergency services now.',
