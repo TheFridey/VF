@@ -8,6 +8,7 @@ import { UploadsModule } from '../uploads/uploads.module';
 import { AuditModule } from '../audit/audit.module';
 import { EmailModule } from '../email/email.module';
 import { RedisModule } from '../common/redis/redis.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { RedisModule } from '../common/redis/redis.module';
     AuditModule,
     EmailModule,
     RedisModule,           // required by VerificationService for SLA alert deduplication
+    SubscriptionsModule,
     MulterModule.register({
       storage: memoryStorage(),
       limits: {

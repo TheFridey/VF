@@ -102,6 +102,11 @@ enum MembershipStatus {
   EXPIRED
 }
 
+enum MembershipGrantSource {
+  REFERRAL
+  ADMIN
+}
+
 // ============ MODELS ============
 
 model User {
@@ -125,6 +130,7 @@ model User {
   isOnline                 Boolean    @default(false) @map("is_online")
   banReason                String?    @map("ban_reason")
   banExpiresAt             DateTime?  @map("ban_expires_at")
+  referralCode             String?    @unique @map("referral_code")
   deletionRequestedAt      DateTime?  @map("deletion_requested_at")
   scheduledDeletionAt      DateTime?  @map("scheduled_deletion_at")
   createdAt                DateTime   @default(now()) @map("created_at")
@@ -145,6 +151,10 @@ model User {
   reportsResolved      Report[]              @relation("Resolver")
   auditLogs            AuditLog[]
   membership           Membership?
+  referralsSent        Referral[]            @relation("ReferralInviter")
+  referralRecord       Referral?             @relation("ReferralReferredUser")
+  membershipGrants     MembershipGrant[]     @relation("MembershipGrantRecipient")
+  grantedMemberships   MembershipGrant[]     @relation("MembershipGrantAdmin")
   forumThreads         ForumThread[]        @relation("ForumThreadAuthor")
   forumPosts           ForumPost[]          @relation("ForumPostAuthor")
   businessListing      BusinessListing?
@@ -389,6 +399,43 @@ model Membership {
   @@index([status])
   @@index([stripeCustomerId])
   @@map("memberships")
+}
+
+model Referral {
+  id             String    @id @default(uuid())
+  inviterId      String    @map("inviter_id")
+  referredUserId String    @unique @map("referred_user_id")
+  referralCode   String    @map("referral_code")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  qualifiedAt    DateTime? @map("qualified_at")
+
+  inviter      User             @relation("ReferralInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  referredUser User             @relation("ReferralReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
+
+  @@index([inviterId, qualifiedAt])
+  @@map("referrals")
+}
+
+model MembershipGrant {
+  id                String                @id @default(uuid())
+  userId            String                @map("user_id")
+  tier              MembershipTier
+  source            MembershipGrantSource
+  adminId           String?               @map("admin_id")
+  referralMilestone Int?                  @map("referral_milestone")
+  label             String?
+  startsAt          DateTime              @map("starts_at")
+  endsAt            DateTime              @map("ends_at")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  user  User   @relation("MembershipGrantRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  admin User?  @relation("MembershipGrantAdmin", fields: [adminId], references: [id])
+
+  @@index([userId, startsAt, endsAt])
+  @@index([source, referralMilestone])
+  @@map("membership_grants")
 }
 
 // ============ BIA MODELS ============

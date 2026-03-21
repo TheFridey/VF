@@ -15,6 +15,7 @@ import { PasswordSecurityService } from './password-security.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UserRole, UserStatus } from '@prisma/client';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 // ─── Typed user shape returned after JWT validation ──────────────────────────
 export interface AuthenticatedUser {
@@ -36,6 +37,7 @@ export class AuthService {
     private configService: ConfigService,
     private emailService: EmailService,
     private passwordSecurity: PasswordSecurityService,
+    private subscriptionsService: SubscriptionsService,
   ) {}
 
   // ─── Register ─────────────────────────────────────────────────────────────
@@ -81,19 +83,30 @@ export class AuthService {
 
     const verificationToken = uuidv4();
 
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email.toLowerCase(),
-        passwordHash,
-        role: UserRole.VETERAN_UNVERIFIED,
-        status: UserStatus.PENDING,
-        emailVerificationToken: verificationToken,
-        emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
+    const referralCode = dto.referralCode?.trim().toUpperCase();
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          email: dto.email.toLowerCase(),
+          passwordHash,
+          role: UserRole.VETERAN_UNVERIFIED,
+          status: UserStatus.PENDING,
+          emailVerificationToken: verificationToken,
+          emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        },
+      });
+
+      if (referralCode) {
+        await this.subscriptionsService.registerReferralSignup(createdUser.id, referralCode, tx);
+      }
+
+      return createdUser;
     });
 
     // Store initial password in history so it can't immediately be reused on reset
     await this.passwordSecurity.recordPasswordHistory(user.id, passwordHash);
+    await this.subscriptionsService.ensureUserReferralCode(user.id);
 
     await this.emailService.sendEmailVerification(user.email, verificationToken);
 

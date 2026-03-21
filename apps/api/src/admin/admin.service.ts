@@ -4,17 +4,29 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
 import { AuditService } from '../audit/audit.service';
 import { UserStatus, VerificationStatus, ReportStatus, Prisma } from '@prisma/client';
+import { MembershipTier } from '../common/enums/membership.enum';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import {
   GetUsersDto,
   UpdateUserStatusDto,
   BulkUpdateUserStatusDto,
   UpdateUserRoleDto,
   GetAuditLogsDto,
+  GrantUserMembershipDto,
+  AdminMembershipDuration,
 } from './dto/admin.dto';
 
 // ─── Internal service-layer types (not exposed via HTTP) ──────────────────────
 interface GetForumThreadsOptions { page?: number; limit?: number; categoryId?: string; }
 interface GetListingsOptions { page?: number; limit?: number; }
+
+const MEMBERSHIP_GRANT_DURATIONS: Record<AdminMembershipDuration, number> = {
+  [AdminMembershipDuration.DAY]: 1,
+  [AdminMembershipDuration.WEEK]: 7,
+  [AdminMembershipDuration.MONTH]: 30,
+  [AdminMembershipDuration.QUARTER]: 90,
+  [AdminMembershipDuration.YEAR]: 365,
+};
 
 @Injectable()
 export class AdminService {
@@ -22,6 +34,7 @@ export class AdminService {
     private prisma: PrismaService,
     private auditService: AuditService,
     private redisService: RedisService,
+    private subscriptionsService: SubscriptionsService,
   ) {}
 
   // Dashboard stats
@@ -205,7 +218,7 @@ export class AdminService {
     // ── Activity log — last 30 audit events for this user ──────────────────
     // Covers admin actions taken ON this user (resourceId = userId) AND
     // actions taken BY this user (auditLog.userId = userId).
-    const [actionsOnUser, actionsByUser, connectionCount, messageCount] = await Promise.all([
+    const [actionsOnUser, actionsByUser, connectionCount, messageCount, membershipSummary, referralSummary] = await Promise.all([
       this.prisma.auditLog.findMany({
         where: { resourceId: userId },
         orderBy: { createdAt: 'desc' },
@@ -239,6 +252,8 @@ export class AdminService {
         },
       }),
       this.prisma.message.count({ where: { senderId: userId } }),
+      this.subscriptionsService.getMembershipSummary(userId),
+      this.subscriptionsService.getReferralSummary(userId),
     ]);
 
     // Merge and deduplicate by id, sort newest first
@@ -252,6 +267,8 @@ export class AdminService {
     return {
       ...this.sanitizeUser(user),
       activityLog,
+      membershipSummary,
+      referralSummary,
       stats: {
         connectionCount,
         messageCount,
@@ -339,6 +356,44 @@ export class AdminService {
     });
 
     return { success: true };
+  }
+
+  async grantUserMembership(adminId: string, userId: string, dto: GrantUserMembershipDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const durationDays = MEMBERSHIP_GRANT_DURATIONS[dto.duration];
+    if (!durationDays) {
+      throw new BadRequestException('Unsupported membership duration');
+    }
+
+    const result = await this.subscriptionsService.grantAdminMembership(
+      userId,
+      dto.tier as MembershipTier,
+      durationDays,
+      adminId,
+    );
+
+    await this.auditService.log({
+      userId: adminId,
+      action: 'user_membership_granted',
+      resource: 'user',
+      resourceId: userId,
+      metadata: {
+        tier: dto.tier,
+        duration: dto.duration,
+        durationDays,
+        grantEndsAt: result.grant.endsAt,
+      },
+    });
+
+    return result;
   }
 
   async getAuditLogs(dto: GetAuditLogsDto) {

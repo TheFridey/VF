@@ -123,6 +123,17 @@ export const adminApi = {
     return response.data;
   },
 
+  grantUserMembership: async (
+    userId: string,
+    data: {
+      tier: 'BIA_BASIC' | 'BIA_PLUS';
+      duration: 'DAY' | 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
+    },
+  ) => {
+    const response = await api.patch(`/admin/users/${userId}/membership`, data);
+    return response.data;
+  },
+
   getPendingVerifications: async (params?: { status?: string; page?: number; limit?: number }) => {
     const response = await api.get('/verification/admin/pending', { params: cleanParams(params) });
     return response.data;

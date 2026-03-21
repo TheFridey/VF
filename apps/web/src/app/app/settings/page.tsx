@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   Shield, Upload, Loader2, Check, Clock, XCircle, Trash2,
   Download, LogOut, Bell, Eye, Lock, AlertTriangle,
-  RefreshCw, FileCheck, Info, ChevronRight,
+  RefreshCw, FileCheck, Info, ChevronRight, Copy, Gift, Link2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,12 @@ import { cn } from '@/lib/utils';
 function isVerifiedVeteran(role: string) {
   return role === 'VETERAN_VERIFIED' || role === 'VETERAN_MEMBER';
 }
+
+const REFERRAL_REWARDS: Record<number, string> = {
+  1: '1 week of BIA',
+  5: '1 month of BIA+',
+  10: '3 months of BIA+',
+};
 
 // ─── Verification Status Card ─────────────────────────────────────────────────
 
@@ -351,10 +357,171 @@ function VerificationCard({ userId, userRole }: { userId: string; userRole: stri
 
 // ─── Main Settings Page ────────────────────────────────────────────────────────
 
+function ReferralRewardsCard({ userId, userRole }: { userId: string; userRole: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['referrals', userId],
+    queryFn: () => api.getReferralSummary(),
+    enabled: !!userId,
+  });
+
+  const copyText = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copied`);
+    } catch {
+      toast.error(`Couldn't copy ${label.toLowerCase()}.`);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Gift className="h-5 w-5" />
+          Veteran Referrals
+        </CardTitle>
+        <CardDescription>
+          Invite verified veteran mates and unlock timed BIA rewards automatically when they sign up and pass verification.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Loading referral progress...</span>
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border bg-muted/40 p-4">
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Your code</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <code className="rounded bg-background px-3 py-2 text-sm font-semibold">
+                    {data?.referralCode || 'Unavailable'}
+                  </code>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => data?.referralCode && copyText(data.referralCode, 'Referral code')}
+                    disabled={!data?.referralCode}
+                  >
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Share this with veterans you know, or send them your invite link.
+                </p>
+              </div>
+
+              <div className="rounded-lg border bg-muted/40 p-4">
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Invite link</p>
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                  <code className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap rounded bg-background px-3 py-2 text-xs">
+                    {data?.shareUrl || 'Unavailable'}
+                  </code>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => data?.shareUrl && copyText(data.shareUrl, 'Invite link')}
+                    disabled={!data?.shareUrl}
+                  >
+                    <Link2 className="mr-2 h-4 w-4" />
+                    Copy link
+                  </Button>
+                </div>
+                {!data?.canInvite && (
+                  <p className="mt-2 text-xs text-amber-600">
+                    Verification is required before your referrals can start earning rewards.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-lg border p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Verified referrals</p>
+                <p className="mt-2 text-2xl font-semibold">{data?.qualifiedCount ?? 0}</p>
+              </div>
+              <div className="rounded-lg border p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Pending verification</p>
+                <p className="mt-2 text-2xl font-semibold">{data?.pendingCount ?? 0}</p>
+              </div>
+              <div className="rounded-lg border p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Next milestone</p>
+                <p className="mt-2 text-2xl font-semibold">
+                  {data?.nextMilestone ? `${data.nextMilestone}` : 'Cap reached'}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Reward milestones</p>
+              <div className="grid gap-2 md:grid-cols-3">
+                {[1, 5, 10].map((milestone) => {
+                  const unlocked = (data?.qualifiedCount ?? 0) >= milestone;
+
+                  return (
+                    <div
+                      key={milestone}
+                      className={cn(
+                        'rounded-lg border p-4',
+                        unlocked ? 'border-green-500/30 bg-green-500/5' : 'bg-muted/30',
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold">{milestone} referral{milestone > 1 ? 's' : ''}</span>
+                        {unlocked ? <Check className="h-4 w-4 text-green-600" /> : <Clock className="h-4 w-4 text-muted-foreground" />}
+                      </div>
+                      <p className="mt-2 text-sm text-muted-foreground">{REFERRAL_REWARDS[milestone]}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Recent invites</p>
+              {data?.referrals?.length ? (
+                <div className="space-y-2">
+                  {data.referrals.slice(0, 5).map((referral: any) => (
+                    <div key={referral.id} className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <p className="text-sm font-medium">{referral.user.displayName || referral.user.email}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Joined {new Date(referral.createdAt).toLocaleDateString('en-GB')}
+                        </p>
+                      </div>
+                      <Badge variant={referral.qualifiedAt ? 'default' : 'outline'}>
+                        {referral.qualifiedAt ? 'Verified' : 'Pending'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                  No invites yet. Share your code with verified veteran friends to start earning rewards.
+                </div>
+              )}
+            </div>
+
+            {!isVerifiedVeteran(userRole) && (
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+                Complete verification first, then your invites will begin qualifying for rewards automatically.
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const queryClient = useQueryClient();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -415,6 +582,7 @@ export default function SettingsPage() {
 
       {/* Verification — always shown at top */}
       <VerificationCard userId={user?.id || ''} userRole={user?.role || ''} />
+      <ReferralRewardsCard userId={user?.id || ''} userRole={user?.role || ''} />
 
       {/* Privacy */}
       <Card>

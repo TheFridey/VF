@@ -22,6 +22,7 @@ import {
   GetAuditLogsDto,
   UpdateThreadDto,
   UpdateListingDto,
+  GrantUserMembershipDto,
 } from './dto/admin.dto';
 
 @ApiTags('admin')
@@ -93,6 +94,17 @@ export class AdminController {
     @Body() dto: UpdateUserRoleDto,
   ) {
     return this.adminService.updateUserRole(adminId, userId, dto);
+  }
+
+  @Patch('users/:userId/membership')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Grant timed BIA or BIA+ access to a user' })
+  async grantUserMembership(
+    @CurrentUser('id') adminId: string,
+    @Param('userId') userId: string,
+    @Body() dto: GrantUserMembershipDto,
+  ) {
+    return this.adminService.grantUserMembership(adminId, userId, dto);
   }
 
   // ============ AUDIT LOGS ============

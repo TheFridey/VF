@@ -31,6 +31,19 @@ export enum UserStatus {
   DELETED = 'DELETED',
 }
 
+export enum AdminMembershipTier {
+  BIA_BASIC = 'BIA_BASIC',
+  BIA_PLUS = 'BIA_PLUS',
+}
+
+export enum AdminMembershipDuration {
+  DAY = 'DAY',
+  WEEK = 'WEEK',
+  MONTH = 'MONTH',
+  QUARTER = 'QUARTER',
+  YEAR = 'YEAR',
+}
+
 export class GetUsersDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -203,4 +216,14 @@ export class UpdateListingDto {
   @ApiProperty()
   @IsBoolean()
   isApproved: boolean;
+}
+
+export class GrantUserMembershipDto {
+  @ApiProperty({ enum: AdminMembershipTier })
+  @IsEnum(AdminMembershipTier)
+  tier: AdminMembershipTier;
+
+  @ApiProperty({ enum: AdminMembershipDuration })
+  @IsEnum(AdminMembershipDuration)
+  duration: AdminMembershipDuration;
 }

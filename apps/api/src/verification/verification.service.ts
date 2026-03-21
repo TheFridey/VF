@@ -12,6 +12,7 @@ import {
   validateVerificationEvidenceFile,
   VERIFICATION_MAX_FILES,
 } from '../uploads/upload-validation';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 interface UploadedFile {
   fieldname: string;
@@ -51,6 +52,7 @@ export class VerificationService {
     private auditService: AuditService,
     private emailService: EmailService,
     private redis: RedisService,
+    private subscriptionsService: SubscriptionsService,
   ) {}
 
   // ── Evidence upload ────────────────────────────────────────────────────────
@@ -345,6 +347,8 @@ export class VerificationService {
       data: { role: UserRole.VETERAN_VERIFIED, status: UserStatus.ACTIVE },
       include: { profile: true },
     });
+
+    await this.subscriptionsService.processReferralQualification(request.userId);
 
     await this.wipeEvidenceFiles(publicIds);
 

@@ -33,6 +33,14 @@ export class SubscriptionsController {
     return this.subscriptionsService.getOrCreateMembership(user.id);
   }
 
+  @Get('referrals')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current user referral summary' })
+  async getMyReferralSummary(@CurrentUser() user: User) {
+    return this.subscriptionsService.getReferralSummary(user.id);
+  }
+
   @Get('prices')
   @ApiOperation({ summary: 'Get available subscription prices' })
   async getPrices() {

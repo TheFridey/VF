@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, Suspense, useMemo } from 'react';
+import { useState, Suspense, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -188,6 +188,12 @@ const registerSchema = z.object({
     errorMap: () => ({ message: 'You must accept the Privacy Policy' }),
   }),
   marketingOptIn: z.boolean().optional(),
+  referralCode: z
+    .string()
+    .trim()
+    .max(32, 'Referral code is too long')
+    .optional()
+    .or(z.literal('')),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ['confirmPassword'],
@@ -235,12 +241,18 @@ function FormCheckbox({
 
 function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
+  const prefilledReferralCode = useMemo(
+    () => searchParams.get('ref')?.trim().toUpperCase() ?? '',
+    [searchParams],
+  );
 
   const {
     register,
     handleSubmit,
     control,
+    setValue,
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -252,11 +264,18 @@ function RegisterForm() {
       termsAccepted: undefined as unknown as true,
       privacyAccepted: undefined as unknown as true,
       marketingOptIn: false,
+      referralCode: prefilledReferralCode,
     },
   });
 
   // Live password value for the strength meter
   const watchedPassword = useWatch({ control, name: 'password', defaultValue: '' });
+
+  useEffect(() => {
+    if (prefilledReferralCode) {
+      setValue('referralCode', prefilledReferralCode, { shouldDirty: false });
+    }
+  }, [prefilledReferralCode, setValue]);
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
@@ -265,6 +284,7 @@ function RegisterForm() {
         email: data.email,
         password: data.password,
         userType: 'veteran',
+        referralCode: data.referralCode?.trim() || undefined,
       });
       toast.success('Account created! Please check your email to verify.');
       router.push(`/auth/verify-email?pending=true&email=${encodeURIComponent(data.email)}`);
@@ -302,6 +322,20 @@ function RegisterForm() {
             error={errors.email?.message}
             autoComplete="email"
           />
+
+          <div className="space-y-1">
+            <Input
+              {...register('referralCode')}
+              type="text"
+              label="Referral Code (Optional)"
+              placeholder="VFABC1234"
+              error={errors.referralCode?.message}
+              autoComplete="off"
+            />
+            <p className="text-xs text-muted-foreground">
+              If a verified veteran invited you, enter their code to link your signup.
+            </p>
+          </div>
 
           <div className="space-y-1">
             <Input

@@ -172,7 +172,7 @@ class ApiClient {
   }
 
   // ── Auth ────────────────────────────────────────────────────────────────────
-  async register(data: { email: string; password: string; userType: 'veteran' }) {
+  async register(data: { email: string; password: string; userType: 'veteran'; referralCode?: string }) {
     const response = await this.client.post('/auth/register', data);
     return response.data;
   }
@@ -442,6 +442,11 @@ class ApiClient {
   // ── Subscriptions ─────────────────────────────────────────────────────────────
   async getSubscription() {
     const response = await this.client.get('/subscriptions/me');
+    return response.data;
+  }
+
+  async getReferralSummary() {
+    const response = await this.client.get('/subscriptions/referrals');
     return response.data;
   }
 
