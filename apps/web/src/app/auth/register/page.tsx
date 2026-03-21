@@ -7,7 +7,7 @@ import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Shield, Check, CircleAlert } from 'lucide-react';
+import { Shield, Check, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -180,7 +180,7 @@ function PasswordStrengthMeter({ password }: { password: string }) {
               {check.passed ? (
                 <Check className="h-3.5 w-3.5 text-emerald-600" />
               ) : (
-                <CircleAlert className="h-3.5 w-3.5 text-muted-foreground" />
+                <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
               )}
               <span className={check.passed ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}>
                 {check.label}
