@@ -48,6 +48,13 @@ export class AdminController {
     return this.adminService.getSystemHealth();
   }
 
+  @Get('analytics')
+  @Roles('MODERATOR', 'ADMIN')
+  @ApiOperation({ summary: 'Get admin analytics summary' })
+  async getAnalytics(@Query('days') days = 30) {
+    return this.adminService.getAnalyticsSummary(+days || 30);
+  }
+
   // ============ USER MANAGEMENT ============
 
   @Get('users')

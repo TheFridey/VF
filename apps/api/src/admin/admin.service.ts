@@ -6,6 +6,7 @@ import { AuditService } from '../audit/audit.service';
 import { UserStatus, VerificationStatus, ReportStatus, Prisma } from '@prisma/client';
 import { MembershipTier } from '../common/enums/membership.enum';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import {
   GetUsersDto,
   UpdateUserStatusDto,
@@ -40,6 +41,7 @@ export class AdminService {
     private auditService: AuditService,
     private redisService: RedisService,
     private subscriptionsService: SubscriptionsService,
+    private analyticsService: AnalyticsService,
   ) {}
 
   // Dashboard stats
@@ -141,6 +143,10 @@ export class AdminService {
         redis: { status: 'error' },
       };
     }
+  }
+
+  async getAnalyticsSummary(days = 30) {
+    return this.analyticsService.getSummary(days);
   }
 
   // User management

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Cookie, X, Settings, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ANALYTICS_CONSENT_KEY, dispatchAnalyticsConsentChanged } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 
 type CookiePreferences = {
@@ -12,8 +13,6 @@ type CookiePreferences = {
   analytics: boolean;
   marketing: boolean;
 };
-
-const COOKIE_CONSENT_KEY = 'vf_cookie_consent';
 
 export function CookieConsent() {
   const [isVisible, setIsVisible] = useState(false);
@@ -27,7 +26,7 @@ export function CookieConsent() {
 
   useEffect(() => {
     // Check if user has already consented
-    const consent = localStorage.getItem(COOKIE_CONSENT_KEY);
+    const consent = localStorage.getItem(ANALYTICS_CONSENT_KEY);
     if (!consent) {
       // Small delay to prevent flash
       const timer = setTimeout(() => setIsVisible(true), 1000);
@@ -43,7 +42,8 @@ export function CookieConsent() {
   }, []);
 
   const saveConsent = (prefs: CookiePreferences) => {
-    localStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify(prefs));
+    localStorage.setItem(ANALYTICS_CONSENT_KEY, JSON.stringify(prefs));
+    dispatchAnalyticsConsentChanged(prefs);
     setIsVisible(false);
     
     // Here you would typically initialize/disable analytics based on consent

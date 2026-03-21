@@ -28,6 +28,9 @@ import * as crypto from 'crypto';
  *   no browser context to supply a CSRF token.
  * - /api/v1/auth/login, /api/v1/auth/register, /api/v1/auth/forgot-password,
  *   /api/v1/auth/resend-verification — pre-authentication endpoints.
+ * - /api/v1/analytics/* — public first-party telemetry. These are exempt so
+ *   the first page view can be recorded before any prior API GET has issued
+ *   the CSRF cookie.
  *   CSRF is only meaningful when an authenticated session cookie exists for an
  *   attacker to hijack.  These endpoints have no session yet, so CSRF does not
  *   apply.  Protecting them would cause "CSRF token missing" on every first
@@ -58,6 +61,8 @@ const CSRF_EXEMPT_PATHS = [
   '/api/v1/auth/forgot-password',
   '/api/v1/auth/resend-verification',
   '/api/v1/auth/refresh',
+  '/api/v1/analytics/page-view',
+  '/api/v1/analytics/event',
   '/api/v1/email/contact',
   '/api/v1/email/partnerships',
 ];

@@ -155,6 +155,8 @@ model User {
   referralRecord       Referral?             @relation("ReferralReferredUser")
   membershipGrants     MembershipGrant[]     @relation("MembershipGrantRecipient")
   grantedMemberships   MembershipGrant[]     @relation("MembershipGrantAdmin")
+  analyticsPageViews   AnalyticsPageView[]
+  analyticsEvents      AnalyticsEvent[]
   forumThreads         ForumThread[]        @relation("ForumThreadAuthor")
   forumPosts           ForumPost[]          @relation("ForumPostAuthor")
   businessListing      BusinessListing?
@@ -436,6 +438,48 @@ model MembershipGrant {
   @@index([userId, startsAt, endsAt])
   @@index([source, referralMilestone])
   @@map("membership_grants")
+}
+
+model AnalyticsPageView {
+  id                       String    @id @default(uuid())
+  sessionId                String    @map("session_id")
+  userId                   String?   @map("user_id")
+  path                     String
+  referrer                 String?
+  loadTimeMs               Int?      @map("load_time_ms")
+  domContentLoadedMs       Int?      @map("dom_content_loaded_ms")
+  firstPaintMs             Int?      @map("first_paint_ms")
+  firstContentfulPaintMs   Int?      @map("first_contentful_paint_ms")
+  largestContentfulPaintMs Int?      @map("largest_contentful_paint_ms")
+  viewportWidth            Int?      @map("viewport_width")
+  viewportHeight           Int?      @map("viewport_height")
+  deviceType               String?   @map("device_type")
+  createdAt                DateTime  @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([path, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([userId])
+  @@map("analytics_page_views")
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  sessionId String   @map("session_id")
+  userId    String?  @map("user_id")
+  event     String
+  path      String?
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([event, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([userId])
+  @@map("analytics_events")
 }
 
 // ============ BIA MODELS ============

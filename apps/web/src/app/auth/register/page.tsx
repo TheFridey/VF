@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense, useMemo, useEffect } from 'react';
+import { useState, Suspense, useMemo, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, Controller, useWatch } from 'react-hook-form';
@@ -11,6 +11,7 @@ import { Shield, Check, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { trackAnalyticsEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -286,6 +287,7 @@ function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
+  const signupViewedRef = useRef(false);
   const prefilledReferralCode = useMemo(
     () => searchParams.get('ref')?.trim().toUpperCase() ?? '',
     [searchParams],
@@ -326,14 +328,40 @@ function RegisterForm() {
     }
   }, [prefilledReferralCode, setValue]);
 
+  useEffect(() => {
+    if (signupViewedRef.current) {
+      return;
+    }
+
+    signupViewedRef.current = true;
+    void trackAnalyticsEvent('signup_view', {
+      path: '/auth/register',
+      metadata: {
+        referralPrefilled: Boolean(prefilledReferralCode),
+      },
+    });
+  }, [prefilledReferralCode]);
+
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     try {
+      void trackAnalyticsEvent('signup_submit', {
+        path: '/auth/register',
+        metadata: {
+          referralProvided: Boolean(data.referralCode?.trim()),
+        },
+      });
       await api.register({
         email: data.email,
         password: data.password,
         userType: 'veteran',
         referralCode: data.referralCode?.trim() || undefined,
+      });
+      void trackAnalyticsEvent('signup_success', {
+        path: '/auth/register',
+        metadata: {
+          referralProvided: Boolean(data.referralCode?.trim()),
+        },
       });
       toast.success('Account created! Please check your email to verify.');
       router.push(`/auth/verify-email?pending=true&email=${encodeURIComponent(data.email)}`);

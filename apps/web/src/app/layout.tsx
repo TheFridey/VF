@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { PageAnalyticsTracker } from '@/components/analytics/page-analytics-tracker';
 import { Providers } from './providers';
 import { CookieConsent } from '@/components/cookie-consent';
 import { ConditionalToaster } from '@/components/layout/conditional-toaster';
@@ -28,6 +29,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <Providers>
+          <PageAnalyticsTracker />
           <div className="flex min-h-screen flex-col">
             <div className="flex-1">
               {children}

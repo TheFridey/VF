@@ -93,6 +93,11 @@ export const adminApi = {
     return response.data;
   },
 
+  getAnalytics: async (params?: { days?: number }) => {
+    const response = await api.get('/admin/analytics', { params: cleanParams(params) });
+    return response.data;
+  },
+
   getUsers: async (params?: { page?: number; limit?: number; status?: string; role?: string; search?: string }) => {
     const response = await api.get('/admin/users', { params: cleanParams(params) });
     return response.data;

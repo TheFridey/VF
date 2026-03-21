@@ -29,6 +29,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { VideoModule } from './video/video.module';
 import { BiaModule } from './bia/bia.module';
 import { EmailModule } from './email/email.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 // Guards
 import { ThrottlerGuard } from '@nestjs/throttler';
@@ -76,6 +77,7 @@ import { ThrottlerGuard } from '@nestjs/throttler';
     VideoModule,
     BiaModule,
     EmailModule,
+    AnalyticsModule,
   ],
   providers: [
     // IP-based rate limiting applied globally

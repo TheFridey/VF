@@ -6,14 +6,17 @@ import { useAuthStore } from '@/lib/auth-store';
 import { adminApi } from '@/lib/api';
 import {
   LayoutDashboard, Users, Shield, Flag,
-  FileText, LogOut, MessageSquare, Settings, Menu, X
+  FileText, LogOut, MessageSquare, Settings, Menu, X, BarChart3
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 const navGroups = [
   {
     label: 'Overview',
-    items: [{ name: 'Command', href: '/dashboard', icon: LayoutDashboard }],
+    items: [
+      { name: 'Command', href: '/dashboard', icon: LayoutDashboard },
+      { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+    ],
   },
   {
     label: 'Operations',
