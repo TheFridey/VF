@@ -13,27 +13,59 @@ function generateNonce(): string {
   return btoa(binary);
 }
 
+function toOrigin(value?: string): string | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function toWebSocketOrigin(value?: string): string | null {
+  const origin = toOrigin(value);
+  if (!origin) {
+    return null;
+  }
+
+  if (origin.startsWith('https://')) {
+    return origin.replace('https://', 'wss://');
+  }
+
+  if (origin.startsWith('http://')) {
+    return origin.replace('http://', 'ws://');
+  }
+
+  return origin;
+}
+
 /**
  * Next.js Edge Middleware with a nonce-based Content Security Policy.
  */
 export function middleware(request: NextRequest): NextResponse {
   const nonce = generateNonce();
   const isDev = process.env.NODE_ENV === 'development';
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
-  const wsUrl = process.env.NEXT_PUBLIC_WS_URL?.trim();
+  const currentOrigin = request.nextUrl.origin;
+  const apiOrigin = toOrigin(process.env.NEXT_PUBLIC_API_URL?.trim());
+  const wsOrigin = toWebSocketOrigin(process.env.NEXT_PUBLIC_WS_URL?.trim());
   const connectSources = new Set<string>([
     "'self'",
+    currentOrigin,
+    toWebSocketOrigin(currentOrigin) || currentOrigin,
     'https://api.veteranfinder.co.uk',
-    'wss://veteranfinder.co.uk',
     'wss://api.veteranfinder.co.uk',
   ]);
 
-  if (apiUrl) {
-    connectSources.add(apiUrl);
+  if (apiOrigin) {
+    connectSources.add(apiOrigin);
+    connectSources.add(toWebSocketOrigin(apiOrigin) || apiOrigin);
   }
 
-  if (wsUrl) {
-    connectSources.add(wsUrl);
+  if (wsOrigin) {
+    connectSources.add(wsOrigin);
   }
 
   if (isDev) {
