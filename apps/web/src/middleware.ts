@@ -19,6 +19,28 @@ function generateNonce(): string {
 export function middleware(request: NextRequest): NextResponse {
   const nonce = generateNonce();
   const isDev = process.env.NODE_ENV === 'development';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  const wsUrl = process.env.NEXT_PUBLIC_WS_URL?.trim();
+  const connectSources = new Set<string>([
+    "'self'",
+    'https://api.veteranfinder.co.uk',
+    'wss://veteranfinder.co.uk',
+    'wss://api.veteranfinder.co.uk',
+  ]);
+
+  if (apiUrl) {
+    connectSources.add(apiUrl);
+  }
+
+  if (wsUrl) {
+    connectSources.add(wsUrl);
+  }
+
+  if (isDev) {
+    connectSources.add('http://localhost:3000');
+    connectSources.add('ws://localhost:3000');
+    connectSources.add('ws://localhost:3001');
+  }
 
   const cspDirectives = [
     "default-src 'self'",
@@ -26,7 +48,7 @@ export function middleware(request: NextRequest): NextResponse {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https://res.cloudinary.com https://images.unsplash.com",
     "font-src 'self'",
-    `connect-src 'self' https://api.veteranfinder.co.uk wss://veteranfinder.co.uk${isDev ? ' http://localhost:3000 ws://localhost:3000 ws://localhost:3001' : ''}`,
+    `connect-src ${Array.from(connectSources).join(' ')}`,
     "media-src 'self' blob:",
     "worker-src 'self' blob:",
     "frame-ancestors 'none'",

@@ -18,15 +18,18 @@ export type IncomingCallPayload = {
 };
 
 function getSocketBaseUrl() {
+  const explicitWebSocketUrl = process.env.NEXT_PUBLIC_WS_URL?.trim();
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+
   if (typeof window === 'undefined') {
-    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    return explicitWebSocketUrl || apiUrl || 'http://localhost:3000';
   }
 
   if (process.env.NODE_ENV === 'development') {
-    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    return explicitWebSocketUrl || apiUrl || 'http://localhost:3000';
   }
 
-  return window.location.origin;
+  return explicitWebSocketUrl || apiUrl || window.location.origin;
 }
 
 export function createVideoSocket(token: string): Socket {
@@ -35,6 +38,9 @@ export function createVideoSocket(token: string): Socket {
     auth: { token },
     withCredentials: true,
     transports: ['websocket', 'polling'],
+    reconnectionAttempts: 3,
+    reconnectionDelay: 1500,
+    timeout: 10000,
   });
 }
 
