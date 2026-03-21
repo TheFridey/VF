@@ -7,7 +7,7 @@ import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Shield, Check } from 'lucide-react';
+import { Shield, Check, CircleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -109,9 +109,37 @@ function analysePassword(pwd: string): PasswordStrength {
   return { level, score, entropy, issues, label, color, barColor };
 }
 
+function getPasswordRequirementChecks(password: string) {
+  const strength = analysePassword(password);
+
+  return [
+    {
+      label: 'At least 8 characters',
+      passed: password.length >= 8,
+    },
+    {
+      label: 'Includes an uppercase letter',
+      passed: /[A-Z]/.test(password),
+    },
+    {
+      label: 'Includes a lowercase letter',
+      passed: /[a-z]/.test(password),
+    },
+    {
+      label: 'Includes a number',
+      passed: /[0-9]/.test(password),
+    },
+    {
+      label: 'Not a common or predictable password',
+      passed: password.length > 0 && strength.issues.length === 0 && strength.score >= 2,
+    },
+  ];
+}
+
 // ─── Password strength UI component ──────────────────────────────────────────
 function PasswordStrengthMeter({ password }: { password: string }) {
   const strength = useMemo(() => analysePassword(password), [password]);
+  const checks = useMemo(() => getPasswordRequirementChecks(password), [password]);
 
   if (!password) return null;
 
@@ -144,20 +172,35 @@ function PasswordStrengthMeter({ password }: { password: string }) {
         )}
       </div>
 
-      {/* First issue only — avoid overwhelming the user */}
-      {strength.issues.length > 0 && (
-        <p className="text-xs text-destructive flex items-start gap-1">
-          <span className="mt-0.5 shrink-0">⚠</span>
-          <span>{strength.issues[0]}</span>
-        </p>
-      )}
+      <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+        <p className="text-xs font-medium text-foreground">Your password needs:</p>
+        <div className="mt-2 grid gap-1.5">
+          {checks.map((check) => (
+            <div key={check.label} className="flex items-center gap-2 text-xs">
+              {check.passed ? (
+                <Check className="h-3.5 w-3.5 text-emerald-600" />
+              ) : (
+                <CircleAlert className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+              <span className={check.passed ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}>
+                {check.label}
+              </span>
+            </div>
+          ))}
+        </div>
 
-      {/* Positive reinforcement once strong */}
-      {strength.score >= 3 && strength.issues.length === 0 && (
-        <p className="text-xs text-emerald-600 flex items-center gap-1">
-          <span>✓</span> Good password
-        </p>
-      )}
+        {strength.issues.length > 0 && (
+          <p className="mt-2 text-xs text-destructive">
+            {strength.issues[0]}
+          </p>
+        )}
+
+        {strength.score >= 2 && strength.issues.length === 0 && (
+          <p className="mt-2 text-xs font-medium text-emerald-600">
+            Password accepted
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -253,9 +296,11 @@ function RegisterForm() {
     handleSubmit,
     control,
     setValue,
-    formState: { errors },
+    formState: { errors, isValid },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: {
       email: '',
       password: '',
@@ -270,6 +315,10 @@ function RegisterForm() {
 
   // Live password value for the strength meter
   const watchedPassword = useWatch({ control, name: 'password', defaultValue: '' });
+  const watchedConfirmPassword = useWatch({ control, name: 'confirmPassword', defaultValue: '' });
+  const passwordStrength = useMemo(() => analysePassword(watchedPassword), [watchedPassword]);
+  const passwordAccepted = watchedPassword.length > 0 && passwordStrength.issues.length === 0 && passwordStrength.score >= 2;
+  const confirmAccepted = watchedConfirmPassword.length > 0 && watchedPassword === watchedConfirmPassword;
 
   useEffect(() => {
     if (prefilledReferralCode) {
@@ -344,19 +393,30 @@ function RegisterForm() {
               label="Password"
               placeholder="••••••••"
               error={errors.password?.message}
+              hint="Use 8+ characters with uppercase, lowercase, and a number."
               autoComplete="new-password"
             />
             <PasswordStrengthMeter password={watchedPassword} />
           </div>
 
-          <Input
-            {...register('confirmPassword')}
-            type="password"
-            label="Confirm Password"
-            placeholder="••••••••"
-            error={errors.confirmPassword?.message}
-            autoComplete="new-password"
-          />
+          <div className="space-y-1">
+            <Input
+              {...register('confirmPassword')}
+              type="password"
+              label="Confirm Password"
+              placeholder="••••••••"
+              error={errors.confirmPassword?.message}
+              autoComplete="new-password"
+            />
+            {watchedConfirmPassword.length > 0 && (
+              <p className={cn(
+                'text-xs',
+                confirmAccepted ? 'text-emerald-600' : 'text-destructive',
+              )}>
+                {confirmAccepted ? 'Passwords match' : "Passwords don't match yet"}
+              </p>
+            )}
+          </div>
 
           {/* Age Verification & Consent Section */}
           <div className="space-y-4 pt-2 border-t">
@@ -449,9 +509,14 @@ function RegisterForm() {
           </div>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
-          <Button type="submit" className="w-full" isLoading={isLoading}>
-            Create Account
+          <Button type="submit" className="w-full" isLoading={isLoading} disabled={!isValid || !passwordAccepted || !confirmAccepted}>
+            Join VeteranFinder
           </Button>
+          {!passwordAccepted && (
+            <p className="text-center text-xs text-muted-foreground">
+              Finish the password checks above and confirm your password to continue.
+            </p>
+          )}
           <p className="text-sm text-muted-foreground text-center">
             Already have an account?{' '}
             <Link href="/auth/login" className="text-primary hover:underline">
