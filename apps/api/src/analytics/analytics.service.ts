@@ -4,6 +4,32 @@ import { TrackAnalyticsEventDto, TrackPageViewDto } from './dto/analytics.dto';
 
 const SIGNUP_EVENTS = ['signup_view', 'signup_submit', 'signup_success'] as const;
 
+type AnalyticsPageViewRecord = {
+  sessionId: string;
+  path: string;
+  loadTimeMs: number | null;
+  domContentLoadedMs: number | null;
+  firstPaintMs: number | null;
+  firstContentfulPaintMs: number | null;
+  largestContentfulPaintMs: number | null;
+  createdAt: Date;
+};
+
+type AnalyticsEventRecord = {
+  sessionId: string;
+  event: string;
+  createdAt: Date;
+};
+
+type PageSummaryBucket = {
+  path: string;
+  pageViews: number;
+  sessions: Set<string>;
+  loadTimeMs: number[];
+  firstContentfulPaintMs: number[];
+  largestContentfulPaintMs: number[];
+};
+
 function average(values: Array<number | null | undefined>) {
   const usable = values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
   if (usable.length === 0) {
@@ -55,7 +81,7 @@ export class AnalyticsService {
   async getSummary(days = 30) {
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    const [pageViews, signupEvents] = await Promise.all([
+    const [rawPageViews, rawSignupEvents] = await Promise.all([
       (this.prisma as any).analyticsPageView.findMany({
         where: { createdAt: { gte: startDate } },
         orderBy: { createdAt: 'asc' },
@@ -84,19 +110,15 @@ export class AnalyticsService {
       }),
     ]);
 
-    const uniqueVisitors = new Set(pageViews.map((entry: any) => entry.sessionId)).size;
-    const pageMap = new Map<string, {
-      path: string;
-      pageViews: number;
-      sessions: Set<string>;
-      loadTimeMs: number[];
-      firstContentfulPaintMs: number[];
-      largestContentfulPaintMs: number[];
-    }>();
+    const pageViews = rawPageViews as AnalyticsPageViewRecord[];
+    const signupEvents = rawSignupEvents as AnalyticsEventRecord[];
+
+    const uniqueVisitors = new Set(pageViews.map((entry) => entry.sessionId)).size;
+    const pageMap = new Map<string, PageSummaryBucket>();
     const trafficByDay = new Map<string, { date: string; pageViews: number; sessions: Set<string> }>();
 
-    for (const view of pageViews as any[]) {
-      const pageEntry = pageMap.get(view.path) ?? {
+    for (const view of pageViews) {
+      const pageEntry: PageSummaryBucket = pageMap.get(view.path) ?? {
         path: view.path,
         pageViews: 0,
         sessions: new Set<string>(),
@@ -125,7 +147,7 @@ export class AnalyticsService {
       successes: new Set<string>(),
     };
 
-    for (const event of signupEvents as any[]) {
+    for (const event of signupEvents) {
       if (event.event === 'signup_view') signupSessions.views.add(event.sessionId);
       if (event.event === 'signup_submit') signupSessions.submits.add(event.sessionId);
       if (event.event === 'signup_success') signupSessions.successes.add(event.sessionId);
@@ -140,11 +162,11 @@ export class AnalyticsService {
       overview: {
         totalPageViews: pageViews.length,
         uniqueVisitors,
-        avgLoadTimeMs: average((pageViews as any[]).map((view) => view.loadTimeMs)),
-        avgDomContentLoadedMs: average((pageViews as any[]).map((view) => view.domContentLoadedMs)),
-        avgFirstPaintMs: average((pageViews as any[]).map((view) => view.firstPaintMs)),
-        avgFirstContentfulPaintMs: average((pageViews as any[]).map((view) => view.firstContentfulPaintMs)),
-        avgLargestContentfulPaintMs: average((pageViews as any[]).map((view) => view.largestContentfulPaintMs)),
+        avgLoadTimeMs: average(pageViews.map((view) => view.loadTimeMs)),
+        avgDomContentLoadedMs: average(pageViews.map((view) => view.domContentLoadedMs)),
+        avgFirstPaintMs: average(pageViews.map((view) => view.firstPaintMs)),
+        avgFirstContentfulPaintMs: average(pageViews.map((view) => view.firstContentfulPaintMs)),
+        avgLargestContentfulPaintMs: average(pageViews.map((view) => view.largestContentfulPaintMs)),
       },
       signupFunnel: {
         views: signupViewCount,
