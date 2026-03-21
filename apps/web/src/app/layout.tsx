@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import { Providers } from './providers';
 import { CookieConsent } from '@/components/cookie-consent';
 import { ConditionalToaster } from '@/components/layout/conditional-toaster';
+import { Footer } from '@/components/layout/footer';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -27,7 +28,12 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <Providers>
-          {children}
+          <div className="flex min-h-screen flex-col">
+            <div className="flex-1">
+              {children}
+            </div>
+            <Footer />
+          </div>
           <CookieConsent />
           <ConditionalToaster />
         </Providers>

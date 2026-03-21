@@ -17,13 +17,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <main className="flex-1 flex items-center justify-center px-4 py-12">
         {children}
       </main>
-
-      {/* Footer */}
-      <footer className="border-t py-4">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} VeteranFinder. All rights reserved.
-        </div>
-      </footer>
     </div>
   );
 }

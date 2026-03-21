@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { SiteHeader } from '@/components/home/site-header';
-import { Footer } from '@/components/layout/footer';
 import { StatusBoard } from '@/components/status/status-board';
 
 export const metadata: Metadata = {
@@ -58,8 +57,6 @@ export default function StatusPage() {
           </div>
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 }

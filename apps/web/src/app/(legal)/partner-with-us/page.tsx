@@ -8,7 +8,6 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react';
-import { Footer } from '@/components/layout/footer';
 import { Float, Reveal, ScrollCue } from '@/components/home/home-motion';
 import { SiteHeader } from '@/components/home/site-header';
 import { Button } from '@/components/ui/button';
@@ -350,8 +349,6 @@ export default function PartnerWithUsPage() {
           </div>
         </section>
       </main>
-
-      <Footer />
     </div>
   );
 }

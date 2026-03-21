@@ -1,4 +1,3 @@
-import { Footer } from '@/components/layout/footer';
 import { CtaSection } from '@/components/home/cta-section';
 import { FeatureGridSection } from '@/components/home/feature-grid';
 import { HeroSection } from '@/components/home/hero-section';
@@ -23,7 +22,6 @@ export default function HomePage() {
         <UseCasesSection />
         <CtaSection />
       </main>
-      <Footer />
     </div>
   );
 }
