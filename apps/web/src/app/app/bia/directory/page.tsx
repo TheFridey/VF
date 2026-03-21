@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -205,7 +206,7 @@ export default function BusinessDirectoryPage() {
     onError: (error) => toast.error(getErrorMessage(error, 'Failed to submit application')),
   });
 
-  const listings = data?.listings || [];
+  const listings = useMemo(() => data?.listings ?? [], [data?.listings]);
   const totalJobs = useMemo(
     () => listings.reduce((count: number, listing: any) => count + (listing.jobs?.length || 0), 0),
     [listings],
@@ -453,7 +454,14 @@ export default function BusinessDirectoryPage() {
                 <div className="flex items-start gap-3">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/8">
                     {biz.logoUrl ? (
-                      <img src={biz.logoUrl} alt={biz.name} className="h-full w-full object-cover" />
+                      <Image
+                        src={biz.logoUrl}
+                        alt={biz.name}
+                        width={48}
+                        height={48}
+                        sizes="48px"
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       <Briefcase className="h-5 w-5 text-slate-400" />
                     )}
@@ -493,7 +501,14 @@ export default function BusinessDirectoryPage() {
                     <div className="mt-4 flex items-center gap-2 border-t border-white/8 pt-3">
                       <div className="h-5 w-5 overflow-hidden rounded-full border border-white/10 bg-white/8">
                         {biz.user?.profile?.profileImageUrl ? (
-                          <img src={biz.user.profile.profileImageUrl} alt="" className="h-full w-full object-cover" />
+                          <Image
+                            src={biz.user.profile.profileImageUrl}
+                            alt=""
+                            width={20}
+                            height={20}
+                            sizes="20px"
+                            className="h-full w-full object-cover"
+                          />
                         ) : (
                           <Star className="m-1 h-3 w-3 text-amber-300" />
                         )}

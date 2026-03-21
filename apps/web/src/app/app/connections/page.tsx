@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -148,9 +149,11 @@ export default function ConnectionsPage() {
                     <div className="relative">
                       <div className="aspect-[4/3] bg-gradient-to-br from-primary/12 via-muted to-muted/60">
                         {connection.otherUser.profileImageUrl ? (
-                          <img
+                          <Image
                             src={connection.otherUser.profileImageUrl}
                             alt={connection.otherUser.displayName}
+                            fill
+                            sizes="(min-width: 1536px) 25vw, (min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
                             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                           />
                         ) : (

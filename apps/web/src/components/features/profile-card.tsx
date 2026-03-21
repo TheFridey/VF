@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { MapPin, Shield, Briefcase } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -55,9 +56,11 @@ export function ProfileCard({
         {/* Profile Image */}
         <div className={cn('relative bg-muted', variant === 'compact' ? 'aspect-square' : 'h-64')}>
           {profileImageUrl ? (
-            <img
+            <Image
               src={profileImageUrl}
               alt={displayName}
+              fill
+              sizes={variant === 'compact' ? '(min-width: 1024px) 16rem, 50vw' : '(min-width: 1024px) 24rem, 100vw'}
               className="w-full h-full object-cover"
             />
           ) : (

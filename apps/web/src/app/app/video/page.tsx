@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Loader2, Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from 'lucide-react';
@@ -60,16 +60,16 @@ export default function VideoPage() {
     }
   }, [incomingCallPayload]);
 
-  const cleanupMedia = () => {
+  const cleanupMedia = useCallback(() => {
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     remoteStreamRef.current?.getTracks().forEach((track) => track.stop());
     peerConnectionRef.current?.close();
     localStreamRef.current = null;
     remoteStreamRef.current = null;
     peerConnectionRef.current = null;
-  };
+  }, []);
 
-  const ensureLocalMedia = async () => {
+  const ensureLocalMedia = useCallback(async () => {
     if (localStreamRef.current) {
       return localStreamRef.current;
     }
@@ -82,9 +82,9 @@ export default function VideoPage() {
     }
 
     return stream;
-  };
+  }, []);
 
-  const ensurePeerConnection = async (iceServers: VideoIceServer[]) => {
+  const ensurePeerConnection = useCallback(async (iceServers: VideoIceServer[]) => {
     if (peerConnectionRef.current) {
       return peerConnectionRef.current;
     }
@@ -122,9 +122,9 @@ export default function VideoPage() {
 
     peerConnectionRef.current = peer;
     return peer;
-  };
+  }, [ensureLocalMedia]);
 
-  const createOffer = async () => {
+  const createOffer = useCallback(async () => {
     if (!socketRef.current || !callIdRef.current) {
       return;
     }
@@ -137,7 +137,7 @@ export default function VideoPage() {
       callId: callIdRef.current,
       offer,
     });
-  };
+  }, [ensurePeerConnection]);
 
   useEffect(() => {
     if (!connectionId || !peerId) {
@@ -255,7 +255,7 @@ export default function VideoPage() {
       socketRef.current = null;
       cleanupMedia();
     };
-  }, [connectionId, existingCallId, isIncoming, peerId]);
+  }, [cleanupMedia, connectionId, createOffer, ensureLocalMedia, ensurePeerConnection, existingCallId, isIncoming, peerId]);
 
   const handleEndCall = () => {
     if (socketRef.current && callIdRef.current) {
