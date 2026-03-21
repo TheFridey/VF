@@ -28,6 +28,7 @@ const baseUser = {
 };
 
 const mockPrisma = {
+  $transaction: jest.fn(),
   user: {
     findUnique:  jest.fn(),
     findFirst:   jest.fn(),
@@ -60,9 +61,20 @@ const mockPassSec = {
   getSuccessfulLoginUpdate: jest.fn().mockReturnValue({ failedLoginAttempts: 0, lockedUntil: null, lastFailedLoginAt: null }),
   recordPasswordHistory:    jest.fn().mockResolvedValue(undefined),
 } as any;
+const mockSubscriptions = {
+  registerReferralSignup: jest.fn().mockResolvedValue(null),
+  ensureUserReferralCode: jest.fn().mockResolvedValue('VFTEST123'),
+} as any;
 
 function makeService() {
-  return new AuthService(mockPrisma, mockJwt, mockConfig, mockEmail, mockPassSec);
+  return new AuthService(
+    mockPrisma,
+    mockJwt,
+    mockConfig,
+    mockEmail,
+    mockPassSec,
+    mockSubscriptions,
+  );
 }
 
 describe('AuthService', () => {
@@ -71,6 +83,7 @@ describe('AuthService', () => {
   beforeEach(() => {
     service = makeService();
     jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation(async (callback: (tx: typeof mockPrisma) => Promise<unknown>) => callback(mockPrisma));
     mockPrisma.user.findUnique.mockResolvedValue(null);
     mockPrisma.user.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ ...baseUser, ...data }));
     mockPrisma.user.update.mockResolvedValue({ ...baseUser });
@@ -80,6 +93,8 @@ describe('AuthService', () => {
     mockPassSec.isBreachedPassword.mockResolvedValue(false);
     mockPassSec.isAccountLocked.mockReturnValue({ locked: false });
     mockPassSec.verify.mockResolvedValue(true);
+    mockSubscriptions.registerReferralSignup.mockResolvedValue(null);
+    mockSubscriptions.ensureUserReferralCode.mockResolvedValue('VFTEST123');
   });
 
   // ── Registration ────────────────────────────────────────────────────────────

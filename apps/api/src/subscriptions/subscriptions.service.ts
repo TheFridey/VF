@@ -207,8 +207,9 @@ export class SubscriptionsService {
     const activeGrants = await this.getActiveGrants(userId, now);
     const baseTier = this.normalizeMembershipTier(membership, now);
 
-    const effectiveTier = activeGrants.reduce<MembershipTier>(
-      (current, grant) => this.getPreferredTier(current, grant.tier as MembershipTier),
+    const effectiveTier = (activeGrants as any[]).reduce(
+      (current: MembershipTier, grant: any) =>
+        this.getPreferredTier(current, grant.tier as MembershipTier),
       baseTier,
     );
 

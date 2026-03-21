@@ -28,6 +28,11 @@ const MEMBERSHIP_GRANT_DURATIONS: Record<AdminMembershipDuration, number> = {
   [AdminMembershipDuration.YEAR]: 365,
 };
 
+const ADMIN_MEMBERSHIP_TIER_MAP: Record<GrantUserMembershipDto['tier'], MembershipTier> = {
+  BIA_BASIC: MembershipTier.BIA_BASIC,
+  BIA_PLUS: MembershipTier.BIA_PLUS,
+};
+
 @Injectable()
 export class AdminService {
   constructor(
@@ -375,7 +380,7 @@ export class AdminService {
 
     const result = await this.subscriptionsService.grantAdminMembership(
       userId,
-      dto.tier as MembershipTier,
+      ADMIN_MEMBERSHIP_TIER_MAP[dto.tier],
       durationDays,
       adminId,
     );
