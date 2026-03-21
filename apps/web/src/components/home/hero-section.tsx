@@ -42,55 +42,69 @@ export function HeroSection() {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     const syncPreference = () => setPrefersReducedMotion(mediaQuery.matches);
 
     syncPreference();
-    mediaQuery.addEventListener('change', syncPreference);
 
-    return () => mediaQuery.removeEventListener('change', syncPreference);
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', syncPreference);
+      return () => mediaQuery.removeEventListener('change', syncPreference);
+    }
+
+    mediaQuery.addListener(syncPreference);
+
+    return () => mediaQuery.removeListener(syncPreference);
   }, []);
 
   useEffect(() => {
-    if (prefersReducedMotion) {
-      setTypedPhrase(phrases[0]);
-      setActivePhrase(0);
-      setIsDeletingPhrase(false);
-      return;
-    }
-
     const currentPhrase = phrases[activePhrase];
-    const shouldPauseAtFullPhrase = typedPhrase === currentPhrase && !isDeletingPhrase;
-    const shouldPauseBeforeNextPhrase = isDeletingPhrase && typedPhrase.length === 0;
-    const delay = shouldPauseAtFullPhrase
-      ? PHRASE_HOLD_MS
-      : shouldPauseBeforeNextPhrase
-        ? PHRASE_SWITCH_MS
-        : isDeletingPhrase
-          ? DELETING_SPEED_MS
-          : TYPING_SPEED_MS;
 
-    const timeout = window.setTimeout(() => {
-      if (!isDeletingPhrase) {
-        if (typedPhrase.length < currentPhrase.length) {
-          setTypedPhrase(currentPhrase.slice(0, typedPhrase.length + 1));
+    if (prefersReducedMotion) {
+      setTypedPhrase(currentPhrase);
+      setIsDeletingPhrase(false);
+      const timeout = window.setTimeout(() => {
+        setActivePhrase((current) => (current + 1) % phrases.length);
+      }, 1400);
+
+      return () => window.clearTimeout(timeout);
+    } else {
+      const shouldPauseAtFullPhrase = typedPhrase === currentPhrase && !isDeletingPhrase;
+      const shouldPauseBeforeNextPhrase = isDeletingPhrase && typedPhrase.length === 0;
+      const delay = shouldPauseAtFullPhrase
+        ? PHRASE_HOLD_MS
+        : shouldPauseBeforeNextPhrase
+          ? PHRASE_SWITCH_MS
+          : isDeletingPhrase
+            ? DELETING_SPEED_MS
+            : TYPING_SPEED_MS;
+
+      const timeout = window.setTimeout(() => {
+        if (!isDeletingPhrase) {
+          if (typedPhrase.length < currentPhrase.length) {
+            setTypedPhrase(currentPhrase.slice(0, typedPhrase.length + 1));
+            return;
+          }
+
+          setIsDeletingPhrase(true);
           return;
         }
 
-        setIsDeletingPhrase(true);
-        return;
-      }
+        if (typedPhrase.length > 0) {
+          setTypedPhrase(currentPhrase.slice(0, typedPhrase.length - 1));
+          return;
+        }
 
-      if (typedPhrase.length > 0) {
-        setTypedPhrase(currentPhrase.slice(0, typedPhrase.length - 1));
-        return;
-      }
+        setIsDeletingPhrase(false);
+        setActivePhrase((current) => (current + 1) % phrases.length);
+      }, delay);
 
-      setIsDeletingPhrase(false);
-      setActivePhrase((current) => (current + 1) % phrases.length);
-    }, delay);
-
-    return () => window.clearTimeout(timeout);
+      return () => window.clearTimeout(timeout);
+    }
   }, [activePhrase, isDeletingPhrase, prefersReducedMotion, typedPhrase]);
 
   useEffect(() => {
