@@ -7,7 +7,7 @@ describe('HeroSection', () => {
   it('renders a minimal reconnection-focused hero', () => {
     render(<HeroSection />);
 
-    expect(screen.getByRole('heading', { name: /find the people who remember/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /find the people you served with/i })).toBeInTheDocument();
     expect(screen.getByText('Veteran-only access')).toBeInTheDocument();
     expect(screen.getByText('Shared overlap')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /start here/i })).toHaveAttribute('href', '/auth/register');

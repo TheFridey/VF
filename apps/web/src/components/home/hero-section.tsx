@@ -8,9 +8,19 @@ import { Button } from '@/components/ui/button';
 const phrases = [
   'the same regiment',
   'the same tour',
-  'the same years',
-  'familiar names',
+  'the same deployment',
+  'the same unit',
 ];
+
+const longestPhrase = phrases.reduce(
+  (longest, phrase) => (phrase.length > longest.length ? phrase : longest),
+  phrases[0],
+);
+
+const TYPING_SPEED_MS = 38;
+const DELETING_SPEED_MS = 22;
+const PHRASE_HOLD_MS = 850;
+const PHRASE_SWITCH_MS = 180;
 
 const trustPoints = [
   'Veteran-only access',
@@ -29,14 +39,36 @@ export function HeroSection() {
   const [typedPhrase, setTypedPhrase] = useState('');
   const [isDeletingPhrase, setIsDeletingPhrase] = useState(false);
   const [visualStage, setVisualStage] = useState(0);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const syncPreference = () => setPrefersReducedMotion(mediaQuery.matches);
+
+    syncPreference();
+    mediaQuery.addEventListener('change', syncPreference);
+
+    return () => mediaQuery.removeEventListener('change', syncPreference);
+  }, []);
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      setTypedPhrase(phrases[0]);
+      setActivePhrase(0);
+      setIsDeletingPhrase(false);
+      return;
+    }
+
     const currentPhrase = phrases[activePhrase];
-    const typingDelay = isDeletingPhrase ? 55 : 110;
-    const pauseDelay = isDeletingPhrase ? 360 : 1500;
-    const shouldPause =
-      typedPhrase === currentPhrase ||
-      (isDeletingPhrase && typedPhrase.length === 0);
+    const shouldPauseAtFullPhrase = typedPhrase === currentPhrase && !isDeletingPhrase;
+    const shouldPauseBeforeNextPhrase = isDeletingPhrase && typedPhrase.length === 0;
+    const delay = shouldPauseAtFullPhrase
+      ? PHRASE_HOLD_MS
+      : shouldPauseBeforeNextPhrase
+        ? PHRASE_SWITCH_MS
+        : isDeletingPhrase
+          ? DELETING_SPEED_MS
+          : TYPING_SPEED_MS;
 
     const timeout = window.setTimeout(() => {
       if (!isDeletingPhrase) {
@@ -56,10 +88,10 @@ export function HeroSection() {
 
       setIsDeletingPhrase(false);
       setActivePhrase((current) => (current + 1) % phrases.length);
-    }, shouldPause ? pauseDelay : typingDelay);
+    }, delay);
 
     return () => window.clearTimeout(timeout);
-  }, [activePhrase, isDeletingPhrase, typedPhrase]);
+  }, [activePhrase, isDeletingPhrase, prefersReducedMotion, typedPhrase]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -109,11 +141,22 @@ export function HeroSection() {
             </div>
 
             <h1 className="mt-6 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl lg:text-[4rem] lg:leading-[1.02]">
-              Find the people who remember
-              <span className="mt-2 block min-h-[3.4rem] text-sky-700">
-                <span className="inline-flex min-w-[19.5rem] items-center">
-                  <span className="inline-block whitespace-nowrap">{typedPhrase}</span>
-                  <span aria-hidden="true" className="hero-caret ml-px inline-block h-[0.95em] w-[2px] rounded-full bg-sky-500" />
+              <span className="block">Find the people you served with.</span>
+              <span className="mt-2 block min-h-[3.2rem] text-sky-700 sm:min-h-[3.4rem]">
+                <span className="sr-only">
+                  Match through the same regiment, the same tour, the same deployment, or the same unit.
+                </span>
+                <span aria-hidden="true" className="relative inline-grid max-w-full items-center align-top">
+                  <span className="invisible whitespace-nowrap pr-[3px]">{longestPhrase}</span>
+                  <span className="absolute inset-0 inline-flex items-center whitespace-nowrap">
+                    <span className="inline-block">{typedPhrase}</span>
+                    {!prefersReducedMotion && (
+                      <span
+                        aria-hidden="true"
+                        className="hero-caret ml-px inline-block h-[0.95em] w-[2px] rounded-full bg-sky-500"
+                      />
+                    )}
+                  </span>
                 </span>
               </span>
             </h1>
