@@ -34,6 +34,9 @@ export function SiteHeader() {
           />
         </Link>
         <div className="flex items-center gap-3">
+          <Button asChild variant="ghost" className="hidden text-slate-700 hover:text-slate-950 sm:inline-flex">
+            <Link href="/status">System Status</Link>
+          </Button>
           <Button asChild variant="ghost" className="text-slate-700 hover:text-slate-950">
             <Link href="/auth/login">Log in</Link>
           </Button>
