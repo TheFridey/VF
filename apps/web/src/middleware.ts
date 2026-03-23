@@ -47,7 +47,11 @@ function toWebSocketOrigin(value?: string): string | null {
  */
 export function middleware(request: NextRequest): NextResponse {
   const isDev = process.env.NODE_ENV === 'development';
-  const currentOrigin = request.nextUrl.origin;
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
+  const currentOrigin = forwardedHost
+    ? `${forwardedProto}://${forwardedHost}`
+    : request.nextUrl.origin;
   const apiOrigin = toOrigin(process.env.NEXT_PUBLIC_API_URL?.trim());
   const wsOrigin = toWebSocketOrigin(process.env.NEXT_PUBLIC_WS_URL?.trim());
   const connectSources = new Set<string>([
