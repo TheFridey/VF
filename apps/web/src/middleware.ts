@@ -43,10 +43,9 @@ function toWebSocketOrigin(value?: string): string | null {
 }
 
 /**
- * Next.js Edge Middleware with a nonce-based Content Security Policy.
+ * Next.js Edge Middleware with a static Content Security Policy.
  */
 export function middleware(request: NextRequest): NextResponse {
-  const nonce = generateNonce();
   const isDev = process.env.NODE_ENV === 'development';
   const currentOrigin = request.nextUrl.origin;
   const apiOrigin = toOrigin(process.env.NEXT_PUBLIC_API_URL?.trim());
@@ -59,12 +58,12 @@ export function middleware(request: NextRequest): NextResponse {
     'wss://api.veteranfinder.co.uk',
   ]);
 
-  if (apiOrigin) {
+  if (apiOrigin && (isDev || !apiOrigin.includes('localhost'))) {
     connectSources.add(apiOrigin);
     connectSources.add(toWebSocketOrigin(apiOrigin) || apiOrigin);
   }
 
-  if (wsOrigin) {
+  if (wsOrigin && (isDev || !wsOrigin.includes('localhost'))) {
     connectSources.add(wsOrigin);
   }
 
@@ -83,23 +82,20 @@ export function middleware(request: NextRequest): NextResponse {
     `connect-src ${Array.from(connectSources).join(' ')}`,
     "media-src 'self' blob:",
     "worker-src 'self' blob:",
+    "object-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'self'",
     "base-uri 'self'",
     'upgrade-insecure-requests',
   ].join('; ');
 
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-nonce', nonce);
-
-  const response = NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
+  const response = NextResponse.next();
 
   response.headers.set('Content-Security-Policy', cspDirectives);
-  response.headers.set('x-nonce', nonce);
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), payment=()',
+  );
 
   return response;
 }

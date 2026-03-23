@@ -1,9 +1,9 @@
-'use client';
-
 import Link from 'next/link';
 import { Shield, Heart, Users, Lock, Award, ArrowLeft, CheckCircle } from 'lucide-react';
 import { CONTACT_EMAILS, toMailto } from '@/lib/contact-emails';
 import { VeteranFinderLogo } from '@/components/brand/veteranfinder-logo';
+
+export const revalidate = 86400;
 
 export default function AboutUsPage() {
   return (
