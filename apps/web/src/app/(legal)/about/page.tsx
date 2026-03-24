@@ -24,10 +24,35 @@ export default function AboutUsPage() {
       {/* Hero Section */}
       <section className="py-20 px-4 bg-gradient-to-b from-primary/5 to-background">
         <div className="container mx-auto max-w-4xl text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-6">About VeteranFinder</h1>
+          <h1 className="text-4xl md:text-5xl font-bold mb-6">
+            Built to find the people you served with.
+          </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            A trust-led platform built specifically for the military community. Helping veterans
-            reconnect with those they served alongside and rebuild trusted support networks.
+            VeteranFinder exists because losing touch with the people you served
+            alongside is easy, and finding them again is harder than it should be.
+            This is the tool that was missing.
+          </p>
+        </div>
+      </section>
+
+      <section className="py-10 px-4 border-b border-border">
+        <div className="container mx-auto max-w-3xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground mb-4">
+            Why this exists
+          </p>
+          <p className="text-lg leading-8 text-foreground">
+            Losing touch with the people you served with is one of those things
+            that happens quietly. Numbers change. People move. Years pass. And
+            then one day you realise you have no idea where half your section
+            ended up.
+          </p>
+          <p className="mt-4 text-lg leading-8 text-muted-foreground">
+            Facebook groups come close but they&apos;re not built for it — you can&apos;t
+            search by regiment and year, you can&apos;t verify who you&apos;re actually
+            talking to, and the noise makes it hard to find anyone specific.
+            VeteranFinder was built to do one thing properly: help veterans find
+            the people they actually served with, in a space that takes that
+            seriously.
           </p>
         </div>
       </section>
@@ -35,13 +60,14 @@ export default function AboutUsPage() {
       {/* Mission Section */}
       <section className="py-16 px-4">
         <div className="container mx-auto max-w-4xl">
-          <h2 className="text-3xl font-bold mb-8 text-center">Our Mission</h2>
+          <h2 className="text-3xl font-bold mb-8 text-center">What VeteranFinder is for</h2>
           <div className="prose prose-gray dark:prose-invert max-w-none">
             <p className="text-lg">
-              VeteranFinder was born from a simple observation: the bonds formed during military service
-              are unlike any other. Yet when service members return to civilian life, maintaining those
-              connections becomes incredibly difficult. Old contacts fade, units disperse, and the
-              shared experiences that once united brothers and sisters in arms become distant memories.
+              VeteranFinder is a reconnection tool. It exists so that veterans
+              can find the specific people they served with, using their actual
+              service history — regiment, years, deployments — rather than hoping
+              someone turns up in a Facebook search. Everything else the platform
+              does is built around making that reconnection trustworthy and private.
             </p>
             <p className="text-lg">
               Our mission is to bridge that gap. We&apos;ve built a platform that serves two core purposes:

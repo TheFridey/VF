@@ -45,7 +45,7 @@ export function Footer() {
 
         <div className="mt-8 flex flex-col gap-2 border-t border-slate-200 pt-5 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <p>&copy; {year} VeteranFinder Ltd. All rights reserved.</p>
-          <p>Built for a calmer, more accountable veteran community experience.</p>
+          <p>Built so veterans can find each other.</p>
         </div>
       </div>
     </footer>

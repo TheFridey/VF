@@ -25,13 +25,14 @@ export function ProofLayerSection() {
     <section className="border-y border-sky-100 bg-[linear-gradient(180deg,#f6fbff_0%,#ffffff_100%)]">
       <div className="w-full px-6 py-16 sm:px-8 lg:px-10 xl:px-14 2xl:px-20">
         <Reveal className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Product proof</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">How it works in practice</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
-            The trust layer is built into the interface, not hidden in policy copy.
+            You can see who you&apos;re talking to before you say a word.
           </h2>
           <p className="mt-4 text-sm leading-7 text-slate-600">
-            These previews show how profiles, forums, and messaging are shaped around service context, moderation,
-            and a calmer member experience.
+            Profiles show verified service history. Messages are private by
+            default. Every account goes through a review before it can connect
+            with anyone.
           </p>
         </Reveal>
 

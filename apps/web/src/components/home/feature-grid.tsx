@@ -29,8 +29,8 @@ const features = [
   },
   {
     icon: Briefcase,
-    title: 'Useful follow-on features',
-    description: 'Career resources, mentorship, and community areas are there to support long-term value after the first reconnection happens.',
+    title: 'Career, mentorship, and community',
+    description: 'Career resources, mentorship pathways, and community areas are there once the first reconnection has happened. Built for what comes next.',
   },
 ];
 
@@ -39,7 +39,7 @@ export function FeatureGridSection() {
     <section className="bg-[linear-gradient(180deg,#ffffff_0%,#f8fcff_100%)]">
       <div className="w-full px-6 py-16 sm:px-8 lg:px-10 xl:px-14 2xl:px-20">
         <Reveal className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">What the platform includes</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">What&apos;s here</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Built around reconnection first, then community.</h2>
         </Reveal>
         <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3">

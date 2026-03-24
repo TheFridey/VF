@@ -24,10 +24,10 @@ export function UseCasesSection() {
     <section className="bg-[linear-gradient(180deg,#ffffff_0%,#f5fbff_100%)]">
       <div className="w-full px-6 py-16 sm:px-8 lg:px-10 xl:px-14 2xl:px-20">
         <Reveal className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Why veterans join</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Representative use cases, not inflated promises.</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Real reasons</p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Why veterans join</h2>
           <p className="mt-4 text-sm leading-7 text-slate-600">
-            These are common reasons the platform is useful. They are examples of product intent rather than performance claims.
+            These are the moments VeteranFinder was built for.
           </p>
         </Reveal>
         <div className="mt-10 grid gap-4 lg:grid-cols-3">

@@ -4,22 +4,22 @@ import { Reveal } from '@/components/home/home-motion';
 const items = [
   {
     icon: UserRoundCheck,
-    title: 'Verified veteran accounts',
+    title: 'Veteran-only access',
     description: 'Access is designed around veteran verification rather than open sign-up alone.',
   },
   {
     icon: FileCheck2,
-    title: 'Clear review process',
+    title: 'Every account verified',
     description: 'Verification requests are reviewed by staff and tracked through a dedicated moderation workflow.',
   },
   {
     icon: ShieldCheck,
-    title: 'Moderation and audit trail',
+    title: 'Moderated by people',
     description: 'Admin and moderation tools are built to support reports, review decisions, and accountability.',
   },
   {
     icon: Eye,
-    title: 'Privacy and readability',
+    title: 'No feed. No noise.',
     description: 'The product avoids noisy social mechanics and keeps the experience focused on trust and use.',
   },
 ];

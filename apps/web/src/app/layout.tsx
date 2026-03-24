@@ -10,13 +10,38 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'VeteranFinder | Veteran Reconnection and Verified Community Access',
-  description: 'A trust-first platform for veterans to reconnect, verify their status, and access moderated community spaces.',
-  keywords: ['veterans', 'reconnection', 'verification', 'community', 'regiment forums'],
+  title: 'VeteranFinder | Find the people you served with',
+  description:
+    'The only UK platform built for veterans to reconnect through shared service. Verified. Private. Veterans only.',
+  keywords: ['veterans', 'reconnection', 'regiment', 'military', 'UK veterans', 'find veterans'],
   icons: {
     icon: '/veteranfinder-mark.svg',
     shortcut: '/veteranfinder-mark.svg',
     apple: '/veteranfinder-mark.svg',
+  },
+  openGraph: {
+    title: 'VeteranFinder | Find the people you served with',
+    description:
+      'The only UK platform built for veterans to reconnect through shared service. Verified. Private. Veterans only.',
+    url: 'https://veteranfinder.co.uk',
+    siteName: 'VeteranFinder',
+    images: [
+      {
+        url: 'https://veteranfinder.co.uk/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'VeteranFinder — Find the people you served with',
+      },
+    ],
+    locale: 'en_GB',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'VeteranFinder | Find the people you served with',
+    description:
+      'The only UK platform built for veterans to reconnect through shared service. Verified. Private. Veterans only.',
+    images: ['https://veteranfinder.co.uk/og-image.png'],
   },
 };
 

@@ -5,17 +5,17 @@ const steps = [
   {
     icon: UserPlus,
     title: 'Create your account',
-    description: 'Start with your email, complete onboarding, and add the service details that help the platform place you properly.',
+    description: 'Email, password, and your service details. Takes about three minutes.',
   },
   {
     icon: FileCheck,
     title: 'Submit verification evidence',
-    description: 'Verification is there to protect the quality of the network and help keep the platform veteran-first.',
+    description: 'A photo of your veteran card or service document is enough. A moderator reviews it — usually within 48 hours.',
   },
   {
     icon: MessageCircleMore,
     title: 'Reconnect and participate',
-    description: 'Use profiles, messages, regiment spaces, and BIA community areas to rebuild contact and join useful conversations.',
+    description: 'Search by regiment, years served, and deployment. When you find someone, message them directly. Private by default.',
   },
 ];
 
@@ -25,7 +25,7 @@ export function HowItWorksSection() {
       <div className="w-full px-6 py-16 sm:px-8 lg:px-10 xl:px-14 2xl:px-20">
         <Reveal className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">How it works</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Three practical steps, not a maze.</h2>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Three steps. That&apos;s it.</h2>
         </Reveal>
         <div className="relative mt-10 grid gap-4 lg:grid-cols-[1fr_auto_1fr_auto_1fr]">
           {steps.map((step, index) => (
