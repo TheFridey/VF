@@ -227,4 +227,36 @@ export const adminApi = {
     const response = await api.get('/admin/audit-logs', { params: cleanParams(params) });
     return response.data;
   },
+
+  getBlogPosts: async (params?: { page?: number; limit?: number; status?: string; tag?: string }) => {
+    const response = await api.get('/blog/admin/posts', { params: cleanParams(params) });
+    return response.data;
+  },
+
+  getBlogPost: async (postId: string) => {
+    const response = await api.get(`/blog/admin/posts/${postId}`);
+    return response.data;
+  },
+
+  createBlogPost: async (data: Record<string, unknown>) => {
+    const response = await api.post('/blog/posts', data);
+    return response.data;
+  },
+
+  updateBlogPost: async (postId: string, data: Record<string, unknown>) => {
+    const response = await api.put(`/blog/posts/${postId}`, data);
+    return response.data;
+  },
+
+  deleteBlogPost: async (postId: string) => {
+    const response = await api.delete(`/blog/posts/${postId}`);
+    return response.data;
+  },
+
+  getBlogAnalytics: async (postId: string, params?: { days?: number }) => {
+    const response = await api.get(`/blog/admin/posts/${postId}/analytics`, {
+      params: cleanParams(params),
+    });
+    return response.data;
+  },
 };

@@ -28,7 +28,10 @@ const navGroups = [
   },
   {
     label: 'Community',
-    items: [{ name: 'BIA Community', href: '/bia', icon: MessageSquare }],
+    items: [
+      { name: 'BIA Community', href: '/bia', icon: MessageSquare },
+      { name: 'Blog', href: '/blog', icon: FileText },
+    ],
   },
   {
     label: 'System',

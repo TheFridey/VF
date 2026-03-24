@@ -63,6 +63,7 @@ const CSRF_EXEMPT_PATHS = [
   '/api/v1/auth/refresh',
   '/api/v1/analytics/page-view',
   '/api/v1/analytics/event',
+  '/api/v1/blog/views',
   '/api/v1/email/contact',
   '/api/v1/email/partnerships',
 ];

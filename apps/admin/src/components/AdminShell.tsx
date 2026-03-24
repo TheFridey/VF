@@ -13,6 +13,7 @@ const breadcrumbs: Record<string, string> = {
   '/verification': 'Verification',
   '/reports': 'Reports',
   '/bia': 'BIA Community',
+  '/blog': 'Blog',
   '/audit': 'Audit Log',
   '/settings': 'System',
 };

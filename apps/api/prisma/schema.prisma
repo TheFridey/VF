@@ -107,6 +107,15 @@ enum MembershipGrantSource {
   ADMIN
 }
 
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+
+  @@map("post_status")
+}
+
 // ============ MODELS ============
 
 model User {
@@ -165,6 +174,7 @@ model User {
   mentorRequests       MentorRequest[]      @relation("MentorRequestMentee")
   careerResources      CareerResource[]     @relation("CareerResourceAuthor")
   pushSubscriptions    PushSubscription[]
+  posts                Post[]               @relation
 
   @@index([email])
   @@index([status])
@@ -480,6 +490,48 @@ model AnalyticsEvent {
   @@index([sessionId, createdAt])
   @@index([userId])
   @@map("analytics_events")
+}
+
+model Post {
+  id              String     @id @default(uuid())
+  title           String
+  slug            String     @unique
+  excerpt         String
+  body            String     @db.Text
+  coverImageUrl   String?    @map("cover_image_url")
+  status          PostStatus @default(DRAFT)
+  publishAt       DateTime?  @map("publish_at")
+  publishedAt     DateTime?  @map("published_at")
+  authorId        String     @map("author_id")
+  tags            String[]
+  metaTitle       String?    @map("meta_title")
+  metaDescription String?    @map("meta_description")
+  wordCount       Int        @default(0) @map("word_count")
+  readTimeMinutes Int        @default(1) @map("read_time_minutes")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  author User       @relation(fields: [authorId], references: [id])
+  views  PostView[]
+
+  @@index([status, publishAt])
+  @@index([slug])
+  @@map("posts")
+}
+
+model PostView {
+  id         String   @id @default(uuid())
+  postId     String   @map("post_id")
+  sessionId  String   @map("session_id")
+  referrer   String?
+  readTimeMs Int?     @map("read_time_ms")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([postId, createdAt])
+  @@map("post_views")
 }
 
 // ============ BIA MODELS ============
