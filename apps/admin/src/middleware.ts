@@ -26,9 +26,9 @@ export function middleware(request: NextRequest): NextResponse {
   const cspDirectives = [
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
-    "style-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: https://res.cloudinary.com",
-    "font-src 'self'",
+    "font-src 'self' https://fonts.gstatic.com",
     `connect-src 'self' ${apiOrigin}${isDev ? ` ws://localhost:3000 http://localhost:3000 ${apiOrigin}` : ''}`,
     "frame-ancestors 'none'",
     "form-action 'self'",
