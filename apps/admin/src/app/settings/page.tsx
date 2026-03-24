@@ -29,6 +29,9 @@ export default function SettingsPage() {
   const { user } = useAuthStore();
   const [health, setHealth] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const apiOrigin = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000')
+    .replace(/\/+$/, '')
+    .replace(/\/api(?:\/v1)?$/, '');
 
   const fetch = async () => {
     setLoading(true);
@@ -115,7 +118,7 @@ export default function SettingsPage() {
               <p style={{ fontSize: 13, color: '#7a9bb5', lineHeight: 1.7, marginBottom: 14 }}>
                 Swagger API docs available in development at <span style={{ ...S.mono, color: '#d4a853', fontSize: 12 }}>/api/docs</span>.
               </p>
-              <a href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/docs`}
+              <a href={`${apiOrigin}/api/docs`}
                 target="_blank" rel="noopener noreferrer"
                 style={{ ...S.btn('#7ab3d4'), textDecoration: 'none', display: 'inline-flex' }}>
                 API Documentation →

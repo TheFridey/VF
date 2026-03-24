@@ -1,9 +1,14 @@
 import axios from 'axios';
 import { useAuthStore } from './auth-store';
 
+function getApiOrigin() {
+  const raw = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
+  return raw.replace(/\/api(?:\/v1)?$/, '');
+}
+
 const isServer = typeof window === 'undefined';
 const API_BASE = isServer
-  ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/v1`
+  ? `${getApiOrigin()}/api/v1`
   : '/api';
 
 const api = axios.create({

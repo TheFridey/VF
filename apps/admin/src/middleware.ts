@@ -13,9 +13,15 @@ function generateNonce(): string {
   return btoa(binary);
 }
 
+function getApiOrigin(): string {
+  const raw = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
+  return raw.replace(/\/api(?:\/v1)?$/, '');
+}
+
 export function middleware(request: NextRequest): NextResponse {
   const nonce = generateNonce();
   const isDev = process.env.NODE_ENV === 'development';
+  const apiOrigin = getApiOrigin();
 
   const cspDirectives = [
     "default-src 'self'",
@@ -23,7 +29,7 @@ export function middleware(request: NextRequest): NextResponse {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https://res.cloudinary.com",
     "font-src 'self'",
-    `connect-src 'self' ${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}${isDev ? ' ws://localhost:3000 http://localhost:3000' : ''}`,
+    `connect-src 'self' ${apiOrigin}${isDev ? ` ws://localhost:3000 http://localhost:3000 ${apiOrigin}` : ''}`,
     "frame-ancestors 'none'",
     "form-action 'self'",
     "base-uri 'self'",

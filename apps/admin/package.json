@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3002",
     "build": "node ../../scripts/check-next-build-env.js && next build",
-    "start": "next start -p 3002",
+    "start": "node start-standalone.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "npm run test:unit",
