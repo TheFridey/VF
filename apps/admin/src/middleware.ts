@@ -1,28 +1,15 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-function generateNonce(): string {
-  const bytes = new Uint8Array(16);
-  globalThis.crypto.getRandomValues(bytes);
-
-  let binary = '';
-  for (let index = 0; index < bytes.length; index += 1) {
-    binary += String.fromCharCode(bytes[index]);
-  }
-
-  return btoa(binary);
-}
-
 function getApiOrigin(): string {
   const raw = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
   return raw.replace(/\/api(?:\/v1)?$/, '');
 }
 
 export function middleware(request: NextRequest): NextResponse {
-  const nonce = generateNonce();
   const isDev = process.env.NODE_ENV === 'development';
   const apiOrigin = getApiOrigin();
-  const scriptSources = [`'self'`, `'nonce-${nonce}'`];
+  const scriptSources = [`'self'`, `'unsafe-inline'`];
 
   if (isDev) {
     scriptSources.push(`'unsafe-eval'`);
@@ -43,17 +30,9 @@ export function middleware(request: NextRequest): NextResponse {
     'upgrade-insecure-requests',
   ].join('; ');
 
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-nonce', nonce);
-
-  const response = NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
+  const response = NextResponse.next();
 
   response.headers.set('Content-Security-Policy', cspDirectives);
-  response.headers.set('x-nonce', nonce);
   response.headers.set(
     'Permissions-Policy',
     'camera=(), microphone=(), geolocation=(), payment=()',
