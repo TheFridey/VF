@@ -1,18 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-function generateNonce(): string {
-  const bytes = new Uint8Array(16);
-  globalThis.crypto.getRandomValues(bytes);
-
-  let binary = '';
-  for (let index = 0; index < bytes.length; index += 1) {
-    binary += String.fromCharCode(bytes[index]);
-  }
-
-  return btoa(binary);
-}
-
 function toOrigin(value?: string): string | null {
   if (!value) {
     return null;
@@ -47,7 +35,6 @@ function toWebSocketOrigin(value?: string): string | null {
  * Next.js Edge Middleware with a static Content Security Policy.
  */
 export function middleware(request: NextRequest): NextResponse {
-  const nonce = generateNonce();
   const isDev = process.env.NODE_ENV === 'development';
   const forwardedHost = request.headers.get('x-forwarded-host');
   const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
@@ -79,7 +66,7 @@ export function middleware(request: NextRequest): NextResponse {
     connectSources.add('ws://localhost:3001');
   }
 
-  const scriptSources = [`'self'`, `'nonce-${nonce}'`, `'unsafe-inline'`];
+  const scriptSources = [`'self'`, `'unsafe-inline'`];
   if (isDev) {
     scriptSources.push(`'unsafe-eval'`);
   }
@@ -103,17 +90,9 @@ export function middleware(request: NextRequest): NextResponse {
     'upgrade-insecure-requests',
   ].join('; ');
 
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-nonce', nonce);
-
-  const response = NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
+  const response = NextResponse.next();
 
   response.headers.set('Content-Security-Policy', cspDirectives);
-  response.headers.set('x-nonce', nonce);
   response.headers.set(
     'Permissions-Policy',
     'camera=(self), microphone=(self), geolocation=(), payment=()',
