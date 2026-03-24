@@ -54,7 +54,6 @@ export function middleware(request: NextRequest): NextResponse {
   const currentOrigin = forwardedHost
     ? `${forwardedProto}://${forwardedHost}`
     : request.nextUrl.origin;
-  const needsInlineStructuredData = /^\/blog\/[^/]+$/.test(request.nextUrl.pathname);
   const apiOrigin = toOrigin(process.env.NEXT_PUBLIC_API_URL?.trim());
   const wsOrigin = toWebSocketOrigin(process.env.NEXT_PUBLIC_WS_URL?.trim());
   const connectSources = new Set<string>([
@@ -80,17 +79,15 @@ export function middleware(request: NextRequest): NextResponse {
     connectSources.add('ws://localhost:3001');
   }
 
-  const scriptSources = [`'self'`, `'nonce-${nonce}'`];
-  if (needsInlineStructuredData) {
-    // Blog posts still emit inline JSON-LD for search engines.
-    scriptSources.push(`'unsafe-inline'`);
-  }
+  const scriptSources = [`'self'`, `'nonce-${nonce}'`, `'unsafe-inline'`];
   if (isDev) {
     scriptSources.push(`'unsafe-eval'`);
   }
 
   const cspDirectives = [
     "default-src 'self'",
+    // Next.js still injects framework inline bootstrap/runtime scripts on the public app.
+    // Keep unsafe-inline here until the app can move fully to a framework-supported nonce-only path.
     `script-src ${scriptSources.join(' ')}`,
     // Inline styles remain in use for a small number of dynamic charts and layout-safe UI values.
     "style-src 'self' 'unsafe-inline'",
