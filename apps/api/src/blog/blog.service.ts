@@ -281,20 +281,23 @@ export class BlogService {
     };
   }
 
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron(CronExpression.EVERY_MINUTE)
   async publishScheduledPosts() {
     const due = await this.prisma.post.findMany({
       where: {
         status: PostStatus.SCHEDULED,
         publishAt: { lte: new Date() },
       },
-      select: { id: true, slug: true },
+      select: { id: true, slug: true, publishAt: true },
     });
 
     for (const post of due) {
       await this.prisma.post.update({
         where: { id: post.id },
-        data: { status: PostStatus.PUBLISHED, publishedAt: new Date() },
+        data: {
+          status: PostStatus.PUBLISHED,
+          publishedAt: post.publishAt ?? new Date(),
+        },
       });
       this.logger.log(`Auto-published post: ${post.slug}`);
     }

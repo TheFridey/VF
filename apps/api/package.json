@@ -22,6 +22,7 @@
     "prisma:migrate:prod": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "prisma:seed": "prisma db seed",
+    "prisma:seed:blog": "ts-node prisma/seed-blog-posts.ts",
     "db:reset": "prisma migrate reset --force"
   },
   "dependencies": {

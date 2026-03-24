@@ -5,6 +5,7 @@ import * as argon2 from 'argon2';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { seedBlogPosts } from './blog-posts.seed';
 
 // ── Load env vars in same priority order as NestJS ConfigModule ───────────────
 // NestJS uses envFilePath: ['.env.local', '.env'] — .env.local wins.
@@ -1770,6 +1771,10 @@ async function main() {
   console.log('   • marcus.williams   → 45 Commando');
   console.log('   • lisa.chen         → Royal Corps of Signals');
   console.log('   • david.torres      → Royal Engineers');
+
+  console.log('');
+  console.log('📰 Seeding scheduled blog posts...');
+  await seedBlogPosts(prisma, admin.id);
 
   // ============ SUMMARY ============
   console.log('');
