@@ -33,6 +33,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   server: Server;
 
   private readonly logger = new Logger(ChatGateway.name);
+  // TODO(scale): this presence registry is process-local. It works well on a single
+  // API instance, but multi-instance deployments will need shared presence state and
+  // pub/sub fan-out (most likely Redis) before online/offline events stay accurate.
   private connectedUsers: Map<string, string[]> = new Map(); // userId -> socketIds
   private readonly messageCrypto: MessageCrypto;
 

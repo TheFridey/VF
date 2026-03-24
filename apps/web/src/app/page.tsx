@@ -15,8 +15,8 @@ export default function HomePage() {
       <main>
         <HeroSection />
         <TrustBar />
-        <ProofLayerSection />
         <HowItWorksSection />
+        <ProofLayerSection />
         <FeatureGridSection />
         <VerificationSection />
         <UseCasesSection />

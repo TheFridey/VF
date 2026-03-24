@@ -41,7 +41,7 @@ export function SiteHeader() {
             <Link href="/auth/login">Log in</Link>
           </Button>
           <Button asChild className="bg-sky-600 hover:bg-sky-700">
-            <Link href="/auth/register">Start searching</Link>
+            <Link href="/auth/register">Create your profile</Link>
           </Button>
         </div>
       </div>

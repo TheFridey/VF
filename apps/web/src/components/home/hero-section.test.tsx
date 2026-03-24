@@ -10,6 +10,6 @@ describe('HeroSection', () => {
     expect(screen.getByRole('heading', { name: /find the people you served with/i })).toBeInTheDocument();
     expect(screen.getByText('Veteran-only access')).toBeInTheDocument();
     expect(screen.getByText('Shared overlap')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /start here/i })).toHaveAttribute('href', '/auth/register');
+    expect(screen.getByRole('link', { name: /create your profile/i })).toHaveAttribute('href', '/auth/register');
   });
 });

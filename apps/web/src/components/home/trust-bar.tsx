@@ -30,7 +30,12 @@ export function TrustBar() {
       <div className="w-full px-6 py-12 sm:px-8 lg:px-10 xl:px-14 2xl:px-20">
         <Reveal className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Why trust it</p>
-          <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">A calmer, more accountable product experience.</h2>
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+            Help the people you served with find you in the right place.
+          </h2>
+          <p className="mt-3 text-sm leading-7 text-slate-600">
+            VeteranFinder only works if the people joining it trust what they are seeing. These are the signals that make that possible.
+          </p>
         </Reveal>
         <div className="mt-8 grid gap-4 lg:grid-cols-4">
           {items.map(({ icon: Icon, title, description }, index) => (

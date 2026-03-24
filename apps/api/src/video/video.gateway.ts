@@ -44,6 +44,9 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   server: Server;
 
   private readonly logger = new Logger(VideoGateway.name);
+  // TODO(scale): these registries assume one API process owns all socket presence.
+  // If video moves to multiple instances, presence, call sessions, and timeout
+  // ownership will need a shared store plus pub/sub coordination.
   private connectedUsers: Map<string, string[]> = new Map(); // userId -> socketIds
   private activeCalls: Map<string, CallSession> = new Map(); // callId -> session
   private callTimeouts: Map<string, NodeJS.Timeout> = new Map();
@@ -105,6 +108,8 @@ export class VideoGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   }
 
   private emitToUser(userId: string, event: string, payload: unknown) {
+    // TODO(scale): replace direct socket iteration with a broker-backed fan-out when
+    // the video namespace is served by more than one API instance.
     this.getSocketIds(userId).forEach((socketId) => {
       this.server.to(socketId).emit(event, payload);
     });

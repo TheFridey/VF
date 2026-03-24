@@ -24,8 +24,21 @@ export function HowItWorksSection() {
     <section className="bg-[linear-gradient(180deg,#f4fbff_0%,#f8fbff_100%)]">
       <div className="w-full px-6 py-16 sm:px-8 lg:px-10 xl:px-14 2xl:px-20">
         <Reveal className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">How it works</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">What happens next</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Three steps. That&apos;s it.</h2>
+          <p className="mt-4 text-sm leading-7 text-slate-600">
+            Create your profile first. Verification is what unlocks search and private messaging, so the reconnection starts in the right order.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {['Create your profile', 'Upload proof', 'Moderator review', 'Reconnect privately'].map((label) => (
+              <span
+                key={label}
+                className="rounded-full border border-sky-100 bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm"
+              >
+                {label}
+              </span>
+            ))}
+          </div>
         </Reveal>
         <div className="relative mt-10 grid gap-4 lg:grid-cols-[1fr_auto_1fr_auto_1fr]">
           {steps.map((step, index) => (

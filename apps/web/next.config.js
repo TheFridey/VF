@@ -1,5 +1,10 @@
 const path = require('path');
 
+function getApiOrigin() {
+  const raw = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
+  return raw.replace(/\/api(?:\/v1)?$/, '');
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -22,10 +27,12 @@ const nextConfig = {
     ],
   },
   async rewrites() {
+    const apiOrigin = getApiOrigin();
+
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/v1/:path*`,
+        destination: `${apiOrigin}/api/v1/:path*`,
       },
     ];
   },

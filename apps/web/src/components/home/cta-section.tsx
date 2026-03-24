@@ -24,8 +24,7 @@ export function CtaSection() {
                 The person you&apos;re looking for might already be here.
               </h2>
               <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-                The platform is designed to keep expectations clear: account creation, profile setup, verification review,
-                then access to the parts of VeteranFinder that depend on trust.
+                Create your profile now so the people you served with can recognise it when they arrive. Verification keeps the space credible. Private messaging does the rest.
               </p>
             </div>
             <div className="rounded-[28px] border border-sky-100 bg-sky-50/70 p-6">
@@ -41,7 +40,7 @@ export function CtaSection() {
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button asChild className="bg-sky-600 hover:bg-sky-700">
                   <Link href="/auth/register">
-                    Start searching
+                    Create your profile
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>

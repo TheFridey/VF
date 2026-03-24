@@ -1,8 +1,12 @@
-# VeteranFinder Deployment Runbook
+# VeteranFinder Container Deployment Runbook
+
+This runbook is for the GHCR + Docker Compose deployment path.
+
+If your target host runs `nginx + pm2` directly from source, use [../pm2/DEPLOYMENT.md](../pm2/DEPLOYMENT.md) instead.
 
 ## Overview
 
-Production deploys are now image-based:
+Container deploys are image-based:
 
 1. GitHub Actions builds `api`, `web`, and `admin` images.
 2. Images are pushed to GHCR with the commit SHA and an environment alias tag.
@@ -33,6 +37,15 @@ Configure these in the target GitHub environment (`staging` or `production`):
 - `NEXT_PUBLIC_ADMIN_APP_URL`
 - `NEXT_PUBLIC_WS_URL`
 - `HEALTHCHECK_URL`
+
+## Release safety assumptions
+
+This workflow is safest when GitHub is configured to:
+
+- protect `main`
+- require the `VeteranFinder CI` workflow before merge
+- require environment approval for `production`
+- keep direct pushes to `main` rare or disabled
 
 ## First-Time Server Setup
 

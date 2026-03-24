@@ -19,7 +19,8 @@ function toOrigin(value?: string): string | null {
   }
 
   try {
-    return new URL(value).origin;
+    const origin = new URL(value).origin;
+    return origin.replace(/\/api(?:\/v1)?$/, '');
   } catch {
     return null;
   }
@@ -46,12 +47,14 @@ function toWebSocketOrigin(value?: string): string | null {
  * Next.js Edge Middleware with a static Content Security Policy.
  */
 export function middleware(request: NextRequest): NextResponse {
+  const nonce = generateNonce();
   const isDev = process.env.NODE_ENV === 'development';
   const forwardedHost = request.headers.get('x-forwarded-host');
   const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
   const currentOrigin = forwardedHost
     ? `${forwardedProto}://${forwardedHost}`
     : request.nextUrl.origin;
+  const needsInlineStructuredData = /^\/blog\/[^/]+$/.test(request.nextUrl.pathname);
   const apiOrigin = toOrigin(process.env.NEXT_PUBLIC_API_URL?.trim());
   const wsOrigin = toWebSocketOrigin(process.env.NEXT_PUBLIC_WS_URL?.trim());
   const connectSources = new Set<string>([
@@ -77,9 +80,19 @@ export function middleware(request: NextRequest): NextResponse {
     connectSources.add('ws://localhost:3001');
   }
 
+  const scriptSources = [`'self'`, `'nonce-${nonce}'`];
+  if (needsInlineStructuredData) {
+    // Blog posts still emit inline JSON-LD for search engines.
+    scriptSources.push(`'unsafe-inline'`);
+  }
+  if (isDev) {
+    scriptSources.push(`'unsafe-eval'`);
+  }
+
   const cspDirectives = [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
+    `script-src ${scriptSources.join(' ')}`,
+    // Inline styles remain in use for a small number of dynamic charts and layout-safe UI values.
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https://res.cloudinary.com https://images.unsplash.com",
     "font-src 'self'",
@@ -93,12 +106,20 @@ export function middleware(request: NextRequest): NextResponse {
     'upgrade-insecure-requests',
   ].join('; ');
 
-  const response = NextResponse.next();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 
   response.headers.set('Content-Security-Policy', cspDirectives);
+  response.headers.set('x-nonce', nonce);
   response.headers.set(
     'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=(), payment=()',
+    'camera=(self), microphone=(self), geolocation=(), payment=()',
   );
 
   return response;

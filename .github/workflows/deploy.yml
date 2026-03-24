@@ -1,28 +1,92 @@
 name: VeteranFinder Deploy
 
 on:
-  push:
+  workflow_run:
+    workflows: ['VeteranFinder CI']
+    types: [completed]
     branches: [main]
   workflow_dispatch:
     inputs:
       environment:
         description: Target environment
         required: true
-        default: staging
+        default: production
         type: choice
         options: [staging, production]
+
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'staging' }}
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAMESPACE: ${{ github.repository_owner }}
-  DEPLOY_ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
-  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
+  verify-release:
+    name: Verify Release Gate
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      deploy_environment: ${{ steps.resolve.outputs.deploy_environment }}
+      deploy_sha: ${{ steps.resolve.outputs.deploy_sha }}
+
+    steps:
+      - id: resolve
+        uses: actions/github-script@v7
+        env:
+          TARGET_ENV: ${{ github.event.inputs.environment || 'staging' }}
+        with:
+          script: |
+            if (context.eventName === 'workflow_run') {
+              const run = context.payload.workflow_run;
+
+              if (run.conclusion !== 'success') {
+                core.setFailed(`VeteranFinder CI concluded with '${run.conclusion}'.`);
+                return;
+              }
+
+              if (run.head_branch !== 'main') {
+                core.setFailed(`Refusing automatic deploy from branch '${run.head_branch}'.`);
+                return;
+              }
+
+              core.setOutput('deploy_sha', run.head_sha);
+              core.setOutput('deploy_environment', 'staging');
+              return;
+            }
+
+            const branch = context.ref.replace('refs/heads/', '');
+            const sha = context.sha;
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ci.yml',
+              branch,
+              event: 'push',
+              status: 'completed',
+              per_page: 100,
+            });
+
+            const matchingRun = runs.find((run) => run.head_sha === sha && run.conclusion === 'success');
+
+            if (!matchingRun) {
+              core.setFailed(
+                `No successful VeteranFinder CI run was found for ${sha}. Run CI on this commit before deploying.`,
+              );
+              return;
+            }
+
+            core.setOutput('deploy_sha', sha);
+            core.setOutput('deploy_environment', process.env.TARGET_ENV || 'staging');
+
   build-and-push:
     name: Build and Push Images
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'staging' }}
+    needs: verify-release
+    environment: ${{ needs.verify-release.outputs.deploy_environment }}
     permissions:
       contents: read
       packages: write
@@ -53,6 +117,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-release.outputs.deploy_sha }}
 
       - uses: docker/setup-buildx-action@v3
 
@@ -69,16 +135,16 @@ jobs:
           push: true
           build-args: ${{ matrix.build-args }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}:${{ env.DEPLOY_ENVIRONMENT }}-latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}:${{ needs.verify-release.outputs.deploy_sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}:${{ needs.verify-release.outputs.deploy_environment }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   deploy:
-    name: Deploy to ${{ github.event.inputs.environment || 'staging' }}
+    name: Deploy to ${{ needs.verify-release.outputs.deploy_environment }}
     runs-on: ubuntu-latest
-    needs: build-and-push
-    environment: ${{ github.event.inputs.environment || 'staging' }}
+    needs: [verify-release, build-and-push]
+    environment: ${{ needs.verify-release.outputs.deploy_environment }}
 
     steps:
       - name: Deploy over SSH
@@ -96,7 +162,7 @@ jobs:
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
 
             export VETERANFINDER_IMAGE_REGISTRY=${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}
-            export VETERANFINDER_IMAGE_TAG=${{ env.IMAGE_TAG }}
+            export VETERANFINDER_IMAGE_TAG=${{ needs.verify-release.outputs.deploy_sha }}
 
             docker compose -f infrastructure/docker/docker-compose.yml --env-file .env pull api web admin
             docker compose -f infrastructure/docker/docker-compose.yml --env-file .env run --rm api npx prisma migrate deploy

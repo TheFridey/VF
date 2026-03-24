@@ -1,106 +1,86 @@
 # VeteranFinder
 
-VeteranFinder is a monorepo for a veteran reconnection platform with a public member app, a dedicated admin console, and a NestJS API.
+VeteranFinder is a monorepo for a veteran reconnection platform with:
 
-## What is in this repo
-
-```text
-apps/web    Next.js member-facing app
-apps/admin  Next.js admin console
-apps/api    NestJS API + Prisma + tests
-infrastructure/  Deployment and infrastructure docs
-docs/       Product and project docs
-scripts/    Shared repo scripts
-coturn/     TURN server config for video features
-nginx/      Reverse proxy config
-```
-
-## Architecture
-
-```text
-apps/web (:3001)  ----\
-                       \--> apps/api (:3000) --> PostgreSQL (:5432)
-apps/admin (:3002) --/                      \-> Redis (:6379)
-```
-
-Both frontend apps use `/api/*` rewrites to talk to the API. Authentication is cookie-based, with HttpOnly cookies set by the API.
-
-## Admin
-
-All admin access is via the standalone `apps/admin` app on port `3002`.
-The previous transitional `/admin/*` routes inside `apps/web` have been removed.
+- `apps/web` — the public and member-facing Next.js app
+- `apps/admin` — the dedicated admin console
+- `apps/api` — the NestJS API with Prisma, Redis-backed services, and realtime gateways
 
 ## Current stack
 
-- Node.js 20
-- npm 10+
-- Next.js 15.5.10
-- React 18.3.1
-- NestJS 10
-- Prisma 5
-- PostgreSQL 15
-- Redis 7
-- Playwright + Vitest + Jest
-
-## Requirements
+The repo currently runs on:
 
 - Node.js `20.x`
 - npm `10+`
-- Docker Desktop
-- PostgreSQL and Redis via Docker for local development
+- Next.js `15.5.10` in both frontend apps
+- React `18.3.1` in both frontend apps
+- NestJS `10.3.x`
+- Prisma `5.8.x`
+- PostgreSQL `15`
+- Redis `7`
+- Jest, Vitest, and Playwright for testing
 
-### Windows filesystem note
+## Repo layout
 
-Direct `next build` runs on Windows require the repo to live on an `NTFS` volume.
-
-This repo includes a guard script that blocks production Next.js builds on `exFAT` / `FAT32` and similar filesystems because of the known Windows `readlink` / `EISDIR` failure inside Next.js.
-
-If you are on a non-NTFS drive:
-
-```powershell
-npm run build:web:docker
-npm run build:admin:docker
+```text
+apps/
+  api/         NestJS API, Prisma schema, tests, seeds
+  web/         Public/member app
+  admin/       Admin app
+docs/          Product and project docs
+infrastructure/
+  docker/      Container deployment assets and runbooks
+  pm2/         Single-server PM2 deployment runbook
+nginx/         Reverse proxy config
+scripts/       Shared repo scripts
+coturn/        TURN config for video calling
 ```
 
-Those Docker builds run correctly because they build inside Linux containers.
+## Runtime model
 
-## Apps and local URLs
+### Local development
 
-| Surface | URL | Notes |
-| --- | --- | --- |
-| API | `http://localhost:3000` | NestJS API |
-| API docs | `http://localhost:3000/api/docs` | Swagger |
-| Web app | `http://localhost:3001` | Member app |
-| Admin app | `http://localhost:3002` | Admin console |
-| PostgreSQL | `localhost:5432` | Docker |
-| Redis | `localhost:6379` | Docker |
+Local development uses source code directly:
+
+- API on `http://localhost:3000`
+- Web on `http://localhost:3001`
+- Admin on `http://localhost:3002`
+- PostgreSQL on `localhost:5432`
+- Redis on `localhost:6379`
+
+Docker is only required for local infrastructure unless you are using the container deployment flow.
+
+### Production and staging
+
+There are two supported runtime paths in this repo:
+
+1. Single-server `nginx + pm2`
+   This is the current lightweight live-server runbook and is documented in [infrastructure/pm2/DEPLOYMENT.md](infrastructure/pm2/DEPLOYMENT.md).
+
+2. Container deployment via GitHub Actions + GHCR + Docker Compose
+   This is documented in [infrastructure/docker/DEPLOYMENT.md](infrastructure/docker/DEPLOYMENT.md).
+
+Do not mix those approaches on the same host without an explicit migration plan.
 
 ## Quick start
 
-### 1. Start local infrastructure
-
-```powershell
-docker-compose up -d
-```
-
-Default local services:
-
-- PostgreSQL
-- Redis
-
-Optional:
-
-- `coturn` is available under the `video` Docker Compose profile.
-
-### 2. Install dependencies
+### 1. Install dependencies
 
 From the repo root:
 
-```powershell
+```bash
 npm run install:apps
 ```
 
-### 3. Create environment files
+### 2. Start local infrastructure
+
+```bash
+docker-compose up -d
+```
+
+That starts PostgreSQL and Redis for local work.
+
+### 3. Create env files
 
 Minimum local files:
 
@@ -110,386 +90,150 @@ apps/web/.env.local
 apps/admin/.env.local
 ```
 
-Suggested setup:
+Typical local setup:
 
-```powershell
-Copy-Item apps\api\.env.example apps\api\.env
-Copy-Item apps\web\.env.example apps\web\.env.local
-Set-Content apps\admin\.env.local "NEXT_PUBLIC_API_URL=http://localhost:3000"
+```bash
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env.local
+printf "NEXT_PUBLIC_API_URL=http://localhost:3000\n" > apps/admin/.env.local
 ```
 
-### 4. Run Prisma setup
+Minimum frontend values:
 
-```powershell
-cd apps\api
+```dotenv
+# apps/web/.env.local
+NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_SITE_URL=http://localhost:3001
+
+# apps/admin/.env.local
+NEXT_PUBLIC_API_URL=http://localhost:3000
+```
+
+Use the API example file as the source of truth for backend secrets and service settings.
+
+### 4. Prepare the database
+
+```bash
+cd apps/api
 npx prisma generate
 npx prisma migrate dev
 npx prisma db seed
 ```
 
-### 5. Start the apps
+### 5. Run the apps
 
 In separate terminals:
 
-```powershell
-cd apps\api
-npm run dev
+```bash
+npm run dev --prefix apps/api
+npm run dev --prefix apps/web
+npm run dev --prefix apps/admin
 ```
 
-```powershell
-cd apps\web
-npm run dev
-```
+## Windows build note
 
-```powershell
-cd apps\admin
-npm run dev
-```
+Production Next.js builds on Windows must be run from an `NTFS` volume. The repo includes a guard script that blocks production frontend builds on unsupported Windows filesystems because of the known `readlink` / `EISDIR` failure path inside Next.js.
 
-## Environment variables
-
-### `apps/api/.env`
-
-The API example file is the source of truth for local setup. Important variables include:
-
-- `DATABASE_URL`
-- `REDIS_HOST`
-- `REDIS_PORT`
-- `JWT_SECRET`
-- `JWT_REFRESH_SECRET`
-- `COOKIE_SECRET`
-- `ENCRYPTION_KEY`
-- `PASSWORD_PEPPER`
-- `FRONTEND_URL`
-- `ADMIN_URL`
-- `CLOUDINARY_*`
-- `STRIPE_*`
-- `RESEND_API_KEY`
-- `FROM_EMAIL`
-- `CONTACT_EMAIL`
-- `SUPPORT_EMAIL`
-- `PRIVACY_EMAIL`
-- `DPO_EMAIL`
-- `SAFETY_EMAIL`
-- `LEGAL_EMAIL`
-- `PARTNERSHIPS_EMAIL_TO`
-- `APP_URL`
-- `TURN_*`
-- `VAPID_*`
-
-### `apps/web/.env.local`
-
-Minimum local values:
-
-```dotenv
-NEXT_PUBLIC_API_URL=http://localhost:3000
-NEXT_PUBLIC_SITE_URL=http://localhost:3001
-```
-
-Optional:
-
-- `NEXT_PUBLIC_ENABLE_BIA`
-- `NEXT_PUBLIC_ENABLE_MEMBERSHIP`
-- analytics tokens
-
-### `apps/admin/.env.local`
-
-Minimum local value:
-
-```dotenv
-NEXT_PUBLIC_API_URL=http://localhost:3000
-```
+If you are on a non-NTFS drive, use the container build path instead of direct frontend builds.
 
 ## Root scripts
 
-From the repo root:
-
 | Command | Purpose |
 | --- | --- |
-| `npm run install:apps` | Install dependencies for all three apps |
-| `npm run docker:up` | Start local Docker services |
-| `npm run docker:down` | Stop local Docker services |
-| `npm run docker:logs` | Tail Docker logs |
-| `npm run dev:api` | Start API in watch mode |
-| `npm run dev:web` | Start web app |
-| `npm run dev:admin` | Start admin app |
-| `npm run build:api` | Build API |
-| `npm run build:web` | Build web app |
-| `npm run build:admin` | Build admin app |
-| `npm run build:web:docker` | Production-build web inside Docker |
-| `npm run build:admin:docker` | Production-build admin inside Docker |
+| `npm run install:apps` | Install dependencies for API, web, and admin |
+| `npm run dev:api` | Start the API in watch mode |
+| `npm run dev:web` | Start the web app |
+| `npm run dev:admin` | Start the admin app |
+| `npm run build:api` | Build the API |
+| `npm run build:web` | Build the web app |
+| `npm run build:admin` | Build the admin app |
 | `npm run typecheck` | Typecheck all apps |
 | `npm run lint` | Lint all apps |
 | `npm run build` | Build all apps |
 | `npm run test:api` | API unit tests |
-| `npm run test:api:e2e` | API e2e tests |
+| `npm run test:api:e2e` | API end-to-end tests |
 | `npm run test:web` | Web unit tests |
 | `npm run test:web:e2e` | Web Playwright tests |
 | `npm run test:admin` | Admin unit tests |
 | `npm run test:admin:e2e` | Admin Playwright tests |
-| `npm run test:e2e` | API e2e + web e2e + admin e2e |
-| `npm run test:all` | Full test surface |
-| `npm test` | Alias for `npm run test:all` |
-
-## App-level scripts
-
-### `apps/api`
-
-- `npm run dev`
-- `npm run build`
-- `npm run lint`
-- `npm run typecheck`
-- `npm run test:unit`
-- `npm run test:e2e`
-- `npm run prisma:generate`
-- `npm run prisma:migrate`
-- `npm run prisma:migrate:prod`
-- `npm run prisma:seed`
-- `npm run db:reset`
-
-### `apps/web`
-
-- `npm run dev`
-- `npm run build`
-- `npm run lint`
-- `npm run typecheck`
-- `npm run test:unit`
-- `npm run test:e2e`
-- `npm run test:e2e:install`
-
-### `apps/admin`
-
-- `npm run dev`
-- `npm run build`
-- `npm run lint`
-- `npm run typecheck`
-- `npm run test:unit`
-- `npm run test:e2e`
-- `npm run test:e2e:install`
-
-## Testing
-
-### API
-
-```powershell
-cd apps\api
-npm run lint
-npm run typecheck
-npm run build
-npm run test:unit
-npm run test:e2e
-```
-
-### Web
-
-```powershell
-cd apps\web
-npm run lint
-npm run typecheck
-npm run test
-npm run test:e2e:install
-npm run test:e2e
-```
-
-### Admin
-
-```powershell
-cd apps\admin
-npm run lint
-npm run typecheck
-npm run test
-npm run test:e2e:install
-npm run test:e2e
-```
-
-### Production-container browser proof
-
-When you need to validate the built Next.js apps instead of the dev servers:
-
-```powershell
-npm run build:web:docker
-npm run build:admin:docker
-```
-
-Then run containers and point Playwright at them with `PLAYWRIGHT_BASE_URL`.
-
-The repo is configured so external container Playwright runs use a safer single-worker mode.
 
 ## Auth model
 
-VeteranFinder does not rely on browser-stored auth tokens.
+VeteranFinder uses cookie-based auth:
 
-Flow:
+1. the frontend posts to `/api/*`
+2. the API sets HttpOnly cookies
+3. browser requests carry those cookies automatically
+4. frontend state stores user/profile data, not raw auth tokens
 
-1. frontend submits login to `/api/auth/login`
-2. API sets HttpOnly cookies
-3. later requests include cookies automatically
-4. frontend state stores the user profile only
+That means:
 
-Implications:
+- browser calls should go through the frontend rewrites
+- `FRONTEND_URL` and `ADMIN_URL` must match the real browser origins
+- cross-origin shortcuts will cause confusing auth failures
 
-- use the frontend rewrites instead of calling the API directly from the browser
-- cookie behavior matters for route protection and redirects
-- both Next.js apps are designed around same-origin browser requests
+## Blog content
 
-## Seed data
+The blog system lives in the API and web apps. The main safe seed entry points are:
 
-The seed script is at [apps/api/prisma/seed.ts](/d:/Downloads/vf/apps/api/prisma/seed.ts).
+- `apps/api/prisma/seed.ts` — full local seed flow
+- `apps/api/prisma/seed-blog-posts.ts` — blog-only seeding for production-safe article imports
 
-Useful seeded accounts include:
-
-| Role | Email | Password |
-| --- | --- | --- |
-| Admin | `admin@veteranfinder.com` | `Admin123!@#` |
-| Moderator | `moderator@veteranfinder.com` | `Moderator123!@#` |
-| Veteran | `john.doe@example.com` | `Password123!` |
-| Veteran | `sarah.smith@example.com` | `Password123!` |
-| Veteran | `marcus.williams@example.com` | `Password123!` |
-
-The seed also creates:
-
-- verification requests
-- BIA forum categories and starter threads
-- example message conversations
-- reports and moderation data
-- blocks
-- audit logs
-
-Treat the seed file as the source of truth if any of the sample accounts change.
-
-## Builds
-
-### Local builds
-
-API builds normally on all supported platforms:
-
-```powershell
-npm run build --prefix apps/api
-```
-
-Frontend production builds:
-
-- work directly on macOS, Linux, WSL, and Windows on `NTFS`
-- are intentionally blocked on unsupported Windows filesystems by [scripts/check-next-build-env.js](/d:/Downloads/vf/scripts/check-next-build-env.js)
-
-### Docker builds
-
-Frontend production images are built from the repo root:
-
-```powershell
-docker build -t veteranfinder-web-build -f apps/web/Dockerfile .
-docker build -t veteranfinder-admin-build -f apps/admin/Dockerfile .
-```
-
-The Dockerfiles are aligned with the current Next.js 15 standalone output layout.
+If you only want to load scheduled blog content on a live database, use the blog-only seed path rather than the full demo seed.
 
 ## CI and deployment
 
-Current workflow files:
+Current workflows:
 
-- [.github/workflows/ci.yml](/d:/Downloads/vf/.github/workflows/ci.yml)
-- [.github/workflows/deploy.yml](/d:/Downloads/vf/.github/workflows/deploy.yml)
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+- [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
 
-At a high level:
+Release expectations:
 
-- CI installs dependencies per app
-- CI runs lint, typecheck, unit tests, browser tests, API e2e, builds, and audits
-- deploy is image-based and SSH-driven
+- CI must pass before a deploy is allowed
+- automatic deploys are limited to successful CI runs from `main`
+- production should be protected by GitHub environment approvals and branch protection
 
-For the deployment runbook, use:
+Recommended branch protection for `main`:
 
-- [infrastructure/docker/DEPLOYMENT.md](/d:/Downloads/vf/infrastructure/docker/DEPLOYMENT.md)
-- [infrastructure/README.md](/d:/Downloads/vf/infrastructure/README.md)
+- require pull requests
+- require the `VeteranFinder CI` workflow to pass
+- prevent force pushes
+- restrict direct pushes to administrators only if they are still needed
 
-## Makefile
+## Internal deployment docs
 
-For Linux, macOS, and WSL users:
-
-```text
-make setup
-make dev-up
-make dev-down
-make api
-make web
-make admin
-make typecheck
-make lint
-make build
-make db-migrate
-make db-seed
-make db-reset
-```
+- [PM2 single-server runbook](infrastructure/pm2/DEPLOYMENT.md)
+- [Container deployment runbook](infrastructure/docker/DEPLOYMENT.md)
+- [Infrastructure overview](infrastructure/README.md)
 
 ## Troubleshooting
 
-### `next build` fails on Windows
+### Frontend build warnings or failures on Windows
 
-If you see a message about unsupported Windows filesystems or the older Next.js `readlink` / `EISDIR` failure:
+Move the repo to an `NTFS` path before running `next build`.
 
-- move the repo to an `NTFS` path
-- reinstall dependencies
-- retry the build
-
-Or use Docker:
-
-```powershell
-npm run build:web:docker
-npm run build:admin:docker
-```
-
-### Auth loops or redirects feel wrong
+### Auth redirects or missing sessions
 
 Check:
 
-- API is running on `:3000`
-- `NEXT_PUBLIC_API_URL` points at the API origin
-- `FRONTEND_URL` and `ADMIN_URL` match the browser origins
-- requests go through the frontend `/api/*` rewrites
-- cookies are not being blocked by cross-origin access
+- API is reachable on `:3000`
+- frontend env files point at the API origin, not an `/api/v1` suffix
+- requests are going through the frontend rewrites
+- cookies are not being blocked by cross-origin requests
 
 ### Seeded passwords do not work
 
-The seed script manually loads env files so `PASSWORD_PEPPER` matches runtime behavior. If local login breaks after env changes:
+The seed scripts load env-aware password hashing. If login breaks after env changes:
 
-```powershell
-cd apps\api
+```bash
+cd apps/api
 npx prisma db seed
 ```
 
-If needed, reset and reseed:
+If you need a clean reset:
 
-```powershell
-cd apps\api
+```bash
+cd apps/api
 npx prisma migrate reset --force
 ```
-
-### Local email testing
-
-Transactional and website contact emails use Resend.
-
-For full end-to-end email testing locally, set:
-
-- `RESEND_API_KEY`
-- `FROM_EMAIL`
-- the relevant alias env vars such as `SUPPORT_EMAIL` and `PRIVACY_EMAIL`
-- `PARTNERSHIPS_EMAIL_TO`
-
-Without a Resend key, the API logs email activity in dev mode instead of delivering it.
-
-## Recommended dev flow
-
-```text
-1. docker-compose up -d
-2. npm run install:apps
-3. set up env files
-4. cd apps/api && npx prisma migrate dev && npx prisma db seed
-5. run api, web, and admin in separate terminals
-6. run typecheck, lint, and tests before pushing
-```
-
-## Notes
-
-- The dedicated admin console is `apps/admin`.
-- The frontend apps are on a patched Next.js 15 line.
-- Root `npm test` is intentionally the full-repo test surface.
-- Web lint currently passes with a small number of existing `next/image` performance warnings.

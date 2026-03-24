@@ -25,7 +25,7 @@ const PHRASE_SWITCH_MS = 180;
 const trustPoints = [
   'Veteran-only access',
   'Private messaging',
-  'Verification built in',
+  'Every account reviewed',
 ];
 
 const sceneClass = (active: boolean) =>
@@ -108,12 +108,17 @@ export function HeroSection() {
   }, [activePhrase, isDeletingPhrase, prefersReducedMotion, typedPhrase]);
 
   useEffect(() => {
+    if (prefersReducedMotion) {
+      setVisualStage(0);
+      return;
+    }
+
     const interval = window.setInterval(() => {
       setVisualStage((current) => (current + 1) % 3);
     }, 3200);
 
     return () => window.clearInterval(interval);
-  }, []);
+  }, [prefersReducedMotion]);
 
   return (
     <section className="relative isolate flex min-h-screen items-center overflow-hidden border-b border-sky-100 bg-[linear-gradient(180deg,#f4faff_0%,#f9fcff_42%,#ffffff_100%)] pt-24">
@@ -176,13 +181,13 @@ export function HeroSection() {
             </h1>
 
             <p className="mt-5 max-w-xl text-lg leading-8 text-slate-700">
-              A quieter place for UK veterans to reconnect through shared service, trusted access, and simple private conversation.
+              Create your profile, add your service history, and make it easier for the people you served with to find you in a verified space.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg" className="bg-sky-600 shadow-[0_18px_40px_-24px_rgba(14,165,233,0.42)] hover:bg-sky-700">
                 <Link href="/auth/register">
-                  Start here
+                  Create your profile
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
@@ -190,6 +195,10 @@ export function HeroSection() {
                 <Link href="/auth/login">Sign in</Link>
               </Button>
             </div>
+
+            <p className="mt-4 max-w-xl text-sm leading-7 text-slate-600">
+              Create your profile, submit your veteran evidence, get approved, then search by regiment, years served, and deployment.
+            </p>
 
             <div className="mt-8 flex flex-wrap gap-2">
               {trustPoints.map((item) => (
@@ -203,7 +212,7 @@ export function HeroSection() {
             </div>
           </div>
 
-          <div className="relative mx-auto w-full max-w-[30rem]">
+          <div aria-hidden="true" className="relative mx-auto w-full max-w-[30rem]">
             <div className="relative overflow-hidden rounded-[34px] border border-sky-100 bg-white/82 p-6 shadow-[0_28px_80px_-42px_rgba(14,116,144,0.24)] backdrop-blur">
               <div className="absolute inset-x-8 top-8 h-28 rounded-full bg-sky-100/70 blur-3xl" />
               <div className="relative rounded-[28px] border border-sky-100 bg-[linear-gradient(180deg,#ffffff_0%,#f3f9ff_100%)] p-6">
@@ -302,6 +311,7 @@ export function HeroSection() {
                     {[0, 1, 2].map((stage) => (
                       <span
                         key={stage}
+                        aria-hidden="true"
                         className={[
                           'h-2.5 rounded-full transition-all duration-500',
                           visualStage === stage ? 'w-8 bg-sky-500' : 'w-2.5 bg-sky-200',
@@ -320,12 +330,14 @@ export function HeroSection() {
           </div>
         </div>
 
-        <div className="mt-14 hidden flex-col items-center gap-3 text-slate-400 md:flex">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.24em]">Scroll</span>
-          <div className="flex h-10 w-6 items-start justify-center rounded-full border border-slate-300 p-1.5">
-            <div className="animate-scroll-indicator h-2 w-1.5 rounded-full bg-slate-400" />
+        {!prefersReducedMotion && (
+          <div className="mt-14 hidden flex-col items-center gap-3 text-slate-400 md:flex">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.24em]">Scroll</span>
+            <div className="flex h-10 w-6 items-start justify-center rounded-full border border-slate-300 p-1.5">
+              <div className="animate-scroll-indicator h-2 w-1.5 rounded-full bg-slate-400" />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </section>
   );

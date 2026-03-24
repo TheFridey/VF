@@ -18,8 +18,7 @@ export function Footer() {
               />
             </div>
             <p className="text-sm leading-6 text-slate-600">
-              A trust-first veteran reconnection platform focused on verification, privacy, moderation, and useful
-              community access.
+              Create your profile, get verified, and reconnect with the people you served with in a space built for veterans.
             </p>
           </div>
           <div>

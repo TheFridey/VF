@@ -161,7 +161,7 @@ export default async function BlogPostPage({ params }: PageProps) {
             href="/auth/register"
             className="mt-4 inline-flex items-center justify-center rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
           >
-            Start searching
+            Create your profile
           </Link>
         </div>
       </main>
