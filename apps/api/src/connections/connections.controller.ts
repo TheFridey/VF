@@ -30,7 +30,7 @@ export class ConnectionsController {
   @Roles('MODERATOR', 'ADMIN')
   @ApiOperation({ summary: 'Get match statistics (Admin/Moderator)' })
   async getStats() {
-    return this.connectionsService.getMatchStats();
+    return this.connectionsService.getConnectionStats();
   }
 
   @Get(':connectionId')

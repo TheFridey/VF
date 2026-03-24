@@ -81,7 +81,7 @@ export class ConnectionsService {
     });
   }
 
-  async getMatchStats() {
+  async getConnectionStats() {
     const [total, active, bia] = await Promise.all([
       this.prisma.connection.count(),
       this.prisma.connection.count({ where: { status: ConnectionStatus.ACTIVE } }),
