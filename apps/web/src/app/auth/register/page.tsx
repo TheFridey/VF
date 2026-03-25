@@ -7,7 +7,7 @@ import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Shield, Check, AlertCircle } from 'lucide-react';
+import { Shield, Check, AlertCircle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -29,6 +29,7 @@ const WEAK_BASES = [
 const SEQUENTIAL = ['12345','23456','34567','45678','56789','98765','87654',
   'abcde','bcdef','qwert','werty','asdfg','zxcvb'];
 const KEYBOARD_ROWS = ['qwertyuiop','asdfghjkl','zxcvbnm'];
+const MIN_PASSWORD_ENTROPY_BITS = 50;
 
 function calculateEntropy(pwd: string): number {
   if (!pwd) return 0;
@@ -91,7 +92,7 @@ function analysePassword(pwd: string): PasswordStrength {
   if (pwd.length >= 8) score++;
   if (pwd.length >= 12) score++;
   if (/[^a-zA-Z0-9]/.test(pwd)) score++;  // special char
-  if (entropy >= 50 && issues.length === 0) score++;
+  if (entropy >= MIN_PASSWORD_ENTROPY_BITS && issues.length === 0) score++;
 
   // Penalise for pattern issues
   if (issues.some(i => i.includes('common') || i.includes('predictable') || i.includes('sequence') || i.includes('Keyboard') || i.includes('repeated'))) {
@@ -131,8 +132,12 @@ function getPasswordRequirementChecks(password: string) {
       passed: /[0-9]/.test(password),
     },
     {
+      label: `At least ${MIN_PASSWORD_ENTROPY_BITS} bits entropy`,
+      passed: password.length > 0 && strength.entropy >= MIN_PASSWORD_ENTROPY_BITS,
+    },
+    {
       label: 'Not a common or predictable password',
-      passed: password.length > 0 && strength.issues.length === 0 && strength.score >= 2,
+      passed: password.length > 0 && strength.issues.length === 0,
     },
   ];
 }
@@ -167,14 +172,25 @@ function PasswordStrengthMeter({ password }: { password: string }) {
           {strength.label}
         </span>
         {strength.entropy > 0 && (
-          <span className="text-xs text-muted-foreground">
-            {Math.round(strength.entropy)} bits entropy
-          </span>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>
+              {Math.round(strength.entropy)} / {MIN_PASSWORD_ENTROPY_BITS} bits entropy
+            </span>
+            <span
+              className="inline-flex cursor-help items-center"
+              title="VeteranFinder rejects passwords under 50 bits of entropy because short, predictable passwords are far easier to brute-force even if they tick the usual character boxes. Longer passphrases built from unrelated words raise entropy much faster."
+              aria-label="Why VeteranFinder requires at least 50 bits entropy"
+            >
+              <Info className="h-3.5 w-3.5" />
+            </span>
+          </div>
         )}
       </div>
 
       <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
-        <p className="text-xs font-medium text-foreground">Your password needs:</p>
+        <p className="text-xs font-medium text-foreground">
+          Your password will not be accepted below {MIN_PASSWORD_ENTROPY_BITS} bits entropy.
+        </p>
         <div className="mt-2 grid gap-1.5">
           {checks.map((check) => (
             <div key={check.label} className="flex items-center gap-2 text-xs">
@@ -196,7 +212,7 @@ function PasswordStrengthMeter({ password }: { password: string }) {
           </p>
         )}
 
-        {strength.score >= 2 && strength.issues.length === 0 && (
+        {strength.entropy >= MIN_PASSWORD_ENTROPY_BITS && strength.issues.length === 0 && (
           <p className="mt-2 text-xs font-medium text-emerald-600">
             Password accepted
           </p>
@@ -217,9 +233,9 @@ const registerSchema = z.object({
     .refine(
       (pwd) => {
         const s = analysePassword(pwd);
-        return s.score >= 2 && s.issues.length === 0;
+        return s.entropy >= MIN_PASSWORD_ENTROPY_BITS && s.issues.length === 0;
       },
-      { message: 'Password is too weak or uses a common pattern — see the strength guide below' },
+      { message: `Password must reach at least ${MIN_PASSWORD_ENTROPY_BITS} bits entropy and avoid common patterns — see the strength guide below` },
     ),
   confirmPassword: z.string(),
   ageVerification: z.literal(true, {
@@ -319,7 +335,10 @@ function RegisterForm() {
   const watchedPassword = useWatch({ control, name: 'password', defaultValue: '' });
   const watchedConfirmPassword = useWatch({ control, name: 'confirmPassword', defaultValue: '' });
   const passwordStrength = useMemo(() => analysePassword(watchedPassword), [watchedPassword]);
-  const passwordAccepted = watchedPassword.length > 0 && passwordStrength.issues.length === 0 && passwordStrength.score >= 2;
+  const passwordAccepted =
+    watchedPassword.length > 0 &&
+    passwordStrength.issues.length === 0 &&
+    passwordStrength.entropy >= MIN_PASSWORD_ENTROPY_BITS;
   const confirmAccepted = watchedConfirmPassword.length > 0 && watchedPassword === watchedConfirmPassword;
 
   useEffect(() => {
@@ -421,7 +440,7 @@ function RegisterForm() {
               label="Password"
               placeholder="••••••••"
               error={errors.password?.message}
-              hint="Use 8+ characters with uppercase, lowercase, and a number."
+              hint={`Use 8+ characters with uppercase, lowercase, a number, and at least ${MIN_PASSWORD_ENTROPY_BITS} bits entropy.`}
               autoComplete="new-password"
             />
             <PasswordStrengthMeter password={watchedPassword} />
