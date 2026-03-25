@@ -3,6 +3,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
+import { PushNotificationService } from '../notifications/push.service';
 import { MilitaryBranch } from '@prisma/client';
 import { ConnectionType, ConnectionStatus } from '../common/enums/connection.enum';
 
@@ -17,6 +18,7 @@ export class BrothersService {
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
+    private pushService: PushNotificationService,
   ) {}
 
   async getConnectionRequests(userId: string) {
@@ -72,11 +74,11 @@ export class BrothersService {
     const [user, target] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: userId },
-        include: { veteranDetails: true },
+        include: { veteranDetails: true, profile: true },
       }),
       this.prisma.user.findUnique({
         where: { id: targetUserId },
-        include: { veteranDetails: true },
+        include: { veteranDetails: true, profile: true },
       }),
     ]);
 
@@ -121,6 +123,11 @@ export class BrothersService {
       },
     });
 
+    const senderName = user.profile?.displayName?.trim() || 'Another veteran';
+    void this.pushService
+      .notifyConnectionRequest(targetUserId, senderName, match.id)
+      .catch(() => undefined);
+
     return { success: true, connectionId: match.id };
   }
 
@@ -136,10 +143,20 @@ export class BrothersService {
     }
 
     if (accept) {
-      await this.prisma.connection.update({
+      const updatedMatch = await this.prisma.connection.update({
         where: { id: requestId },
         data: { status: ConnectionStatus.ACTIVE },
       });
+      const accepter = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          profile: { select: { displayName: true } },
+        },
+      });
+      const accepterName = accepter?.profile?.displayName?.trim() || 'A veteran';
+      void this.pushService
+        .notifyNewConnection(updatedMatch.user1Id, accepterName, updatedMatch.id)
+        .catch(() => undefined);
       return { success: true, accepted: true };
     } else {
       await this.prisma.connection.delete({

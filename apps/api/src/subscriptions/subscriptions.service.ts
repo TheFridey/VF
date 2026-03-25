@@ -51,20 +51,10 @@ const DEV_PRICE_ALIASES = {
 } as const;
 
 const REFERRAL_REWARDS: Record<number, { tier: MembershipTier; durationDays: number; label: string }> = {
-  1: {
+  3: {
     tier: MembershipTier.BIA_BASIC,
-    durationDays: 7,
-    label: 'Referral reward: 1 verified referral',
-  },
-  5: {
-    tier: MembershipTier.BIA_PLUS,
     durationDays: 30,
-    label: 'Referral reward: 5 verified referrals',
-  },
-  10: {
-    tier: MembershipTier.BIA_PLUS,
-    durationDays: 90,
-    label: 'Referral reward: 10 verified referrals',
+    label: 'Referral reward: 3 verified referrals',
   },
 };
 
@@ -615,7 +605,7 @@ export class SubscriptionsService {
 
     const rewards: Array<{ milestone: number; tier: MembershipTier; durationDays: number }> = [];
 
-    for (const milestone of [1, 5, 10]) {
+    for (const milestone of [3]) {
       if (qualifiedCount < milestone || grantedMilestones.has(milestone)) continue;
 
       const reward = REFERRAL_REWARDS[milestone];
@@ -676,7 +666,7 @@ export class SubscriptionsService {
     });
 
     const qualifiedCount = referrals.filter((referral: any) => !!referral.qualifiedAt).length;
-    const nextMilestone = [1, 5, 10].find((milestone) => milestone > qualifiedCount) ?? null;
+    const nextMilestone = [3].find((milestone) => milestone > qualifiedCount) ?? null;
     const canInvite =
       VERIFIED_REFERRER_ROLES.has(user.role as UserRole) &&
       user.emailVerified &&
@@ -689,7 +679,7 @@ export class SubscriptionsService {
       qualifiedCount,
       pendingCount: referrals.filter((referral: any) => !referral.qualifiedAt).length,
       nextMilestone,
-      milestones: [1, 5, 10].map((milestone) => ({
+      milestones: [3].map((milestone) => ({
         milestone,
         unlocked: qualifiedCount >= milestone,
         reward: REFERRAL_REWARDS[milestone],

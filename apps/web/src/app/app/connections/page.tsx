@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { Users, MessageCircle, UserMinus, Loader2, Shield, ArrowRight, Link2, Sparkles } from 'lucide-react';
+import { Users, MessageCircle, UserMinus, Loader2, Shield, ArrowRight, Link2, Sparkles, Copy, Gift, Share2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,6 +29,12 @@ export default function ConnectionsPage() {
     enabled: !!user?.id,
   });
 
+  const { data: referralHub } = useQuery({
+    queryKey: ['referrals', 'hub'],
+    queryFn: () => api.getReferralHub(),
+    enabled: !!user?.id,
+  });
+
   const removeMutation = useMutation({
     mutationFn: (connectionId: string) => api.removeConnection(connectionId),
     onSuccess: () => {
@@ -43,10 +49,39 @@ export default function ConnectionsPage() {
     },
   });
 
+  const referralShareMutation = useMutation({
+    mutationFn: (data: { channel: string; surface?: string; connectionId?: string }) => api.recordReferralShare(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['referrals', 'hub'] });
+    },
+  });
+
   const connections: Connection[] = Array.isArray(data)
     ? data
     : (data?.data || data?.connections || []);
   const biaConnections = connections.filter((connection) => connection.connectionType === 'BROTHERS_IN_ARMS').length;
+  const referralPrompt = referralHub?.invitePrompt || 'Who else should be here?';
+  const referralRewardMessage = referralHub?.rewardMessage || 'Three verified referrals unlock a free month of BIA Basic.';
+
+  const handleCopyReferralLink = async () => {
+    if (!referralHub?.shareUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(referralHub.shareUrl);
+      toast.success('Invite link copied');
+      referralShareMutation.mutate({ channel: 'copy', surface: 'connections_page' });
+    } catch {
+      toast.error('Could not copy the link');
+    }
+  };
+
+  const handleWhatsAppShare = () => {
+    if (!referralHub?.shareCopy?.whatsapp) return;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(referralHub.shareCopy.whatsapp)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    referralShareMutation.mutate({ channel: 'whatsapp', surface: 'connections_page' });
+  };
 
   const handleRemove = () => {
     if (selectedConnection) removeMutation.mutate(selectedConnection.id);
@@ -108,6 +143,51 @@ export default function ConnectionsPage() {
           </CardContent>
         </Card>
       </section>
+
+      {connections.length > 0 && referralHub?.canInvite && (
+        <Card className="overflow-hidden border-primary/15 bg-gradient-to-br from-primary/8 via-background to-background">
+          <CardContent className="grid gap-5 p-6 sm:p-7 xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)] xl:items-end">
+            <div>
+              <Badge variant="outline" className="border-primary/20 bg-primary/10 text-primary">
+                <Gift className="mr-1.5 h-3.5 w-3.5" />
+                Referral invite
+              </Badge>
+              <h2 className="mt-3 text-2xl font-semibold tracking-tight">{referralPrompt}</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                Help the people you served with find you. Share your personal invite link and bring more of your old unit into VeteranFinder.
+              </p>
+              <div className="mt-4 rounded-2xl border bg-background/80 p-4 shadow-sm">
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Reward progress</p>
+                <p className="mt-2 text-sm font-medium">{referralRewardMessage}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {referralHub?.qualifiedCount ?? 0} verified referral{(referralHub?.qualifiedCount ?? 0) === 1 ? '' : 's'} so far
+                  {typeof referralHub?.shareStats?.totalShares === 'number' ? ` • ${referralHub.shareStats.totalShares} invite share${referralHub.shareStats.totalShares === 1 ? '' : 's'} sent` : ''}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-3xl border bg-background/80 p-5 shadow-sm">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Your invite link</p>
+                <p className="mt-2 break-all text-sm text-foreground">{referralHub.shareUrl}</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button onClick={handleWhatsAppShare}>
+                  <Share2 className="mr-1.5 h-4 w-4" />
+                  WhatsApp
+                </Button>
+                <Button variant="outline" onClick={handleCopyReferralLink}>
+                  <Copy className="mr-1.5 h-4 w-4" />
+                  Copy link
+                </Button>
+              </div>
+              <p className="text-xs leading-5 text-muted-foreground">
+                We already write the message for you. Send it to the people who should be here next.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {connections.length === 0 ? (
         <Card className="py-14 text-center">

@@ -31,6 +31,7 @@ import { BiaModule } from './bia/bia.module';
 import { EmailModule } from './email/email.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { BlogModule } from './blog/blog.module';
+import { ReferralsModule } from './referrals/referrals.module';
 
 // Guards
 import { ThrottlerGuard } from '@nestjs/throttler';
@@ -80,6 +81,7 @@ import { ThrottlerGuard } from '@nestjs/throttler';
     EmailModule,
     AnalyticsModule,
     BlogModule,
+    ReferralsModule,
   ],
   providers: [
     // IP-based rate limiting applied globally

@@ -362,6 +362,24 @@ class ApiClient {
     return response.data;
   }
 
+  // —— Notifications ————————————————————————————————————————————————————————————————
+  async getPushVapidKey() {
+    const response = await this.client.get('/notifications/vapid-key');
+    return response.data;
+  }
+
+  async subscribeToPushNotifications(subscription: PushSubscriptionJSON) {
+    const response = await this.client.post('/notifications/subscribe', subscription);
+    return response.data;
+  }
+
+  async unsubscribeFromPushNotifications(endpoint: string) {
+    const response = await this.client.delete('/notifications/unsubscribe', {
+      data: { endpoint },
+    });
+    return response.data;
+  }
+
   // ── Moderation ────────────────────────────────────────────────────────────────
   async reportUser(data: { reportedUserId: string; reason: string; description?: string }) {
     const response = await this.client.post('/moderation/reports', data);
@@ -447,6 +465,21 @@ class ApiClient {
 
   async getReferralSummary() {
     const response = await this.client.get('/subscriptions/referrals');
+    return response.data;
+  }
+
+  async getReferralHub() {
+    const response = await this.client.get('/referrals/me');
+    return response.data;
+  }
+
+  async ensureReferralCode() {
+    const response = await this.client.post('/referrals/me/code');
+    return response.data;
+  }
+
+  async recordReferralShare(data: { channel: string; surface?: string; connectionId?: string }) {
+    const response = await this.client.post('/referrals/share', data);
     return response.data;
   }
 

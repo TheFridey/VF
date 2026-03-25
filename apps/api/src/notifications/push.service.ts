@@ -106,9 +106,19 @@ export class PushNotificationService {
     await this.sendToUser(userId, {
       title: `New message from ${senderName}`,
       body: preview,
-      url: `/app/messages/${connectionId}`,
+      url: `/app/messages?match=${connectionId}`,
       tag: `message-${connectionId}`,
       data: { type: 'message', connectionId },
+    });
+  }
+
+  async notifyConnectionRequest(userId: string, senderName: string, connectionId: string) {
+    await this.sendToUser(userId, {
+      title: 'New connection request',
+      body: `${senderName} wants to reconnect with you.`,
+      url: '/app/brothers',
+      tag: `connection-request-${connectionId}`,
+      data: { type: 'connection-request', connectionId },
     });
   }
 
@@ -116,7 +126,7 @@ export class PushNotificationService {
     await this.sendToUser(userId, {
       title: 'New connection',
       body: `You are now connected with ${connectedUserName}`,
-      url: `/app/messages/${connectionId}`,
+      url: `/app/messages?match=${connectionId}`,
       tag: `connection-${connectionId}`,
       data: { type: 'connection', connectionId },
     });

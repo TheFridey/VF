@@ -336,7 +336,7 @@ export class BlogService {
     };
   }
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_HOUR)
   async publishScheduledPosts() {
     const due = await this.prisma.post.findMany({
       where: {

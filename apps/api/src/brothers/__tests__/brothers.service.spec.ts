@@ -82,7 +82,14 @@ function makeRedis() {
 }
 
 function makeSvc(prismaOverride: Record<string, unknown> = {}) {
-  return new BrothersService(makePrisma(prismaOverride) as never, makeRedis() as never);
+  return new BrothersService(
+    makePrisma(prismaOverride) as never,
+    makeRedis() as never,
+    {
+      notifyConnectionRequest: jest.fn().mockResolvedValue(undefined),
+      notifyNewConnection: jest.fn().mockResolvedValue(undefined),
+    } as never,
+  );
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

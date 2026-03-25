@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Navbar } from './navbar';
 import { FloatingChatDock } from '@/components/messaging/floating-chat-dock';
+import { PushNotificationSetup } from '@/components/notifications/push-notification-setup';
 import { IncomingCallProvider } from '@/components/video/incoming-call-provider';
 import { Loader2 } from 'lucide-react';
 
@@ -94,6 +95,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       )}>
         {children}
       </main>
+      <PushNotificationSetup />
       <IncomingCallProvider />
       {showFloatingChatDock && <FloatingChatDock />}
     </div>

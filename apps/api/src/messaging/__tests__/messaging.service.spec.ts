@@ -89,6 +89,7 @@ function makeSvc(prismaOverride: Record<string, unknown> = {}) {
     makePrisma(prismaOverride) as never,
     { log: jest.fn() } as never,
     configService,
+    { notifyNewMessage: jest.fn().mockResolvedValue(undefined) } as never,
   );
 }
 

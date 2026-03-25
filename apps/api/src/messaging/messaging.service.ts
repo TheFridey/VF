@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ConnectionStatus, ConnectionType } from '../common/enums/connection.enum';
+import { PushNotificationService } from '../notifications/push.service';
 import { MessageCrypto, parseEncryptionKeyFallbacks } from './message-crypto';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class MessagingService {
     private prisma: PrismaService,
     private auditService: AuditService,
     private configService: ConfigService,
+    private pushService: PushNotificationService,
   ) {
     this.messageCrypto = new MessageCrypto(
       this.configService.get('ENCRYPTION_KEY', 'default-dev-encryption-key-32ch'),
@@ -187,6 +189,12 @@ export class MessagingService {
     const connection = await this.verifyParticipant(connectionId, senderId);
 
     const receiverId = connection.user1Id === senderId ? connection.user2Id : connection.user1Id;
+    const sender = await this.prisma.user.findUnique({
+      where: { id: senderId },
+      select: {
+        profile: { select: { displayName: true } },
+      },
+    });
 
     // Encrypt message
     const { encrypted, iv, authTag } = this.encryptMessage(content);
@@ -215,6 +223,12 @@ export class MessagingService {
       resourceId: message.id,
       ipAddress,
     });
+
+    const senderName = sender?.profile?.displayName?.trim() || 'A veteran';
+    const preview = content.trim().replace(/\s+/g, ' ').slice(0, 140);
+    void this.pushService
+      .notifyNewMessage(receiverId, senderName, connectionId, preview || 'You have a new message.')
+      .catch(() => undefined);
 
     return {
       id: message.id,
