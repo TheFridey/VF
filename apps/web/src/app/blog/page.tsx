@@ -72,7 +72,7 @@ export default async function BlogListPage({ searchParams }: PageProps) {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <main className="mx-auto max-w-5xl px-4 pb-20 pt-28 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-6xl px-4 pb-20 pt-28 sm:px-6 lg:px-8">
         <div className="mb-10">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
             VeteranFinder
@@ -100,31 +100,43 @@ export default async function BlogListPage({ searchParams }: PageProps) {
               <Link
                 key={post.id}
                 href={`/blog/${post.slug}`}
-                className="group flex flex-col rounded-2xl border border-border bg-card p-6 transition-all hover:border-primary/30 hover:shadow-md"
+                className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all hover:border-primary/30 hover:shadow-md"
               >
-                {post.tags?.length > 0 && (
-                  <span className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-                    {post.tags[0]}
-                  </span>
-                )}
-                <h2 className="text-lg font-semibold leading-snug text-foreground group-hover:text-primary">
-                  {post.title}
-                </h2>
-                <p className="mt-2 flex-1 text-sm leading-6 text-muted-foreground line-clamp-3">
-                  {post.excerpt}
-                </p>
-                <div className="mt-4 flex items-center gap-3 text-xs text-muted-foreground">
-                  <span>
-                    {post.publishedAt
-                      ? new Date(post.publishedAt).toLocaleDateString('en-GB', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric',
-                        })
-                      : ''}
-                  </span>
-                  <span>·</span>
-                  <span>{formatReadTime(post.readTimeMinutes)}</span>
+                {post.coverImageUrl ? (
+                  <div className="aspect-[16/9] overflow-hidden border-b border-border bg-muted/40">
+                    <img
+                      src={post.coverImageUrl}
+                      alt=""
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    />
+                  </div>
+                ) : null}
+
+                <div className="flex flex-1 flex-col p-6">
+                  {post.tags?.length > 0 && (
+                    <span className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                      {post.tags[0]}
+                    </span>
+                  )}
+                  <h2 className="text-lg font-semibold leading-snug text-foreground group-hover:text-primary">
+                    {post.title}
+                  </h2>
+                  <p className="mt-2 flex-1 text-sm leading-6 text-muted-foreground line-clamp-3">
+                    {post.excerpt}
+                  </p>
+                  <div className="mt-4 flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>
+                      {post.publishedAt
+                        ? new Date(post.publishedAt).toLocaleDateString('en-GB', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric',
+                          })
+                        : ''}
+                    </span>
+                    <span>·</span>
+                    <span>{formatReadTime(post.readTimeMinutes)}</span>
+                  </div>
                 </div>
               </Link>
             ))}

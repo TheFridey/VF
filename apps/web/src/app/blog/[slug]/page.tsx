@@ -106,51 +106,63 @@ export default async function BlogPostPage({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
-      <main className="mx-auto max-w-3xl px-4 pb-20 pt-28 sm:px-6">
-        <Link
-          href="/blog"
-          className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          All articles
-        </Link>
+      <main className="mx-auto max-w-6xl px-4 pb-20 pt-28 sm:px-6">
+        <div className="mx-auto max-w-4xl">
+          <Link
+            href="/blog"
+            className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            All articles
+          </Link>
 
-        {post.tags?.length > 0 && (
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
-            {post.tags[0]}
-          </p>
-        )}
-
-        <h1 className="text-3xl font-semibold leading-snug tracking-tight text-foreground sm:text-4xl">
-          {post.title}
-        </h1>
-
-        <div className="mt-4 flex items-center gap-3 text-sm text-muted-foreground">
-          {post.publishedAt && (
-            <span>
-              {new Date(post.publishedAt).toLocaleDateString('en-GB', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })}
-            </span>
+          {post.tags?.length > 0 && (
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
+              {post.tags[0]}
+            </p>
           )}
-          <span>·</span>
-          <span>{readTimeLabel}</span>
+
+          <h1 className="text-3xl font-semibold leading-snug tracking-tight text-foreground sm:text-5xl">
+            {post.title}
+          </h1>
+
+          <div className="mt-4 flex items-center gap-3 text-sm text-muted-foreground">
+            {post.publishedAt && (
+              <span>
+                {new Date(post.publishedAt).toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </span>
+            )}
+            <span>·</span>
+            <span>{readTimeLabel}</span>
+          </div>
+
+          <p className="mt-5 max-w-3xl text-lg leading-8 text-muted-foreground">{post.excerpt}</p>
         </div>
 
-        <p className="mt-5 text-lg leading-8 text-muted-foreground">{post.excerpt}</p>
+        {post.coverImageUrl ? (
+          <div className="mx-auto mt-10 max-w-6xl overflow-hidden rounded-3xl border border-border bg-muted/40">
+            <img
+              src={post.coverImageUrl}
+              alt=""
+              className="h-[240px] w-full object-cover sm:h-[360px] lg:h-[440px]"
+            />
+          </div>
+        ) : null}
 
-        <div className="my-8 h-px bg-border" />
+        <div className="mx-auto my-10 h-px max-w-4xl bg-border" />
 
-        <div
-          className="prose prose-slate dark:prose-invert max-w-none prose-headings:font-semibold prose-headings:tracking-tight prose-a:text-primary prose-a:no-underline hover:prose-a:underline"
+        <article
+          className="mx-auto max-w-4xl text-[1.04rem] leading-8 text-foreground [&_a]:text-primary [&_a]:underline-offset-4 hover:[&_a]:underline [&_h2]:mt-12 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h3]:mt-8 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:tracking-tight [&_li]:ml-6 [&_li]:mt-3 [&_li]:pl-2 [&_li]:marker:text-primary [&_ol]:mt-6 [&_ol]:list-decimal [&_p]:mt-6 [&_p]:leading-8 [&_strong]:font-semibold [&_ul]:mt-6 [&_ul]:list-disc"
           dangerouslySetInnerHTML={{ __html: post.body }}
         />
 
-        <div className="my-10 h-px bg-border" />
+        <div className="mx-auto my-10 h-px max-w-4xl bg-border" />
 
-        <div className="rounded-2xl border border-border bg-muted/40 p-6 text-center">
+        <div className="mx-auto max-w-4xl rounded-2xl border border-border bg-muted/40 p-6 text-center">
           <p className="font-semibold text-foreground">
             Looking for someone you served with?
           </p>
