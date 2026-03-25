@@ -5,19 +5,25 @@ import {
   Get,
   Param,
   Post,
+  ParseFilePipe,
   Put,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { PostStatus } from '@prisma/client';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { MaxFileSizeValidator, FileTypeValidator } from '@nestjs/common';
 import { BlogService } from './blog.service';
 import { CreatePostDto, TrackPostViewDto, UpdatePostDto } from './dto/blog.dto';
+import { PHOTO_UPLOAD_FILE_TYPE, PHOTO_UPLOAD_MAX_BYTES } from '../uploads/upload-validation';
 
 @ApiTags('blog')
 @Controller('blog')
@@ -48,6 +54,39 @@ export class BlogController {
   @Post('views')
   trackView(@Body() dto: TrackPostViewDto) {
     return this.blogService.trackView(dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MODERATOR')
+  @ApiBearerAuth()
+  @Post('uploads/cover-image')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+      required: ['file'],
+    },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  uploadCoverImage(
+    @CurrentUser() user: { id: string },
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: PHOTO_UPLOAD_MAX_BYTES }),
+          new FileTypeValidator({ fileType: PHOTO_UPLOAD_FILE_TYPE }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    return this.blogService.uploadCoverImage(file, user.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

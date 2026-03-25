@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -9,7 +9,7 @@ import LinkExtension from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import CharacterCount from '@tiptap/extension-character-count';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Upload, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi } from '@/lib/api';
 import {
@@ -162,6 +162,8 @@ export default function BlogEditorPage() {
   } | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [estimatedReadTime, setEstimatedReadTime] = useState(1);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement | null>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -309,6 +311,27 @@ export default function BlogEditorPage() {
     const clean = rawValue.trim().replace(/^,+|,+$/g, '');
     if (!clean) return;
     setForm((current) => (current.tags.includes(clean) ? current : { ...current, tags: [...current.tags, clean] }));
+  };
+
+  const uploadCoverImage = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Choose a JPEG, PNG, WebP, or GIF image');
+      return;
+    }
+
+    setCoverUploading(true);
+    try {
+      const upload = await adminApi.uploadBlogCoverImage(file);
+      setForm((current) => ({ ...current, coverImageUrl: upload.url || '' }));
+      toast.success('Cover image uploaded');
+    } catch {
+      toast.error('Failed to upload cover image');
+    } finally {
+      setCoverUploading(false);
+      if (coverInputRef.current) {
+        coverInputRef.current.value = '';
+      }
+    }
   };
 
   const commitTags = () => {
@@ -460,8 +483,66 @@ export default function BlogEditorPage() {
                 <textarea value={form.excerpt} maxLength={300} rows={5} onChange={(event) => setForm((current) => ({ ...current, excerpt: event.target.value }))} style={adminTextareaStyle()} />
               </div>
               <div style={{ marginBottom: 14 }}>
-                <FieldLabel>Cover image URL</FieldLabel>
-                <TextInput value={form.coverImageUrl} onChange={(event) => setForm((current) => ({ ...current, coverImageUrl: event.target.value }))} />
+                <FieldLabel>Cover image</FieldLabel>
+                <input
+                  ref={coverInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    uploadCoverImage(file).catch(console.error);
+                  }}
+                  style={{ display: 'none' }}
+                />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => coverInputRef.current?.click()}
+                    disabled={coverUploading}
+                    style={adminActionButtonStyle(adminTheme.info, true)}
+                  >
+                    <Upload size={14} />
+                    {coverUploading ? 'Uploading...' : 'Upload from laptop'}
+                  </button>
+                  {form.coverImageUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => setForm((current) => ({ ...current, coverImageUrl: '' }))}
+                      style={adminActionButtonStyle(adminTheme.textMuted, true)}
+                    >
+                      <X size={14} />
+                      Remove image
+                    </button>
+                  ) : null}
+                </div>
+                <p style={{ marginTop: 10, color: adminTheme.textSoft, fontSize: 12 }}>
+                  JPEG, PNG, WebP, or GIF up to 10MB. You can still paste a hosted image URL below if you want.
+                </p>
+                {form.coverImageUrl ? (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      overflow: 'hidden',
+                      borderRadius: 10,
+                      border: `1px solid ${adminTheme.panelBorder}`,
+                      background: '#060c17',
+                    }}
+                  >
+                    <img
+                      src={form.coverImageUrl}
+                      alt="Selected cover preview"
+                      style={{ display: 'block', width: '100%', maxHeight: 220, objectFit: 'cover' }}
+                    />
+                  </div>
+                ) : null}
+                <div style={{ marginTop: 12 }}>
+                  <TextInput
+                    placeholder="https://..."
+                    value={form.coverImageUrl}
+                    onChange={(event) => setForm((current) => ({ ...current, coverImageUrl: event.target.value }))}
+                  />
+                </div>
               </div>
               <div style={{ marginBottom: 14 }}>
                 <FieldLabel>Tags</FieldLabel>

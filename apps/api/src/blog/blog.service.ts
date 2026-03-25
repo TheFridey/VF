@@ -7,6 +7,7 @@ import {
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PostStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { CloudinaryService } from '../uploads/cloudinary.service';
 import { CreatePostDto, TrackPostViewDto, UpdatePostDto } from './dto/blog.dto';
 import { calculateReadTime, generateSlug } from './utils';
 
@@ -22,7 +23,23 @@ type PostListFilters = {
 export class BlogService {
   private readonly logger = new Logger(BlogService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
+
+  async uploadCoverImage(file: Express.Multer.File, userId: string) {
+    const upload = await this.cloudinaryService.uploadImage(file, 'blog-covers', userId);
+
+    return {
+      url: upload.secureUrl,
+      publicId: upload.publicId,
+      width: upload.width,
+      height: upload.height,
+      format: upload.format,
+      bytes: upload.bytes,
+    };
+  }
 
   async createPost(dto: CreatePostDto, authorId: string) {
     const slug = dto.slug?.trim() || generateSlug(dto.title);

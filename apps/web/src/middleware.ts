@@ -93,6 +93,8 @@ export function middleware(request: NextRequest): NextResponse {
   const response = NextResponse.next();
 
   response.headers.set('Content-Security-Policy', cspDirectives);
+  // Permissions-Policy allowlists apply to the current document and embedded frames.
+  // Keep same-origin camera/microphone access enabled for VeteranFinder's own WebRTC pages.
   response.headers.set(
     'Permissions-Policy',
     'camera=(self), microphone=(self), geolocation=(), payment=()',
