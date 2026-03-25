@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PostStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
@@ -26,6 +27,7 @@ export class BlogService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
+    private readonly configService: ConfigService,
   ) {}
 
   async uploadCoverImage(file: Express.Multer.File, userId: string) {
@@ -179,6 +181,42 @@ export class BlogService {
     }
 
     return post;
+  }
+
+  async getSocialSharePreview(id: string) {
+    const post = await this.getPost(id);
+    const isPublished =
+      post.status === PostStatus.PUBLISHED &&
+      (!post.publishAt || post.publishAt <= new Date());
+
+    if (!isPublished) {
+      throw new BadRequestException('Publish the post before sharing it publicly.');
+    }
+
+    const siteUrl =
+      this.configService.get<string>('APP_URL') ||
+      this.configService.get<string>('FRONTEND_URL') ||
+      'https://veteranfinder.co.uk';
+    const baseUrl = siteUrl.replace(/\/+$/, '');
+    const canonicalUrl = `${baseUrl}/blog/${post.slug}`;
+    const imageUrl = post.coverImageUrl || `${baseUrl}/og-image.png`;
+    const excerpt = post.excerpt.trim();
+    const shareText = `${post.title}\n\n${excerpt}\n\n${canonicalUrl}`;
+
+    return {
+      title: post.title,
+      excerpt,
+      url: canonicalUrl,
+      imageUrl,
+      shareText,
+      shareUrls: {
+        x: `https://x.com/intent/tweet?text=${encodeURIComponent(`${post.title}\n\n${excerpt}`)}&url=${encodeURIComponent(canonicalUrl)}`,
+        facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(canonicalUrl)}`,
+        linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(canonicalUrl)}`,
+        whatsapp: `https://wa.me/?text=${encodeURIComponent(`${post.title}\n\n${excerpt}\n\n${canonicalUrl}`)}`,
+        email: `mailto:?subject=${encodeURIComponent(post.title)}&body=${encodeURIComponent(`${excerpt}\n\n${canonicalUrl}`)}`,
+      },
+    };
   }
 
   async listPosts(filters: PostListFilters) {

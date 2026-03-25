@@ -142,6 +142,14 @@ export class BlogController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'MODERATOR')
   @ApiBearerAuth()
+  @Get('admin/posts/:id/share-preview')
+  sharePreview(@Param('id') id: string) {
+    return this.blogService.getSocialSharePreview(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MODERATOR')
+  @ApiBearerAuth()
   @Get('admin/posts/:id/analytics')
   analytics(@Param('id') id: string, @Query('days') days?: string) {
     return this.blogService.getPostAnalytics(id, days ? Number(days) : 30);

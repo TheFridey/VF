@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { SiteHeader } from '@/components/home/site-header';
 import { PostViewTracker } from '@/components/blog/post-view-tracker';
+import { ShareActions } from '@/components/blog/share-actions';
 
 export const revalidate = 300;
 
@@ -75,6 +76,7 @@ export default async function BlogPostPage({ params }: PageProps) {
   const { slug } = await params;
   const post = await getPost(slug);
   if (!post) notFound();
+  const canonicalUrl = `https://veteranfinder.co.uk/blog/${post.slug}`;
 
   const readTimeLabel =
     post.readTimeMinutes <= 4
@@ -176,6 +178,8 @@ export default async function BlogPostPage({ params }: PageProps) {
             Create your profile
           </Link>
         </div>
+
+        <ShareActions title={post.title} excerpt={post.excerpt} url={canonicalUrl} />
       </main>
     </div>
   );

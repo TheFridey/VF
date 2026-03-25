@@ -243,6 +243,11 @@ export const adminApi = {
     return response.data;
   },
 
+  getBlogSharePreview: async (postId: string) => {
+    const response = await api.get(`/blog/admin/posts/${postId}/share-preview`);
+    return response.data;
+  },
+
   uploadBlogCoverImage: async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);

@@ -9,7 +9,7 @@ import LinkExtension from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import CharacterCount from '@tiptap/extension-character-count';
-import { ArrowLeft, Save, Upload, X } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, Save, Share2, Upload, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi } from '@/lib/api';
 import {
@@ -34,6 +34,21 @@ type BlogFormState = {
   status: 'DRAFT' | 'SCHEDULED' | 'PUBLISHED' | 'ARCHIVED';
   publishAt: string;
   body: string;
+};
+
+type SharePreview = {
+  title: string;
+  excerpt: string;
+  url: string;
+  imageUrl: string;
+  shareText: string;
+  shareUrls: {
+    x: string;
+    facebook: string;
+    linkedin: string;
+    whatsapp: string;
+    email: string;
+  };
 };
 
 const defaultState: BlogFormState = {
@@ -163,6 +178,8 @@ export default function BlogEditorPage() {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [estimatedReadTime, setEstimatedReadTime] = useState(1);
   const [coverUploading, setCoverUploading] = useState(false);
+  const [sharePreview, setSharePreview] = useState<SharePreview | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
 
   const editor = useEditor({
@@ -342,6 +359,34 @@ export default function BlogEditorPage() {
       .filter(Boolean)
       .forEach(addTag);
     setTagInput('');
+  };
+
+  const loadSharePreview = async () => {
+    if (isNew) return null;
+    setShareLoading(true);
+    try {
+      const preview = await adminApi.getBlogSharePreview(id);
+      setSharePreview(preview);
+      return preview;
+    } catch {
+      toast.error('Publish the post before generating live share links');
+      return null;
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const ensureSharePreview = async () => sharePreview || loadSharePreview();
+
+  const openShareWindow = async (platform: keyof SharePreview['shareUrls']) => {
+    const preview = await ensureSharePreview();
+    if (!preview) return;
+    window.open(preview.shareUrls[platform], '_blank', 'noopener,noreferrer');
+  };
+
+  const copyValue = async (value: string, label: string) => {
+    await navigator.clipboard.writeText(value);
+    toast.success(`${label} copied`);
   };
 
   return (
@@ -595,6 +640,82 @@ export default function BlogEditorPage() {
                 </div>
               ) : null}
             </AdminCard>
+
+            {!isNew ? (
+              <AdminCard style={{ padding: 18 }}>
+                <p style={adminTypography.eyebrow}>Social sharing</p>
+                <h2 style={{ color: adminTheme.textStrong, fontSize: 20, marginTop: 8 }}>Post this article out</h2>
+                <p style={{ color: adminTheme.textMuted, fontSize: 13, lineHeight: 1.6, marginTop: 10 }}>
+                  Generate live share links from the published article. Social previews use the post excerpt and cover image through the blog page metadata.
+                </p>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
+                  <button type="button" onClick={() => loadSharePreview().catch(console.error)} disabled={shareLoading} style={adminActionButtonStyle(adminTheme.info, true)}>
+                    <Share2 size={14} />
+                    {shareLoading ? 'Generating...' : 'Generate share links'}
+                  </button>
+                  <button type="button" onClick={() => openShareWindow('facebook').catch(console.error)} style={adminActionButtonStyle(adminTheme.textMuted, true)}>
+                    <ExternalLink size={14} />
+                    Facebook
+                  </button>
+                  <button type="button" onClick={() => openShareWindow('linkedin').catch(console.error)} style={adminActionButtonStyle(adminTheme.textMuted, true)}>
+                    <ExternalLink size={14} />
+                    LinkedIn
+                  </button>
+                  <button type="button" onClick={() => openShareWindow('x').catch(console.error)} style={adminActionButtonStyle(adminTheme.textMuted, true)}>
+                    <ExternalLink size={14} />
+                    X
+                  </button>
+                  <button type="button" onClick={() => openShareWindow('whatsapp').catch(console.error)} style={adminActionButtonStyle(adminTheme.textMuted, true)}>
+                    <ExternalLink size={14} />
+                    WhatsApp
+                  </button>
+                </div>
+
+                {sharePreview ? (
+                  <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
+                    <div
+                      style={{
+                        border: `1px solid ${adminTheme.panelBorder}`,
+                        borderRadius: 10,
+                        background: '#060c17',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {sharePreview.imageUrl ? (
+                        <img
+                          src={sharePreview.imageUrl}
+                          alt=""
+                          style={{ display: 'block', width: '100%', height: 160, objectFit: 'cover' }}
+                        />
+                      ) : null}
+                      <div style={{ padding: 14 }}>
+                        <p style={{ color: adminTheme.textStrong, fontWeight: 600 }}>{sharePreview.title}</p>
+                        <p style={{ color: adminTheme.textMuted, fontSize: 12, lineHeight: 1.6, marginTop: 8 }}>{sharePreview.excerpt}</p>
+                        <p style={{ color: adminTheme.textSoft, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, marginTop: 10 }}>
+                          {sharePreview.url}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      <button type="button" onClick={() => copyValue(sharePreview.url, 'Share link').catch(console.error)} style={adminActionButtonStyle(adminTheme.accent, true)}>
+                        <Copy size={14} />
+                        Copy link
+                      </button>
+                      <button type="button" onClick={() => copyValue(sharePreview.shareText, 'Share text').catch(console.error)} style={adminActionButtonStyle(adminTheme.accent, true)}>
+                        <Copy size={14} />
+                        Copy share text
+                      </button>
+                      <button type="button" onClick={() => openShareWindow('email').catch(console.error)} style={adminActionButtonStyle(adminTheme.textMuted, true)}>
+                        <ExternalLink size={14} />
+                        Email
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </AdminCard>
+            ) : null}
           </div>
         </div>
       )}
