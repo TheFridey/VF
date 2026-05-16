@@ -126,11 +126,12 @@ export interface BrothersCandidate {
   bio?: string;
   location?: string;
   profileImageUrl?: string;
-  interests: string[];
+  interests?: string[];
   overlapScore: number;
   veteranInfo?: {
     branch: MilitaryBranch;
     rank?: string;
+    regiment?: string;
     isVerified: boolean;
   };
   overlapReasons?: string[];
