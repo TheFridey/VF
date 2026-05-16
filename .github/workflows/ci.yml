@@ -265,14 +265,5 @@ jobs:
       - name: Install admin dependencies
         run: npm ci --prefix apps/admin
 
-      - name: Audit API dependencies
-        run: npm audit --prefix apps/api --audit-level high
-        continue-on-error: true
-
-      - name: Audit web dependencies
-        run: npm audit --prefix apps/web --audit-level high
-        continue-on-error: true
-
-      - name: Audit admin dependencies
-        run: npm audit --prefix apps/admin --audit-level high
-        continue-on-error: true
+      - name: Blocking production dependency audit
+        run: node scripts/security/blocking-audit.mjs

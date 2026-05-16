@@ -3,7 +3,10 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
 import { BrothersService } from '../brothers.service';
+import { BrothersSearchFiltersDto } from '../dto/brothers.dto';
 
 const U1 = 'user-1';
 const U2 = 'user-2';
@@ -23,6 +26,9 @@ function makeVerifiedUser(
       unit: string | null;
       dutyStation: string | null;
     }>;
+    rank: string;
+    displayName: string;
+    location: string | null;
   }> = {},
 ) {
   return {
@@ -31,7 +37,7 @@ function makeVerifiedUser(
     veteranDetails: {
       id: `det-${id}`,
       branch: overrides.branch ?? 'BRITISH_ARMY',
-      rank: 'Corporal',
+      rank: overrides.rank ?? 'Corporal',
       regiment: overrides.regiment ?? '1 para',
       servicePeriods: overrides.servicePeriods ?? [
         {
@@ -44,7 +50,10 @@ function makeVerifiedUser(
       deployments: overrides.deployments ?? ['Afghanistan'],
       dutyStations: overrides.dutyStations ?? ['Colchester'],
     },
-    profile: { displayName: `User ${id}` },
+    profile: {
+      displayName: overrides.displayName ?? `User ${id}`,
+      location: overrides.location ?? null,
+    },
   };
 }
 
@@ -58,6 +67,17 @@ function makeUnverifiedUser(id: string) {
 }
 
 function makePrisma(overrides: Record<string, unknown> = {}) {
+  const {
+    connection: connectionOverrides,
+    user: userOverrides,
+    block: blockOverrides,
+    ...restOverrides
+  } = overrides as {
+    connection?: Record<string, unknown>;
+    user?: Record<string, unknown>;
+    block?: Record<string, unknown>;
+  };
+
   return {
     connection: {
       findMany: jest.fn().mockResolvedValue([]),
@@ -66,6 +86,7 @@ function makePrisma(overrides: Record<string, unknown> = {}) {
       update: jest.fn().mockImplementation(async ({ data }) => ({ id: CONN_ID, ...data })),
       delete: jest.fn().mockResolvedValue({ id: CONN_ID }),
       findUnique: jest.fn().mockResolvedValue(null),
+      ...connectionOverrides,
     },
     user: {
       findUnique: jest.fn().mockImplementation(async ({ where }: { where: { id: string } }) => {
@@ -75,12 +96,14 @@ function makePrisma(overrides: Record<string, unknown> = {}) {
         return null;
       }),
       findMany: jest.fn().mockResolvedValue([]),
+      ...userOverrides,
     },
     block: {
       findFirst: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([]),
+      ...blockOverrides,
     },
-    ...overrides,
+    ...restOverrides,
   };
 }
 
@@ -113,6 +136,14 @@ type BrothersServiceInternals = {
     user2: ReturnType<typeof makeVerifiedUser>,
   ) => string[];
 };
+
+function getPrisma(service: BrothersService) {
+  return (service as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
+}
+
+function getRedis(service: BrothersService) {
+  return (service as unknown as { redis: ReturnType<typeof makeRedis> }).redis;
+}
 
 describe('BrothersService', () => {
   describe('sendConnectionRequest', () => {
@@ -174,7 +205,7 @@ describe('BrothersService', () => {
 
     it('creates a pending connection when all guards pass', async () => {
       const service = makeSvc();
-      const prisma = (service as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
+      const prisma = getPrisma(service);
 
       await service.sendConnectionRequest(U1, U2);
 
@@ -191,7 +222,7 @@ describe('BrothersService', () => {
 
     it('stores an overlapScore on the connection', async () => {
       const service = makeSvc();
-      const prisma = (service as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
+      const prisma = getPrisma(service);
 
       await service.sendConnectionRequest(U1, U2);
 
@@ -247,7 +278,7 @@ describe('BrothersService', () => {
         },
       });
 
-      const prisma = (service as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
+      const prisma = getPrisma(service);
       await service.respondToRequest(U2, CONN_ID, true);
 
       expect(prisma.connection.update).toHaveBeenCalledWith(
@@ -269,7 +300,7 @@ describe('BrothersService', () => {
         },
       });
 
-      const prisma = (service as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
+      const prisma = getPrisma(service);
       await service.respondToRequest(U2, CONN_ID, false);
 
       expect(prisma.connection.delete).toHaveBeenCalledWith(
@@ -396,6 +427,180 @@ describe('BrothersService', () => {
       const deploymentReasons = reasons.filter((reason) => reason.includes('Both deployed to Afghanistan'));
 
       expect(deploymentReasons).toHaveLength(1);
+    });
+  });
+
+  describe('search filters hardening', () => {
+    const requester = makeVerifiedUser(U1, {
+      displayName: 'Alex Morgan',
+      location: 'Colchester',
+    });
+    const paraCandidate = makeVerifiedUser('candidate-para', {
+      displayName: 'Chris Turner',
+      location: 'Leeds',
+      regiment: '1st Battalion Parachute Regiment',
+      deployments: ['Helmand'],
+      dutyStations: ['Colchester'],
+      servicePeriods: [
+        {
+          startDate: new Date('2011-01-01'),
+          endDate: new Date('2013-12-31'),
+          unit: '1 PARA A Coy',
+          dutyStation: 'Colchester Garrison',
+        },
+      ],
+    });
+    const signalsCandidate = makeVerifiedUser('candidate-signals', {
+      displayName: 'Morgan Ellis',
+      location: 'Blandford',
+      regiment: 'Royal Signals',
+      deployments: ['Cyprus'],
+      dutyStations: ['Blandford Camp'],
+      servicePeriods: [
+        {
+          startDate: new Date('2016-01-01'),
+          endDate: new Date('2018-12-31'),
+          unit: '3 Div Signals',
+          dutyStation: 'Blandford Camp',
+        },
+      ],
+    });
+    const navyCandidate = makeVerifiedUser('candidate-navy', {
+      displayName: 'Sam Porter',
+      location: 'Portsmouth',
+      branch: 'ROYAL_NAVY',
+      regiment: 'Fleet Air Arm',
+      deployments: ['Gulf'],
+      dutyStations: ['Portsmouth'],
+      servicePeriods: [
+        {
+          startDate: new Date('2012-01-01'),
+          endDate: new Date('2015-12-31'),
+          unit: 'HMS Collingwood',
+          dutyStation: 'Portsmouth',
+        },
+      ],
+    });
+
+    function makeSearchService() {
+      return makeSvc({
+        user: {
+          findUnique: jest.fn().mockResolvedValue(requester),
+          findMany: jest.fn().mockResolvedValue([paraCandidate, signalsCandidate, navyCandidate]),
+        },
+      });
+    }
+
+    it('filters candidates by branch before scoring', async () => {
+      const service = makeSearchService();
+
+      const results = await service.searchBrothers(U1, { branch: 'ROYAL_NAVY' });
+
+      expect(results.map((candidate) => candidate.id)).toEqual(['candidate-navy']);
+      expect(getPrisma(service).user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([
+              expect.objectContaining({
+                veteranDetails: {
+                  is: expect.objectContaining({ branch: 'ROYAL_NAVY' }),
+                },
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it('filters candidates by fuzzy regiment matches', async () => {
+      const service = makeSearchService();
+
+      const results = await service.searchBrothers(U1, { regiment: '1 para' });
+
+      expect(results.map((candidate) => candidate.id)).toEqual(['candidate-para']);
+    });
+
+    it('filters candidates by deployment aliases', async () => {
+      const service = makeSearchService();
+
+      const results = await service.searchBrothers(U1, { deployment: 'Afghanistan' });
+
+      expect(results.map((candidate) => candidate.id)).toEqual(['candidate-para']);
+    });
+
+    it('filters candidates by duty station labels', async () => {
+      const service = makeSearchService();
+
+      const results = await service.searchBrothers(U1, { station: 'colchester' });
+
+      expect(results.map((candidate) => candidate.id)).toEqual(['candidate-para']);
+    });
+
+    it('filters candidates by overlapping service years', async () => {
+      const service = makeSearchService();
+
+      const results = await service.searchBrothers(U1, { startYear: 2017, endYear: 2017 });
+
+      expect(results.map((candidate) => candidate.id)).toEqual(['candidate-signals']);
+    });
+
+    it('filters candidates by free-text query and minimum confidence', async () => {
+      const service = makeSearchService();
+
+      const queryResults = await service.searchBrothers(U1, { query: 'portsmouth' });
+      const confidenceResults = await service.searchBrothers(U1, { minConfidence: 60 });
+
+      expect(queryResults.map((candidate) => candidate.id)).toEqual(['candidate-navy']);
+      expect(confidenceResults.map((candidate) => candidate.id)).toEqual(['candidate-para']);
+    });
+
+    it('keeps blocked users excluded even when filters match them', async () => {
+      const service = makeSvc({
+        user: {
+          findUnique: jest.fn().mockResolvedValue(requester),
+          findMany: jest.fn().mockResolvedValue([paraCandidate, signalsCandidate]),
+        },
+        block: {
+          findMany: jest.fn().mockResolvedValue([
+            { blockerId: U1, blockedId: 'candidate-para' },
+          ]),
+        },
+      });
+
+      const results = await service.searchBrothers(U1, { deployment: 'Afghanistan' });
+
+      expect(results).toHaveLength(0);
+    });
+
+    it('normalizes filter values before serializing the cache key', async () => {
+      const service = makeSearchService();
+      const redis = getRedis(service);
+
+      await service.searchBrothers(U1, { deployment: ' Afghanistan ' });
+      await service.searchBrothers(U1, { deployment: 'afghanistan' });
+
+      expect(redis.cacheGet.mock.calls[0][0]).toBe(redis.cacheGet.mock.calls[1][0]);
+    });
+
+    it('rejects invalid filter DTO values', () => {
+      const dto = plainToInstance(BrothersSearchFiltersDto, {
+        branch: 'NOT_A_BRANCH',
+        startYear: 'not-a-year',
+        minConfidence: '500',
+      });
+
+      const errors = validateSync(dto);
+      const invalidFields = errors.map((error) => error.property);
+
+      expect(invalidFields).toEqual(expect.arrayContaining(['branch', 'startYear', 'minConfidence']));
+    });
+
+    it('rejects inverted year ranges at search time', async () => {
+      const service = makeSearchService();
+
+      await expect(
+        service.searchBrothers(U1, { startYear: 2020, endYear: 2010 }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

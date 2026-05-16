@@ -30,3 +30,20 @@
   - `apps/web/src/middleware.ts`: `script-src 'self' 'unsafe-inline'` and `style-src 'self' 'unsafe-inline'`
   - `apps/admin/src/middleware.ts`: `script-src 'self' 'unsafe-inline'` and `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`
 - Regression coverage should keep those exact exceptions visible until the apps move to a nonce-only path. Any future CSP relaxation beyond those sources should require an explicit code review note.
+
+## CI security checks
+
+- Dependency audits should block CI on any production `critical` vulnerability immediately.
+- Production `high` vulnerabilities may only pass temporarily through an explicit allowlist entry with an expiry date and reason in `.github/security/npm-audit-allowlist.json`.
+- Audit output should remain visible in CI logs even when the decision is ultimately allowlisted, so there is no silent drift.
+
+## Smoke coverage
+
+- Staging and production deploys should run a post-deploy smoke script against the public origin.
+- Minimum smoke checks:
+  - `/status/live`
+  - `/api/health/live`
+  - `/api/health/ready`
+  - homepage load
+  - unauthenticated redirect from `/app/profile`
+- Optional authenticated smoke checks can run with a dedicated seeded smoke user via GitHub environment secrets. If enabled, that flow should use the live cookie and CSRF path exactly as the browser does.

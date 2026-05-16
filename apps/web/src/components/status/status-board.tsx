@@ -54,6 +54,8 @@ type StatusSnapshot = {
   error: string | null;
 };
 
+type HealthState = 'checking' | 'ok' | 'issue';
+
 function unwrapEnvelope<T>(payload: T | Envelope<T>): T {
   if (payload && typeof payload === 'object' && 'data' in payload && payload.data) {
     return payload.data;
@@ -99,13 +101,16 @@ function formatUptime(seconds?: number | null) {
   return `${minutes}m`;
 }
 
-function StatusDot({ ok }: { ok: boolean }) {
+function StatusDot({ state }: { state: HealthState }) {
+  const className = state === 'ok'
+    ? 'bg-emerald-400 shadow-[0_0_0_6px_rgba(52,211,153,0.14)]'
+    : state === 'issue'
+      ? 'bg-rose-400 shadow-[0_0_0_6px_rgba(251,113,133,0.14)]'
+      : 'bg-sky-400 shadow-[0_0_0_6px_rgba(56,189,248,0.16)]';
+
   return (
     <span
-      className={cn(
-        'inline-flex h-2.5 w-2.5 rounded-full',
-        ok ? 'bg-emerald-400 shadow-[0_0_0_6px_rgba(52,211,153,0.14)]' : 'bg-rose-400 shadow-[0_0_0_6px_rgba(251,113,133,0.14)]',
-      )}
+      className={cn('inline-flex h-2.5 w-2.5 rounded-full', className)}
       aria-hidden="true"
     />
   );
@@ -116,28 +121,31 @@ function ServiceCard({
   value,
   detail,
   icon: Icon,
-  ok,
+  state,
 }: {
   label: string;
   value: string;
   detail: string;
   icon: typeof Globe;
-  ok: boolean;
+  state: HealthState;
 }) {
+  const toneClass = state === 'ok'
+    ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
+    : state === 'issue'
+      ? 'border-rose-400/30 bg-rose-400/10 text-rose-300'
+      : 'border-sky-300/30 bg-sky-300/10 text-sky-200';
+
   return (
     <div className="rounded-[28px] border border-white/10 bg-slate-950/75 p-5 text-white shadow-[0_24px_80px_-48px_rgba(15,23,42,0.9)] backdrop-blur-xl">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className={cn(
-            'flex h-11 w-11 items-center justify-center rounded-2xl border',
-            ok ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' : 'border-rose-400/30 bg-rose-400/10 text-rose-300',
-          )}>
+          <div className={cn('flex h-11 w-11 items-center justify-center rounded-2xl border', toneClass)}>
             <Icon className="h-5 w-5" />
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">{label}</p>
             <div className="mt-2 flex items-center gap-2">
-              <StatusDot ok={ok} />
+              <StatusDot state={state} />
               <p className="text-lg font-semibold text-white">{value}</p>
             </div>
           </div>
@@ -158,6 +166,7 @@ export function StatusBoard() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasCheckedOnce, setHasCheckedOnce] = useState(false);
 
   const loadStatus = useCallback(async (background = false) => {
     if (background) {
@@ -189,6 +198,7 @@ export function StatusBoard() {
         error: message,
       }));
     } finally {
+      setHasCheckedOnce(true);
       setIsLoading(false);
       setIsRefreshing(false);
     }
@@ -210,6 +220,12 @@ export function StatusBoard() {
   const redisOk = !!snapshot.apiReady?.checks?.redis;
   const readyOk = snapshot.apiReady?.status === 'ready';
   const allHealthy = webOk && apiOk && databaseOk && redisOk && readyOk;
+  const overallState: HealthState = !hasCheckedOnce ? 'checking' : allHealthy ? 'ok' : 'issue';
+  const webState: HealthState = !hasCheckedOnce ? 'checking' : webOk ? 'ok' : 'issue';
+  const apiState: HealthState = !hasCheckedOnce ? 'checking' : apiOk ? 'ok' : 'issue';
+  const databaseState: HealthState = !hasCheckedOnce ? 'checking' : databaseOk ? 'ok' : 'issue';
+  const redisState: HealthState = !hasCheckedOnce ? 'checking' : redisOk ? 'ok' : 'issue';
+  const readyState: HealthState = !hasCheckedOnce ? 'checking' : readyOk ? 'ok' : 'issue';
 
   return (
     <section className="relative overflow-hidden rounded-[36px] border border-sky-200/60 bg-[linear-gradient(160deg,rgba(2,132,199,0.08)_0%,rgba(15,23,42,0.03)_48%,rgba(255,255,255,0.9)_100%)] shadow-[0_32px_120px_-64px_rgba(14,116,144,0.55)]">
@@ -224,7 +240,11 @@ export function StatusBoard() {
               Live System Status
             </div>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-              {allHealthy ? 'All core services are online.' : 'We are seeing a service issue right now.'}
+              {!hasCheckedOnce
+                ? 'Running first health check...'
+                : allHealthy
+                  ? 'All core services are online.'
+                  : 'We are seeing a service issue right now.'}
             </h2>
             <p className="mt-3 max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
               This page checks the live web app, API, database, and Redis cache every 30 seconds so people can see the current platform state without guessing.
@@ -234,12 +254,18 @@ export function StatusBoard() {
           <div className="flex flex-wrap items-center gap-3">
             <div className={cn(
               'inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium',
-              allHealthy
+              overallState === 'ok'
                 ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                : 'border-rose-300 bg-rose-50 text-rose-800',
+                : overallState === 'issue'
+                  ? 'border-rose-300 bg-rose-50 text-rose-800'
+                  : 'border-sky-300 bg-sky-50 text-sky-800',
             )}>
-              <StatusDot ok={allHealthy} />
-              {allHealthy ? 'Operational' : 'Degraded'}
+              <StatusDot state={overallState} />
+              {overallState === 'ok'
+                ? 'Operational'
+                : overallState === 'issue'
+                  ? 'Degraded'
+                  : 'Checking live status...'}
             </div>
             <Button
               type="button"
@@ -256,31 +282,39 @@ export function StatusBoard() {
         <div className="mt-8 grid gap-4 lg:grid-cols-4">
           <ServiceCard
             label="Website"
-            value={webOk ? 'Online' : 'Unavailable'}
+            value={!hasCheckedOnce ? 'Checking...' : webOk ? 'Online' : 'Unavailable'}
             detail={snapshot.web?.startedAt ? `Next.js process has been up ${formatRelativeTime(snapshot.web.startedAt)}.` : 'Waiting for the web status probe.'}
             icon={Globe}
-            ok={webOk}
+            state={webState}
           />
           <ServiceCard
             label="API"
-            value={apiOk ? 'Online' : 'Unavailable'}
+            value={!hasCheckedOnce ? 'Checking...' : apiOk ? 'Online' : 'Unavailable'}
             detail={snapshot.apiLive?.timestamp ? `API heartbeat responded ${formatRelativeTime(snapshot.apiLive.timestamp)}.` : 'Waiting for the API heartbeat.'}
             icon={Server}
-            ok={apiOk}
+            state={apiState}
           />
           <ServiceCard
             label="Database"
-            value={databaseOk ? 'Connected' : 'Issue detected'}
-            detail={databaseOk ? 'Readiness checks can reach the primary database.' : 'The readiness probe could not confirm database connectivity.'}
+            value={!hasCheckedOnce ? 'Checking...' : databaseOk ? 'Connected' : 'Issue detected'}
+            detail={!hasCheckedOnce
+              ? 'Waiting for the readiness probe to confirm database connectivity.'
+              : databaseOk
+                ? 'Readiness checks can reach the primary database.'
+                : 'The readiness probe could not confirm database connectivity.'}
             icon={Database}
-            ok={databaseOk}
+            state={databaseState}
           />
           <ServiceCard
             label="Redis Cache"
-            value={redisOk ? 'Connected' : 'Issue detected'}
-            detail={redisOk ? 'Live cache and queue connectivity is responding normally.' : 'The readiness probe could not confirm Redis connectivity.'}
+            value={!hasCheckedOnce ? 'Checking...' : redisOk ? 'Connected' : 'Issue detected'}
+            detail={!hasCheckedOnce
+              ? 'Waiting for the readiness probe to confirm Redis connectivity.'
+              : redisOk
+                ? 'Live cache and queue connectivity is responding normally.'
+                : 'The readiness probe could not confirm Redis connectivity.'}
             icon={ShieldCheck}
-            ok={redisOk}
+            state={redisState}
           />
         </div>
 
@@ -299,14 +333,18 @@ export function StatusBoard() {
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-medium text-slate-500">Website app</p>
-                <p className="mt-2 text-2xl font-semibold text-slate-950">{formatUptime(snapshot.web?.uptime)}</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">
+                  {hasCheckedOnce ? formatUptime(snapshot.web?.uptime) : 'Checking...'}
+                </p>
                 <p className="mt-2 text-sm text-slate-600">
                   {snapshot.web?.startedAt ? `Started ${formatRelativeTime(snapshot.web.startedAt)}.` : 'No live reading yet.'}
                 </p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-medium text-slate-500">API app</p>
-                <p className="mt-2 text-2xl font-semibold text-slate-950">{formatUptime(snapshot.apiLive?.uptime)}</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">
+                  {hasCheckedOnce ? formatUptime(snapshot.apiLive?.uptime) : 'Checking...'}
+                </p>
                 <p className="mt-2 text-sm text-slate-600">
                   {snapshot.apiLive?.timestamp ? `Heartbeat seen ${formatRelativeTime(snapshot.apiLive.timestamp)}.` : 'No live reading yet.'}
                 </p>
@@ -324,20 +362,24 @@ export function StatusBoard() {
 
             <div className="mt-6 space-y-3">
               {[
-                { label: 'Website liveness', ok: webOk },
-                { label: 'API liveness', ok: apiOk },
-                { label: 'API readiness', ok: readyOk },
-                { label: 'Database connectivity', ok: databaseOk },
-                { label: 'Redis connectivity', ok: redisOk },
+                { label: 'Website liveness', state: webState },
+                { label: 'API liveness', state: apiState },
+                { label: 'API readiness', state: readyState },
+                { label: 'Database connectivity', state: databaseState },
+                { label: 'Redis connectivity', state: redisState },
               ].map((item) => (
                 <div key={item.label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <span className="text-sm font-medium text-slate-700">{item.label}</span>
                   <span className={cn(
                     'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em]',
-                    item.ok ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800',
+                    item.state === 'ok'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : item.state === 'issue'
+                        ? 'bg-rose-100 text-rose-800'
+                        : 'bg-sky-100 text-sky-800',
                   )}>
-                    <StatusDot ok={item.ok} />
-                    {item.ok ? 'OK' : 'Issue'}
+                    <StatusDot state={item.state} />
+                    {item.state === 'ok' ? 'OK' : item.state === 'issue' ? 'Issue' : 'Pending'}
                   </span>
                 </div>
               ))}
@@ -353,7 +395,7 @@ export function StatusBoard() {
               </p>
             </div>
 
-            {snapshot.error && (
+            {hasCheckedOnce && snapshot.error && (
               <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-4 text-sm text-amber-900">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -367,7 +409,7 @@ export function StatusBoard() {
         {isLoading && (
           <div className="mt-8 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/90 px-4 py-4 text-sm text-slate-600">
             <Spinner size="sm" className="text-sky-700" />
-            Pulling the first live status snapshot now.
+            Running first health check now.
           </div>
         )}
       </div>

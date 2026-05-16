@@ -4,6 +4,7 @@ import { ConnectionStatus, ConnectionType } from '../common/enums/connection.enu
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
 import { PushNotificationService } from '../notifications/push.service';
+import { BrothersSearchFiltersDto } from './dto/brothers.dto';
 import { canonicalTheatre, deploymentsMatch, unitSimilarity } from './unit-matcher';
 
 const BROTHERS_CACHE_TTL = 300;
@@ -24,6 +25,16 @@ type BrotherUser = Prisma.UserGetPayload<{
 type ServicePeriodRecord = NonNullable<BrotherUser['veteranDetails']>['servicePeriods'][number];
 type VeteranDetailsRecord = NonNullable<BrotherUser['veteranDetails']>;
 type ScoredBrotherUser = BrotherUser & { overlapScore: number };
+type NormalizedBrothersFilters = {
+  branch?: MilitaryBranch;
+  regiment?: string;
+  deployment?: string;
+  station?: string;
+  startYear?: number;
+  endYear?: number;
+  minConfidence?: number;
+  query?: string;
+};
 
 type PeriodMatchEvidence = {
   overlapMonths: number;
@@ -231,8 +242,9 @@ export class BrothersService {
     return { success: true, accepted: false };
   }
 
-  async searchBrothers(userId: string, filters?: Record<string, unknown>) {
-    const cacheKey = this.buildSearchCacheKey(userId, filters);
+  async searchBrothers(userId: string, filters?: BrothersSearchFiltersDto) {
+    const normalizedFilters = this.normalizeSearchFilters(filters);
+    const cacheKey = this.buildSearchCacheKey(userId, normalizedFilters);
     const cached = await this.redis.cacheGet<ReturnType<typeof this.formatBrotherCandidate>[]>(cacheKey);
 
     if (cached) {
@@ -256,16 +268,11 @@ export class BrothersService {
       throw new ForbiddenException('Only verified veterans can use Brothers in Arms');
     }
 
+    const baseWhere = this.buildCandidateWhere(userId, normalizedFilters);
     const candidates = await this.prisma.user.findMany({
-      where: {
-        id: { not: userId },
-        role: { in: [PrismaUserRole.VETERAN_VERIFIED, PrismaUserRole.VETERAN_MEMBER] },
-        veteranDetails: {
-          isNot: null,
-        },
-      },
+      where: baseWhere,
       include: BROTHER_USER_INCLUDE,
-      take: 50,
+      take: this.requiresExpandedCandidateWindow(normalizedFilters) ? 150 : 50,
     });
 
     const blockedCounterpartIds = await this.getBlockedCounterpartIds(
@@ -277,10 +284,16 @@ export class BrothersService {
 
     const scoredCandidates: ScoredBrotherUser[] = candidates
       .filter((candidate) => !blockedCounterpartIds.has(candidate.id))
+      .filter((candidate) => this.matchesSearchFilters(candidate, normalizedFilters))
       .map((candidate) => ({
         ...candidate,
         overlapScore: this.calculateOverlapScore(requestingUser, candidate),
       }))
+      .filter((candidate) =>
+        normalizedFilters.minConfidence == null
+          ? true
+          : candidate.overlapScore >= normalizedFilters.minConfidence,
+      )
       .sort((left, right) => right.overlapScore - left.overlapScore);
 
     const result = scoredCandidates.map((candidate) => this.formatBrotherCandidate(candidate, requestingUser));
@@ -650,17 +663,212 @@ export class BrothersService {
     return [...matchedLabels];
   }
 
-  private buildSearchCacheKey(userId: string, filters?: Record<string, unknown>) {
+  private buildSearchCacheKey(userId: string, filters?: NormalizedBrothersFilters) {
     if (!filters || Object.keys(filters).length === 0) {
       return `brothers:search:${userId}`;
     }
 
-    const serialisedFilters = Object.keys(filters)
+    const serialisedFilters = (Object.keys(filters) as Array<keyof NormalizedBrothersFilters>)
       .sort()
-      .map((key) => `${key}:${JSON.stringify(filters[key])}`)
+      .map((key) => `${String(key)}:${JSON.stringify(filters[key])}`)
       .join('|');
 
     return `brothers:search:${userId}:${serialisedFilters}`;
+  }
+
+  private normalizeSearchFilters(filters?: BrothersSearchFiltersDto): NormalizedBrothersFilters {
+    if (!filters) {
+      return {};
+    }
+
+    const normalized: NormalizedBrothersFilters = {
+      branch: filters.branch,
+      regiment: normaliseComparisonLabel(filters.regiment),
+      deployment: normaliseComparisonLabel(filters.deployment),
+      station: normaliseComparisonLabel(filters.station),
+      query: normaliseComparisonLabel(filters.query),
+      startYear: filters.startYear,
+      endYear: filters.endYear,
+      minConfidence: typeof filters.minConfidence === 'number' ? filters.minConfidence : undefined,
+    };
+
+    if (normalized.startYear && normalized.endYear && normalized.startYear > normalized.endYear) {
+      throw new BadRequestException('startYear cannot be greater than endYear');
+    }
+
+    return Object.fromEntries(
+      Object.entries(normalized).filter(([, value]) => value !== undefined && value !== ''),
+    ) as NormalizedBrothersFilters;
+  }
+
+  private buildCandidateWhere(userId: string, filters: NormalizedBrothersFilters): Prisma.UserWhereInput {
+    const veteranDetailsFilter: Prisma.VeteranDetailsWhereInput = {};
+    const conditions: Prisma.UserWhereInput[] = [
+      {
+        veteranDetails: {
+          is: veteranDetailsFilter,
+        },
+      },
+    ];
+
+    if (filters.branch) {
+      veteranDetailsFilter.branch = filters.branch;
+    }
+
+    const yearOverlap = this.buildYearOverlapFilter(filters.startYear, filters.endYear);
+    if (yearOverlap) {
+      veteranDetailsFilter.servicePeriods = {
+        some: yearOverlap,
+      };
+    }
+
+    if (filters.query) {
+      conditions.push({
+        OR: [
+          { profile: { is: { displayName: { contains: filters.query, mode: 'insensitive' } } } },
+          { profile: { is: { location: { contains: filters.query, mode: 'insensitive' } } } },
+          { veteranDetails: { is: { regiment: { contains: filters.query, mode: 'insensitive' } } } },
+          { veteranDetails: { is: { rank: { contains: filters.query, mode: 'insensitive' } } } },
+          {
+            veteranDetails: {
+              is: {
+                servicePeriods: {
+                  some: {
+                    OR: [
+                      { unit: { contains: filters.query, mode: 'insensitive' } },
+                      { dutyStation: { contains: filters.query, mode: 'insensitive' } },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    return {
+      id: { not: userId },
+      role: { in: [PrismaUserRole.VETERAN_VERIFIED, PrismaUserRole.VETERAN_MEMBER] },
+      AND: conditions,
+    };
+  }
+
+  private buildYearOverlapFilter(startYear?: number, endYear?: number): Prisma.ServicePeriodWhereInput | null {
+    if (!startYear && !endYear) {
+      return null;
+    }
+
+    const startBoundary = new Date(`${startYear ?? 1900}-01-01T00:00:00.000Z`);
+    const endBoundary = new Date(`${endYear ?? 2100}-12-31T23:59:59.999Z`);
+
+    return {
+      startDate: { lte: endBoundary },
+      OR: [
+        { endDate: null },
+        { endDate: { gte: startBoundary } },
+      ],
+    };
+  }
+
+  private requiresExpandedCandidateWindow(filters: NormalizedBrothersFilters): boolean {
+    return !!(filters.regiment || filters.deployment || filters.station || filters.query);
+  }
+
+  private matchesSearchFilters(candidate: BrotherUser, filters: NormalizedBrothersFilters): boolean {
+    const veteranDetails = candidate.veteranDetails;
+
+    if (!veteranDetails) {
+      return false;
+    }
+
+    if (filters.branch && veteranDetails.branch !== filters.branch) {
+      return false;
+    }
+
+    if (!this.matchesYearFilter(veteranDetails, filters.startYear, filters.endYear)) {
+      return false;
+    }
+
+    if (filters.regiment && !this.matchesRegimentFilter(veteranDetails, filters.regiment)) {
+      return false;
+    }
+
+    if (filters.deployment && !this.matchesDeploymentFilter(veteranDetails, filters.deployment)) {
+      return false;
+    }
+
+    if (filters.station && !this.matchesStationFilter(veteranDetails, filters.station)) {
+      return false;
+    }
+
+    if (filters.query && !this.matchesQueryFilter(candidate, filters.query)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private matchesYearFilter(veteranDetails: VeteranDetailsRecord, startYear?: number, endYear?: number): boolean {
+    if (!startYear && !endYear) {
+      return true;
+    }
+
+    const startBoundary = new Date(`${startYear ?? 1900}-01-01T00:00:00.000Z`);
+    const endBoundary = new Date(`${endYear ?? 2100}-12-31T23:59:59.999Z`);
+
+    return veteranDetails.servicePeriods.some((period) =>
+      period.startDate <= endBoundary && this.getPeriodEnd(period) >= startBoundary,
+    );
+  }
+
+  private matchesRegimentFilter(veteranDetails: VeteranDetailsRecord, regiment: string): boolean {
+    if (this.matchSimilarity(veteranDetails.regiment, regiment) >= 0.7) {
+      return true;
+    }
+
+    return veteranDetails.servicePeriods.some((period) => this.matchSimilarity(period.unit, regiment) >= 0.7);
+  }
+
+  private matchesDeploymentFilter(veteranDetails: VeteranDetailsRecord, deployment: string): boolean {
+    return veteranDetails.deployments.some((candidateDeployment) =>
+      deploymentsMatch(candidateDeployment, deployment)
+      || normaliseComparisonLabel(candidateDeployment).includes(deployment),
+    );
+  }
+
+  private matchesStationFilter(veteranDetails: VeteranDetailsRecord, station: string): boolean {
+    const matchesStationLabel = (value?: string | null) => {
+      if (!value) {
+        return false;
+      }
+
+      const normalizedValue = normaliseComparisonLabel(value);
+      return normalizedValue.includes(station)
+        || station.includes(normalizedValue)
+        || unitSimilarity(normalizedValue, station) >= 0.75;
+    };
+
+    return veteranDetails.dutyStations.some((label) => matchesStationLabel(label))
+      || veteranDetails.servicePeriods.some((period) => matchesStationLabel(period.dutyStation));
+  }
+
+  private matchesQueryFilter(candidate: BrotherUser, query: string): boolean {
+    const veteranDetails = candidate.veteranDetails;
+    const comparisonValues = [
+      candidate.profile?.displayName,
+      candidate.profile?.location,
+      veteranDetails?.regiment,
+      veteranDetails?.rank,
+      ...(veteranDetails?.deployments ?? []),
+      ...(veteranDetails?.dutyStations ?? []),
+      ...(veteranDetails?.servicePeriods.flatMap((period) => [period.unit, period.dutyStation]) ?? []),
+    ];
+
+    return comparisonValues.some((value) => {
+      const normalizedValue = normaliseComparisonLabel(value);
+      return normalizedValue.includes(query);
+    });
   }
 
   private async isBlockedBetween(userId: string, otherUserId: string) {

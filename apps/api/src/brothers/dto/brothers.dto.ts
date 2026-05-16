@@ -1,45 +1,103 @@
-import { IsOptional, IsEnum, IsInt, Min, Max, IsArray, IsUUID, IsString } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsEnum,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { MilitaryBranch } from '@prisma/client';
 
-export enum OverlapIndicator {
-  NONE = 'none',
-  LOW = 'low',
-  MEDIUM = 'medium',
-  HIGH = 'high',
+function trimToUndefined({ value }: { value: unknown }): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
-export class BrothersFiltersDto {
-  @ApiPropertyOptional({ enum: ['army', 'navy', 'air_force', 'marines', 'coast_guard', 'space_force'], isArray: true })
-  @IsOptional()
-  @IsArray()
-  branches?: string[];
+function normaliseConfidenceInput({ value }: { value: unknown }): number | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
 
-  @ApiPropertyOptional({ description: 'Minimum year of service' })
-  @IsOptional()
-  @IsInt()
-  @Min(1900)
-  @Max(2100)
-  @Type(() => Number)
-  minYear?: number;
+  const numeric = Number(value);
 
-  @ApiPropertyOptional({ description: 'Maximum year of service' })
-  @IsOptional()
-  @IsInt()
-  @Min(1900)
-  @Max(2100)
-  @Type(() => Number)
-  maxYear?: number;
+  if (Number.isNaN(numeric)) {
+    return Number.NaN;
+  }
 
-  @ApiPropertyOptional({ description: 'Minimum overlap indicator to show' })
-  @IsOptional()
-  @IsEnum(OverlapIndicator)
-  minOverlap?: OverlapIndicator;
+  if (numeric >= 0 && numeric <= 1) {
+    return Number((numeric * 100).toFixed(2));
+  }
 
-  @ApiPropertyOptional({ description: 'Location filter' })
+  return numeric;
+}
+
+export class BrothersSearchFiltersDto {
+  @ApiPropertyOptional({ enum: MilitaryBranch, description: 'Exact branch filter' })
   @IsOptional()
+  @IsEnum(MilitaryBranch)
+  branch?: MilitaryBranch;
+
+  @ApiPropertyOptional({ description: 'Regiment or battalion/unit name to match' })
+  @IsOptional()
+  @Transform(trimToUndefined)
   @IsString()
-  location?: string;
+  @MaxLength(200)
+  regiment?: string;
+
+  @ApiPropertyOptional({ description: 'Deployment theatre, operation, or location to match' })
+  @IsOptional()
+  @Transform(trimToUndefined)
+  @IsString()
+  @MaxLength(120)
+  deployment?: string;
+
+  @ApiPropertyOptional({ description: 'Duty station or garrison to match' })
+  @IsOptional()
+  @Transform(trimToUndefined)
+  @IsString()
+  @MaxLength(120)
+  station?: string;
+
+  @ApiPropertyOptional({ description: 'Minimum service start year to overlap' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1900)
+  @Max(2100)
+  startYear?: number;
+
+  @ApiPropertyOptional({ description: 'Maximum service end year to overlap' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1900)
+  @Max(2100)
+  endYear?: number;
+
+  @ApiPropertyOptional({ description: 'Minimum confidence threshold as 0-100 or 0-1' })
+  @IsOptional()
+  @Transform(normaliseConfidenceInput)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  minConfidence?: number;
+
+  @ApiPropertyOptional({ description: 'Free-text match across service details and profile labels' })
+  @IsOptional()
+  @Transform(trimToUndefined)
+  @IsString()
+  @MaxLength(120)
+  query?: string;
 }
 
 export class ConnectionRequestDto {
@@ -50,6 +108,7 @@ export class ConnectionRequestDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   message?: string;
 }
 
@@ -61,50 +120,4 @@ export class ConnectionResponseDto {
   @ApiProperty({ enum: ['accept', 'reject'] })
   @IsEnum(['accept', 'reject'])
   action: 'accept' | 'reject';
-}
-
-// Response DTOs
-export class BrotherCandidateDto {
-  id: string;
-  displayName: string;
-  profileImage?: string;
-  isVerified: boolean;
-  
-  // Overlap indicator (always visible for verified veterans)
-  overlapIndicator: OverlapIndicator;
-  
-  // Basic service info (visible to verified veterans)
-  branches?: string[];
-  
-  // Detailed service info (only for paid veterans)
-  servicePeriods?: ServicePeriodSummaryDto[];
-  potentialOverlaps?: OverlapDetailDto[];
-}
-
-export class ServicePeriodSummaryDto {
-  branch: string;
-  startYear: number;
-  startMonth: number;
-  endYear?: number;
-  endMonth?: number;
-  location?: string;
-  unit?: string;
-}
-
-export class OverlapDetailDto {
-  branch: string;
-  location?: string;
-  timeframe: string; // e.g., "Jan 2010 - Mar 2012"
-  overlapMonths: number;
-}
-
-export class ConnectionRequestResponseDto {
-  id: string;
-  fromUserId: string;
-  fromUserName: string;
-  fromUserImage?: string;
-  overlapIndicator: OverlapIndicator;
-  message?: string;
-  status: 'pending' | 'accepted' | 'rejected';
-  createdAt: Date;
 }

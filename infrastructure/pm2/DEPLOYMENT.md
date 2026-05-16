@@ -135,6 +135,32 @@ nginx -t
 systemctl reload nginx
 ```
 
+## Admin perimeter
+
+`admin.veteranfinder.co.uk` should have an outer production gate before traffic reaches `apps/admin`.
+
+Recommended options:
+
+1. Cloudflare Access or another identity-aware proxy in front of the admin hostname.
+2. Nginx IP allowlisting if you have stable office or VPN egress IPs.
+
+The repo nginx template includes both approaches as documentation:
+
+- Cloudflare Access is the preferred path because it adds identity checks without editing app code.
+- The admin server block also includes commented allowlist placeholders such as:
+
+```nginx
+# allow 203.0.113.10;
+# allow 198.51.100.0/24;
+# deny all;
+```
+
+Important:
+
+- Leaving those lines commented means the admin hostname stays publicly reachable and relies only on app auth.
+- That default is fine for local development and initial setup, but it is not the recommended production posture.
+- The admin server block now also sends `Referrer-Policy` and `Permissions-Policy` headers so the reverse proxy matches the admin app middleware intent more closely.
+
 ## Operational checks
 
 ```bash

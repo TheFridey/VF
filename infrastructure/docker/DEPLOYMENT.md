@@ -47,6 +47,23 @@ This workflow is safest when GitHub is configured to:
 - require environment approval for `production`
 - keep direct pushes to `main` rare or disabled
 
+## Admin perimeter
+
+`admin.veteranfinder.co.uk` should be protected at the edge or reverse proxy layer in production.
+
+Recommended production path:
+
+1. Put Cloudflare Access or an equivalent identity-aware proxy in front of the admin hostname.
+2. If you cannot use an outer identity gate, apply an nginx IP allowlist for trusted office or VPN egress ranges.
+
+The repo nginx template at [`../../nginx/veteranfinder.conf`](../../nginx/veteranfinder.conf) includes:
+
+- commented allowlist placeholders for `admin.veteranfinder.co.uk`
+- explicit warning comments about the public default
+- `Referrer-Policy` and `Permissions-Policy` headers on the admin server block
+
+This hardening is for live deployments only and does not change local admin development on `localhost:3002`.
+
 ## First-Time Server Setup
 
 ```bash

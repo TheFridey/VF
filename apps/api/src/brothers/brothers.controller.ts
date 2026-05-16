@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { BrothersService } from './brothers.service';
+import { BrothersSearchFiltersDto } from './dto/brothers.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -26,7 +27,7 @@ export class BrothersController {
   @ApiOperation({ summary: 'Search for potential Brothers in Arms connections' })
   async searchBrothers(
     @CurrentUser('id') userId: string,
-    @Query() filters: any,
+    @Query() filters: BrothersSearchFiltersDto,
   ) {
     return this.brothersService.searchBrothers(userId, filters);
   }

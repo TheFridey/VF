@@ -147,6 +147,14 @@ jobs:
     environment: ${{ needs.verify-release.outputs.deploy_environment }}
 
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-release.outputs.deploy_sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -171,3 +179,13 @@ jobs:
             if [ -n "${{ vars.HEALTHCHECK_URL }}" ]; then
               curl --fail --silent --show-error "${{ vars.HEALTHCHECK_URL }}"
             fi
+
+      - name: Run post-deploy smoke checks
+        env:
+          SMOKE_BASE_URL: ${{ vars.SMOKE_BASE_URL || vars.NEXT_PUBLIC_SITE_URL }}
+          SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+          SMOKE_PROFILE_TOUCH: ${{ vars.SMOKE_PROFILE_TOUCH || 'false' }}
+          SMOKE_PROFILE_TOUCH_VALUE: ${{ vars.SMOKE_PROFILE_TOUCH_VALUE || '' }}
+          SMOKE_BROTHERS_BRANCH: ${{ vars.SMOKE_BROTHERS_BRANCH || 'BRITISH_ARMY' }}
+        run: node scripts/smoke/post-deploy-smoke.mjs
