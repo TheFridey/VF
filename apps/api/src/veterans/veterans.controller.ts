@@ -4,6 +4,11 @@ import { VeteransService } from './veterans.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { UserRole } from '@prisma/client';
+import {
+  CreateServicePeriodDto,
+  UpdateServicePeriodDto,
+  UpdateVeteranDetailsDto,
+} from './dto/veteran.dto';
 
 @ApiTags('veterans')
 @ApiBearerAuth()
@@ -31,7 +36,7 @@ export class VeteransController {
   async updateVeteranDetails(
     @CurrentUser('id') userId: string,
     @CurrentUser('role') role: UserRole,
-    @Body() data: any,
+    @Body() data: UpdateVeteranDetailsDto,
   ) {
     this.checkVeteranRole(role);
     return this.veteransService.updateVeteranDetails(userId, data);
@@ -50,7 +55,7 @@ export class VeteransController {
   async addServicePeriod(
     @CurrentUser('id') userId: string,
     @CurrentUser('role') role: UserRole,
-    @Body() data: any,
+    @Body() data: CreateServicePeriodDto,
   ) {
     this.checkVeteranRole(role);
     return this.veteransService.addServicePeriod(userId, data);
@@ -62,7 +67,7 @@ export class VeteransController {
     @CurrentUser('id') userId: string,
     @CurrentUser('role') role: UserRole,
     @Param('id') id: string,
-    @Body() data: any,
+    @Body() data: UpdateServicePeriodDto,
   ) {
     this.checkVeteranRole(role);
     return this.veteransService.updateServicePeriod(userId, id, data);

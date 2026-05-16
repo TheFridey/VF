@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { AxiosError } from 'axios';
 import toast from 'react-hot-toast';
 import { Shield, Loader2, Save, Plus, Trash2, Edit2, MapPin, Calendar, Award } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,7 @@ import { PhotoUpload } from '@/components/photo-upload';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatBranch, isVeteran, isVerifiedVeteran } from '@/lib/utils';
+import type { Gender, MilitaryBranch, ServicePeriod } from '@/types';
 
 const profileSchema = z.object({
   displayName: z.string().min(2, 'Name must be at least 2 characters').max(50),
@@ -41,6 +43,108 @@ const veteranSchema = z.object({
 
 type ProfileFormData = z.infer<typeof profileSchema>;
 type VeteranFormData = z.infer<typeof veteranSchema>;
+
+type ProfileRecord = {
+  id: string;
+  userId: string;
+  displayName?: string | null;
+  bio?: string | null;
+  gender?: Gender | null;
+  dateOfBirth?: string | null;
+  location?: string | null;
+  interests?: string[] | null;
+  updatedAt?: string;
+  profileImageUrl?: string | null;
+};
+
+type VeteranDetailsRecord = {
+  id: string;
+  userId: string;
+  branch?: MilitaryBranch | null;
+  rank?: string | null;
+  regiment?: string | null;
+  mos?: string | null;
+  deployments?: string[] | null;
+  dutyStations?: string[] | null;
+  servicePeriods?: ServicePeriod[];
+};
+
+const PROFILE_FORM_DEFAULTS: ProfileFormData = {
+  displayName: '',
+  bio: '',
+  gender: undefined,
+  dateOfBirth: '',
+  location: '',
+  interests: [],
+};
+
+const VETERAN_FORM_DEFAULTS: VeteranFormData = {
+  branch: '',
+  rank: '',
+  serviceNumber: '',
+  regiment: '',
+  trade: '',
+  startDate: '',
+  endDate: '',
+  deployments: [],
+  dutyStations: [],
+};
+
+function toProfileForm(profile?: ProfileRecord | null): ProfileFormData {
+  return {
+    displayName: profile?.displayName ?? '',
+    bio: profile?.bio ?? '',
+    gender: profile?.gender ?? undefined,
+    dateOfBirth: profile?.dateOfBirth ? profile.dateOfBirth.split('T')[0] : '',
+    location: profile?.location ?? '',
+    interests: Array.isArray(profile?.interests) ? profile.interests : [],
+  };
+}
+
+function toVeteranForm(veteranDetails?: VeteranDetailsRecord | null): VeteranFormData {
+  const primaryServicePeriod = veteranDetails?.servicePeriods?.[0];
+
+  return {
+    branch: veteranDetails?.branch ?? '',
+    rank: veteranDetails?.rank ?? '',
+    serviceNumber: '',
+    regiment: veteranDetails?.regiment ?? primaryServicePeriod?.unit ?? '',
+    trade: veteranDetails?.mos ?? '',
+    startDate: primaryServicePeriod?.startDate ? primaryServicePeriod.startDate.split('T')[0] : '',
+    endDate: primaryServicePeriod?.endDate ? primaryServicePeriod.endDate.split('T')[0] : '',
+    deployments: Array.isArray(veteranDetails?.deployments) ? veteranDetails.deployments : [],
+    dutyStations: Array.isArray(veteranDetails?.dutyStations) ? veteranDetails.dutyStations : [],
+  };
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof AxiosError) {
+    const message = error.response?.data?.message;
+    if (Array.isArray(message) && message.length > 0) {
+      return message.join(', ');
+    }
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message;
+    }
+  }
+
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
+function toAuthProfile(profile: ProfileRecord) {
+  return {
+    displayName: profile.displayName ?? '',
+    profileImageUrl: profile.profileImageUrl ?? undefined,
+    bio: profile.bio ?? undefined,
+    gender: profile.gender ?? undefined,
+    dateOfBirth: profile.dateOfBirth ?? undefined,
+    location: profile.location ?? undefined,
+  };
+}
 
 const genderOptions = [
   { value: 'MALE', label: 'Male' },
@@ -68,36 +172,34 @@ export default function ProfilePage() {
   const [showMilitaryModal, setShowMilitaryModal] = useState(false);
   const [newDeployment, setNewDeployment] = useState('');
   const [newStation, setNewStation] = useState('');
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
 
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ['profile'],
-    queryFn: () => api.getProfile(),
+    queryFn: () => api.getProfile() as Promise<ProfileRecord>,
   });
 
-  const { data: veteranDetails, refetch: refetchVeteranDetails } = useQuery({
+  const { data: veteranDetails } = useQuery({
     queryKey: ['veteranDetails'],
-    queryFn: () => api.getVeteranDetails(),
+    queryFn: () => api.getVeteranDetails() as Promise<VeteranDetailsRecord>,
     enabled: isVeteran(user?.role || ''),
   });
+
+  const profileDefaults = useMemo(() => PROFILE_FORM_DEFAULTS, []);
+  const veteranDefaults = useMemo(() => VETERAN_FORM_DEFAULTS, []);
 
   const {
     register,
     handleSubmit,
     watch,
     setValue,
+    reset,
+    setError,
+    clearErrors,
     formState: { errors, isDirty },
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
-    values: profile
-      ? {
-          displayName: profile.displayName || '',
-          bio: profile.bio || '',
-          gender: profile.gender,
-          dateOfBirth: profile.dateOfBirth?.split('T')[0] || '',
-          location: profile.location || '',
-          interests: profile.interests || [],
-        }
-      : undefined,
+    defaultValues: profileDefaults,
   });
 
   const {
@@ -106,58 +208,110 @@ export default function ProfilePage() {
     watch: watchVeteran,
     setValue: setVeteranValue,
     reset: resetVeteranForm,
+    setError: setVeteranError,
+    clearErrors: clearVeteranErrors,
     formState: { errors: veteranErrors },
   } = useForm<VeteranFormData>({
     resolver: zodResolver(veteranSchema),
-    defaultValues: {
-      branch: veteranDetails?.branch || '',
-      rank: veteranDetails?.rank || '',
-      serviceNumber: '',
-      regiment: '',
-      trade: veteranDetails?.mos || '',
-      startDate: '',
-      endDate: '',
-      deployments: veteranDetails?.deployments || [],
-      dutyStations: veteranDetails?.dutyStations || [],
-    },
+    defaultValues: veteranDefaults,
   });
+
+  useEffect(() => {
+    if (!profile) {
+      return;
+    }
+
+    reset(toProfileForm(profile));
+    setLastSavedAt(profile.updatedAt ?? null);
+  }, [profile, reset]);
+
+  useEffect(() => {
+    if (!showMilitaryModal || !veteranDetails) {
+      return;
+    }
+
+    resetVeteranForm(toVeteranForm(veteranDetails));
+  }, [showMilitaryModal, veteranDetails, resetVeteranForm]);
 
   const deployments = watchVeteran('deployments') || [];
   const dutyStations = watchVeteran('dutyStations') || [];
   const interests = watch('interests') || [];
+  const watchedDisplayName = watch('displayName');
+  const watchedBio = watch('bio');
+  const watchedLocation = watch('location');
+  const watchedGender = watch('gender');
+  const watchedDateOfBirth = watch('dateOfBirth');
+  const veteranDutyStations = veteranDetails?.dutyStations ?? [];
+  const veteranDeployments = veteranDetails?.deployments ?? [];
 
   const updateProfileMutation = useMutation({
     mutationFn: (data: ProfileFormData) => api.updateProfile(data),
     onSuccess: (updatedProfile) => {
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      const confirmedProfile = updatedProfile as ProfileRecord;
+      queryClient.setQueryData(['profile'], confirmedProfile);
+      reset(toProfileForm(confirmedProfile));
+      setLastSavedAt(confirmedProfile.updatedAt ?? new Date().toISOString());
       if (user) {
-        setUser({ ...user, profile: updatedProfile });
+        setUser({
+          ...user,
+          profile: {
+            ...user.profile,
+            ...toAuthProfile(confirmedProfile),
+          },
+        });
       }
+      clearErrors('root');
       toast.success('Profile updated successfully!');
     },
-    onError: () => {
-      toast.error('Failed to update profile');
+    onError: (error) => {
+      const message = getErrorMessage(error, 'Failed to update profile');
+      setError('root', {
+        type: 'server',
+        message,
+      });
+      toast.error(message);
     },
   });
 
   const updateVeteranMutation = useMutation({
-    mutationFn: (data: VeteranFormData) => api.updateVeteranDetails(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['veteranDetails'] });
-      refetchVeteranDetails();
+    mutationFn: async (data: VeteranFormData) => {
+      const updatedDetails = await api.updateVeteranDetails({
+        branch: data.branch,
+        rank: data.rank || undefined,
+        regiment: data.regiment || undefined,
+        trade: data.trade || undefined,
+        deployments: data.deployments,
+        dutyStations: data.dutyStations,
+        startDate: data.startDate || undefined,
+        endDate: data.endDate || undefined,
+      });
+
+      return updatedDetails as VeteranDetailsRecord;
+    },
+    onSuccess: (updatedVeteranDetails) => {
+      queryClient.setQueryData(['veteranDetails'], updatedVeteranDetails);
+      resetVeteranForm(toVeteranForm(updatedVeteranDetails));
+      clearVeteranErrors('root');
       setShowMilitaryModal(false);
       toast.success('Military service updated successfully!');
     },
-    onError: () => {
-      toast.error('Failed to update military service');
+    onError: (error) => {
+      const message = getErrorMessage(error, 'Failed to update military service');
+      setVeteranError('root', {
+        type: 'server',
+        message,
+      });
+      toast.error(message);
     },
   });
 
   const onSubmit = (data: ProfileFormData) => {
+    clearErrors('root');
     updateProfileMutation.mutate(data);
   };
 
   const onSubmitVeteran = (data: VeteranFormData) => {
+    clearVeteranErrors('root');
     updateVeteranMutation.mutate(data);
   };
 
@@ -199,18 +353,7 @@ export default function ProfilePage() {
   };
 
   const openMilitaryModal = () => {
-    // Reset form with current values
-    resetVeteranForm({
-      branch: veteranDetails?.branch || '',
-      rank: veteranDetails?.rank || '',
-      serviceNumber: '',
-      regiment: '',
-      trade: veteranDetails?.mos || '',
-      startDate: '',
-      endDate: '',
-      deployments: veteranDetails?.deployments || [],
-      dutyStations: veteranDetails?.dutyStations || [],
-    });
+    resetVeteranForm(toVeteranForm(veteranDetails));
     setShowMilitaryModal(true);
   };
 
@@ -226,12 +369,19 @@ export default function ProfilePage() {
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">My Profile</h1>
-        {isVerifiedVeteran(user?.role || '') && (
-          <Badge variant="success">
-            <Shield className="h-3 w-3 mr-1" />
-            Verified Veteran
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {lastSavedAt && (
+            <span className="text-sm text-muted-foreground">
+              Saved {new Date(lastSavedAt).toLocaleString()}
+            </span>
+          )}
+          {isVerifiedVeteran(user?.role || '') && (
+            <Badge variant="success">
+              <Shield className="h-3 w-3 mr-1" />
+              Verified Veteran
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Profile Photos */}
@@ -248,6 +398,12 @@ export default function ProfilePage() {
             <CardTitle>Basic Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {errors.root?.message && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                {errors.root.message}
+              </div>
+            )}
+
             <Input
               {...register('displayName')}
               label="Display Name"
@@ -278,8 +434,9 @@ export default function ProfilePage() {
             />
 
             <div>
-              <label className="block text-sm font-medium mb-1.5">Bio</label>
+              <label htmlFor="bio" className="block text-sm font-medium mb-1.5">Bio</label>
               <textarea
+                id="bio"
                 {...register('bio')}
                 rows={4}
                 placeholder="Tell others about yourself..."
@@ -333,6 +490,39 @@ export default function ProfilePage() {
         </Card>
       </form>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Your Profile Preview</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <p className="text-lg font-semibold">{watchedDisplayName || 'Your display name will appear here'}</p>
+            <p className="text-sm text-muted-foreground">
+              {[watchedLocation, watchedGender].filter(Boolean).join(' • ') || 'Add location and gender to complete your preview.'}
+            </p>
+          </div>
+          {watchedBio ? (
+            <p className="text-sm leading-6 text-muted-foreground whitespace-pre-wrap">{watchedBio}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">Your bio will show here once you add one.</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {interests.length > 0 ? (
+              interests.map((interest, index) => (
+                <Badge key={`${interest}-${index}`} variant="outline">
+                  {interest}
+                </Badge>
+              ))
+            ) : (
+              <span className="text-sm text-muted-foreground">Add interests so other veterans can recognise what matters to you.</span>
+            )}
+          </div>
+          {watchedDateOfBirth && (
+            <p className="text-sm text-muted-foreground">Date of birth: {watchedDateOfBirth}</p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Veteran Details (if applicable) */}
       {isVeteran(user?.role || '') && (
         <Card>
@@ -356,7 +546,7 @@ export default function ProfilePage() {
                     <Award className="h-4 w-4 text-muted-foreground mt-1" />
                     <div>
                       <label className="text-sm text-muted-foreground">Branch</label>
-                      <p className="font-medium">{formatBranch(veteranDetails.branch) || 'Not set'}</p>
+                      <p className="font-medium">{veteranDetails.branch ? formatBranch(veteranDetails.branch) : 'Not set'}</p>
                     </div>
                   </div>
                   <div>
@@ -369,14 +559,14 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {veteranDetails.dutyStations?.length > 0 && (
+                {veteranDutyStations.length > 0 && (
                   <div>
                     <label className="text-sm text-muted-foreground flex items-center gap-1">
                       <MapPin className="h-3 w-3" />
                       Postings/Bases
                     </label>
                     <div className="flex flex-wrap gap-2 mt-1">
-                      {veteranDetails.dutyStations.map((station: string, i: number) => (
+                      {veteranDutyStations.map((station: string, i: number) => (
                         <Badge key={i} variant="outline">
                           {station}
                         </Badge>
@@ -385,14 +575,14 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-                {veteranDetails.deployments?.length > 0 && (
+                {veteranDeployments.length > 0 && (
                   <div>
                     <label className="text-sm text-muted-foreground flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
                       Deployments/Operations
                     </label>
                     <div className="flex flex-wrap gap-2 mt-1">
-                      {veteranDetails.deployments.map((deployment: string, i: number) => (
+                      {veteranDeployments.map((deployment: string, i: number) => (
                         <Badge key={i} variant="secondary">
                           {deployment}
                         </Badge>
@@ -439,6 +629,12 @@ export default function ProfilePage() {
         title="Edit Military Service"
       >
         <form onSubmit={handleSubmitVeteran(onSubmitVeteran)} className="space-y-4">
+          {veteranErrors.root?.message && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {veteranErrors.root.message}
+            </div>
+          )}
+
           <Select
             {...registerVeteran('branch')}
             label="Branch of Service *"
@@ -470,14 +666,17 @@ export default function ProfilePage() {
             <Input
               {...registerVeteran('startDate')}
               type="date"
-              label="Service Start Date"
+              label="Primary Service Start Date"
             />
             <Input
               {...registerVeteran('endDate')}
               type="date"
-              label="Service End Date"
+              label="Primary Service End Date"
             />
           </div>
+          <p className="text-xs text-muted-foreground">
+            These dates update your primary service period so they survive refresh and future edits.
+          </p>
 
           {/* Postings/Bases */}
           <div>

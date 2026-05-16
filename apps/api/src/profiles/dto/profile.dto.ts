@@ -8,6 +8,7 @@ import {
   IsNumber,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender } from '@prisma/client';
@@ -17,17 +18,17 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @MinLength(2)
-  @MaxLength(100)
+  @MaxLength(50)
   displayName?: string;
 
   @ApiPropertyOptional({ example: 'British Army veteran, served 10 years. Passionate about supporting fellow veterans.' })
   @IsOptional()
   @IsString()
-  @MaxLength(1000)
+  @MaxLength(500)
   bio?: string;
 
   @ApiPropertyOptional({ example: '1985-06-15' })
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined && value !== null && value !== '')
   @IsDateString()
   dateOfBirth?: string;
 
@@ -39,7 +40,7 @@ export class UpdateProfileDto {
   @ApiPropertyOptional({ example: 'Manchester, UK' })
   @IsOptional()
   @IsString()
-  @MaxLength(200)
+  @MaxLength(100)
   location?: string;
 
   @ApiPropertyOptional({ example: 53.4808 })

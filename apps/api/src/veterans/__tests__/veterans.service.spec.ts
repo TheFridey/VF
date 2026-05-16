@@ -15,17 +15,9 @@ const OWNER_ID    = 'owner-user';
 const STRANGER_ID = 'stranger-user';
 const PERIOD_ID   = 'period-1';
 const DETAILS_ID  = 'details-1';
+const PERIOD_CREATED_AT = new Date('2010-01-01T00:00:00.000Z');
 
-const BASE_DETAILS = {
-  id: DETAILS_ID,
-  userId: OWNER_ID,
-  branch: MilitaryBranch.ARMY,
-  rank: 'Sergeant',
-  regiment: '1st Battalion',
-  servicePeriods: [],
-};
-
-const BASE_PERIOD = {
+const BASE_SERVICE_PERIOD = {
   id: PERIOD_ID,
   veteranDetailsId: DETAILS_ID,
   branch: MilitaryBranch.ARMY,
@@ -33,6 +25,23 @@ const BASE_PERIOD = {
   endDate: new Date('2014-01-01'),
   unit: 'A Company',
   dutyStation: 'Camp Bastion',
+  createdAt: PERIOD_CREATED_AT,
+};
+
+const BASE_DETAILS = {
+  id: DETAILS_ID,
+  userId: OWNER_ID,
+  branch: MilitaryBranch.ARMY,
+  rank: 'Sergeant',
+  regiment: '1st Battalion',
+  mos: 'Signals',
+  deployments: ['Op TELIC'],
+  dutyStations: ['Aldershot'],
+  servicePeriods: [BASE_SERVICE_PERIOD],
+};
+
+const BASE_PERIOD = {
+  ...BASE_SERVICE_PERIOD,
   veteranDetails: { userId: OWNER_ID },
 };
 
@@ -40,8 +49,9 @@ function makePrisma(overrides: Record<string, unknown> = {}) {
   return {
     veteranDetails: {
       findUnique: jest.fn().mockResolvedValue(BASE_DETAILS),
+      findUniqueOrThrow: jest.fn().mockResolvedValue(BASE_DETAILS),
       create: jest.fn().mockResolvedValue(BASE_DETAILS),
-      update: jest.fn().mockImplementation(async ({ data }) => ({ ...BASE_DETAILS, ...data })),
+      update: jest.fn().mockImplementation(async ({ data }) => ({ ...BASE_DETAILS, ...data, servicePeriods: BASE_DETAILS.servicePeriods })),
     },
     servicePeriod: {
       create: jest.fn().mockImplementation(async ({ data }) => ({ id: PERIOD_ID, ...data })),
@@ -71,6 +81,7 @@ describe('VeteransService', () => {
       const svc = makeSvc({
         veteranDetails: {
           findUnique: jest.fn().mockResolvedValue(null),
+          findUniqueOrThrow: jest.fn().mockResolvedValue({ ...BASE_DETAILS }),
           create: jest.fn().mockResolvedValue({ ...BASE_DETAILS }),
           update: jest.fn(),
         },
@@ -99,12 +110,19 @@ describe('VeteransService', () => {
       await svc.updateVeteranDetails(OWNER_ID, { branch: MilitaryBranch.NAVY });
       const updateCall = p.veteranDetails.update.mock.calls[0][0];
       expect(updateCall.data.branch).toBe(MilitaryBranch.NAVY);
+      expect(p.servicePeriod.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: PERIOD_ID },
+          data: expect.objectContaining({ branch: MilitaryBranch.NAVY }),
+        }),
+      );
     });
 
     it('creates veteranDetails record if missing', async () => {
       const svc = makeSvc({
         veteranDetails: {
           findUnique: jest.fn().mockResolvedValue(null),
+          findUniqueOrThrow: jest.fn().mockResolvedValue(BASE_DETAILS),
           create: jest.fn().mockResolvedValue(BASE_DETAILS),
           update: jest.fn().mockResolvedValue(BASE_DETAILS),
         },
@@ -112,6 +130,78 @@ describe('VeteransService', () => {
       await svc.updateVeteranDetails(OWNER_ID, { rank: 'Corporal' });
       const p = (svc as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
       expect(p.veteranDetails.create).toHaveBeenCalled();
+    });
+
+    it('preserves omitted fields and sanitizes arrays', async () => {
+      const svc = makeSvc();
+      const p = (svc as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
+
+      await svc.updateVeteranDetails(OWNER_ID, {
+        regiment: '  Royal Signals  ',
+        trade: '  Communications Specialist  ',
+        deployments: [' Op TELIC ', '', 'op telic', 'Op HERRICK'],
+        dutyStations: [' Catterick ', 'catterick', 'Germany'],
+      });
+
+      const updateCall = p.veteranDetails.update.mock.calls[0][0];
+      expect(updateCall.data.rank).toBeUndefined();
+      expect(updateCall.data.regiment).toBe('Royal Signals');
+      expect(updateCall.data.mos).toBe('Communications Specialist');
+      expect(updateCall.data.deployments).toEqual(['Op TELIC', 'Op HERRICK']);
+      expect(updateCall.data.dutyStations).toEqual(['Catterick', 'Germany']);
+    });
+
+    it('syncs primary service period dates from veteran details updates', async () => {
+      const svc = makeSvc();
+      const p = (svc as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
+
+      await svc.updateVeteranDetails(OWNER_ID, {
+        regiment: 'Fleet Air Arm',
+        startDate: '2011-02-01',
+        endDate: '2015-04-01',
+      });
+
+      expect(p.servicePeriod.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: PERIOD_ID },
+          data: expect.objectContaining({
+            startDate: new Date('2011-02-01'),
+            endDate: new Date('2015-04-01'),
+            unit: 'Fleet Air Arm',
+          }),
+        }),
+      );
+    });
+
+    it('creates a primary service period when dates are supplied and none exists yet', async () => {
+      const svc = makeSvc({
+        veteranDetails: {
+          findUnique: jest.fn().mockResolvedValue({ ...BASE_DETAILS, servicePeriods: [] }),
+          findUniqueOrThrow: jest.fn().mockResolvedValue({ ...BASE_DETAILS, servicePeriods: [BASE_SERVICE_PERIOD] }),
+          create: jest.fn().mockResolvedValue({ ...BASE_DETAILS, servicePeriods: [] }),
+          update: jest.fn().mockImplementation(async ({ data }) => ({ ...BASE_DETAILS, ...data, servicePeriods: [] })),
+        },
+      });
+      const p = (svc as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
+
+      await svc.updateVeteranDetails(OWNER_ID, {
+        branch: MilitaryBranch.ARMY,
+        regiment: 'Royal Signals',
+        startDate: '2012-01-01',
+        endDate: '2016-01-01',
+      });
+
+      expect(p.servicePeriod.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            veteranDetailsId: DETAILS_ID,
+            branch: MilitaryBranch.ARMY,
+            startDate: new Date('2012-01-01'),
+            endDate: new Date('2016-01-01'),
+            unit: 'Royal Signals',
+          }),
+        }),
+      );
     });
   });
 
@@ -148,6 +238,25 @@ describe('VeteransService', () => {
       });
       const data = p.servicePeriod.create.mock.calls[0][0].data;
       expect(data.endDate).toBeNull();
+    });
+
+    it('accepts ISO date payloads for onboarding compatibility', async () => {
+      const svc = makeSvc();
+      const p = (svc as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
+
+      await svc.addServicePeriod(OWNER_ID, {
+        branch: MilitaryBranch.ARMY,
+        startDate: '2010-03-01',
+        endDate: '2014-06-01',
+        unit: 'Alpha Company',
+        location: 'Helmand Province',
+      });
+
+      const data = p.servicePeriod.create.mock.calls[0][0].data;
+      expect(data.startDate).toEqual(new Date('2010-03-01'));
+      expect(data.endDate).toEqual(new Date('2014-06-01'));
+      expect(data.unit).toBe('Alpha Company');
+      expect(data.dutyStation).toBe('Helmand Province');
     });
   });
 

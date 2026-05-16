@@ -3,9 +3,10 @@ import { ProfilesController } from './profiles.controller';
 import { ProfilesService } from './profiles.service';
 import { PrismaModule } from '../common/prisma/prisma.module';
 import { RedisModule } from '../common/redis/redis.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
-  imports: [PrismaModule, RedisModule],
+  imports: [PrismaModule, RedisModule, AuditModule],
   controllers: [ProfilesController],
   providers: [ProfilesService],
   exports: [ProfilesService],

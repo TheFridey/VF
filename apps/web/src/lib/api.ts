@@ -254,7 +254,7 @@ class ApiClient {
   }
 
   async updateProfile(data: Record<string, unknown>) {
-    const response = await this.client.put('/profiles/me', data);
+    const response = await this.client.patch('/profiles/me', data);
     return response.data;
   }
 

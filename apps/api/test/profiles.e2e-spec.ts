@@ -3,6 +3,7 @@
  */
 
 import { INestApplication } from '@nestjs/common';
+import { UserRole, UserStatus } from '@prisma/client';
 import * as request from 'supertest';
 import { createStaffUser, createTestApp, getCookieValue, loginUser, TestApp } from './test-helpers';
 
@@ -20,6 +21,56 @@ describe('Profiles & Brothers E2E', () => {
   afterAll(async () => {
     await app.close();
   });
+
+  async function createVerifiedVeteran(email: string, password: string) {
+    const passwordHash = await testApp.passwordSecurity.hash(password);
+
+    return testApp.prisma.user.upsert({
+      where: { email: email.toLowerCase() },
+      update: {
+        passwordHash,
+        emailVerified: true,
+        role: UserRole.VETERAN_VERIFIED,
+        status: UserStatus.ACTIVE,
+        refreshTokenHash: null,
+        refreshTokenExpiresAt: null,
+        profile: {
+          upsert: {
+            update: {},
+            create: {},
+          },
+        },
+      },
+      create: {
+        email: email.toLowerCase(),
+        passwordHash,
+        emailVerified: true,
+        role: UserRole.VETERAN_VERIFIED,
+        status: UserStatus.ACTIVE,
+        profile: {
+          create: {},
+        },
+      },
+    });
+  }
+
+  function getProfileMutationHeaders(loginResponse: { headers: Record<string, unknown> }) {
+    const accessToken = getCookieValue(loginResponse, 'access_token');
+    const csrfToken = getCookieValue(loginResponse, 'csrf-token');
+
+    expect(accessToken).toBeTruthy();
+    expect(csrfToken).toBeTruthy();
+
+    if (!accessToken || !csrfToken) {
+      throw new Error('Expected auth cookies were not set');
+    }
+
+    return {
+      Authorization: `Bearer ${accessToken}`,
+      Cookie: `csrf-token=${csrfToken}`,
+      'X-CSRF-Token': csrfToken,
+    };
+  }
 
   describe('GET /profiles/me', () => {
     it('returns 401 without auth', async () => {
@@ -66,6 +117,104 @@ describe('Profiles & Brothers E2E', () => {
 
       const loginRes = await http.post('/api/v1/auth/login').send({ email, password: 'Test@Passphrase99!' });
       expect(loginRes.status).toBe(401);
+    });
+  });
+
+  describe('PATCH /profiles/me persistence', () => {
+    it('persists a full profile update and preserves omitted fields on later partial updates', async () => {
+      const email = `profile-veteran-${runId}@test.com`;
+      const password = 'VeteranPassphrase99!';
+
+      await createVerifiedVeteran(email, password);
+
+      const loginRes = await loginUser(http, email, password);
+      expect(loginRes.status).toBe(200);
+      const headers = getProfileMutationHeaders(loginRes);
+
+      const fullUpdateRes = await http
+        .patch('/api/v1/profiles/me')
+        .set(headers)
+        .send({
+          displayName: 'Casey Morgan',
+          bio: 'Signals veteran and volunteer mentor.',
+          gender: 'NON_BINARY',
+          dateOfBirth: '1988-06-15',
+          location: 'Leeds',
+          interests: ['Hiking', 'Mentoring', 'Photography'],
+        });
+
+      expect(fullUpdateRes.status).toBe(200);
+      expect(fullUpdateRes.body.data.displayName).toBe('Casey Morgan');
+      expect(fullUpdateRes.body.data.bio).toBe('Signals veteran and volunteer mentor.');
+      expect(fullUpdateRes.body.data.gender).toBe('NON_BINARY');
+      expect(fullUpdateRes.body.data.location).toBe('Leeds');
+      expect(fullUpdateRes.body.data.interests).toEqual(['Hiking', 'Mentoring', 'Photography']);
+      expect(String(fullUpdateRes.body.data.dateOfBirth)).toContain('1988-06-15');
+
+      const getAfterFullUpdate = await http
+        .get('/api/v1/profiles/me')
+        .set('Authorization', headers.Authorization);
+
+      expect(getAfterFullUpdate.status).toBe(200);
+      expect(getAfterFullUpdate.body.data.displayName).toBe('Casey Morgan');
+      expect(getAfterFullUpdate.body.data.bio).toBe('Signals veteran and volunteer mentor.');
+      expect(getAfterFullUpdate.body.data.gender).toBe('NON_BINARY');
+      expect(getAfterFullUpdate.body.data.location).toBe('Leeds');
+      expect(getAfterFullUpdate.body.data.interests).toEqual(['Hiking', 'Mentoring', 'Photography']);
+      expect(String(getAfterFullUpdate.body.data.dateOfBirth)).toContain('1988-06-15');
+
+      const partialUpdateRes = await http
+        .patch('/api/v1/profiles/me')
+        .set(headers)
+        .send({
+          location: 'York',
+        });
+
+      expect(partialUpdateRes.status).toBe(200);
+      expect(partialUpdateRes.body.data.location).toBe('York');
+      expect(partialUpdateRes.body.data.displayName).toBe('Casey Morgan');
+      expect(partialUpdateRes.body.data.bio).toBe('Signals veteran and volunteer mentor.');
+      expect(partialUpdateRes.body.data.interests).toEqual(['Hiking', 'Mentoring', 'Photography']);
+
+      const getAfterPartialUpdate = await http
+        .get('/api/v1/profiles/me')
+        .set('Authorization', headers.Authorization);
+
+      expect(getAfterPartialUpdate.status).toBe(200);
+      expect(getAfterPartialUpdate.body.data.displayName).toBe('Casey Morgan');
+      expect(getAfterPartialUpdate.body.data.bio).toBe('Signals veteran and volunteer mentor.');
+      expect(getAfterPartialUpdate.body.data.gender).toBe('NON_BINARY');
+      expect(getAfterPartialUpdate.body.data.location).toBe('York');
+      expect(getAfterPartialUpdate.body.data.interests).toEqual(['Hiking', 'Mentoring', 'Photography']);
+      expect(String(getAfterPartialUpdate.body.data.dateOfBirth)).toContain('1988-06-15');
+    });
+
+    it('sanitizes duplicate and empty interests', async () => {
+      const email = `profile-interests-${runId}@test.com`;
+      const password = 'VeteranPassphrase99!';
+
+      await createVerifiedVeteran(email, password);
+
+      const loginRes = await loginUser(http, email, password);
+      expect(loginRes.status).toBe(200);
+      const headers = getProfileMutationHeaders(loginRes);
+
+      const updateRes = await http
+        .patch('/api/v1/profiles/me')
+        .set(headers)
+        .send({
+          interests: [' Hiking ', '', 'hiking', 'Mentoring', ' mentoring ', 'Photography'],
+        });
+
+      expect(updateRes.status).toBe(200);
+      expect(updateRes.body.data.interests).toEqual(['Hiking', 'Mentoring', 'Photography']);
+
+      const getRes = await http
+        .get('/api/v1/profiles/me')
+        .set('Authorization', headers.Authorization);
+
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.data.interests).toEqual(['Hiking', 'Mentoring', 'Photography']);
     });
   });
 

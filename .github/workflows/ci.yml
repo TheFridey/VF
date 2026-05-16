@@ -32,6 +32,16 @@ jobs:
       - name: Install API dependencies
         run: npm ci --prefix apps/api
 
+      - name: Validate Prisma schema
+        run: npx --prefix apps/api prisma validate --schema apps/api/prisma/schema.prisma
+        env:
+          DATABASE_URL: postgresql://vf_test:vf_test_pass@localhost:5432/veteranfinder_test
+
+      - name: Generate Prisma client
+        run: npx --prefix apps/api prisma generate --schema apps/api/prisma/schema.prisma
+        env:
+          DATABASE_URL: postgresql://vf_test:vf_test_pass@localhost:5432/veteranfinder_test
+
       - name: Install web dependencies
         run: npm ci --prefix apps/web
 
