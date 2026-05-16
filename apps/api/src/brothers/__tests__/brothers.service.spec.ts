@@ -1,9 +1,3 @@
-/**
- * BrothersService — covers:
- *   sendConnectionRequest: guards (self-connect, verification, duplicate, overlap score calc)
- *   getConnectionRequests: returns pending requests for the user
- *   respondToConnection: accept/decline flow
- */
 import {
   BadRequestException,
   ForbiddenException,
@@ -11,28 +5,44 @@ import {
 } from '@nestjs/common';
 import { BrothersService } from '../brothers.service';
 
-// ── Constants ──────────────────────────────────────────────────────────────────
-
 const U1 = 'user-1';
 const U2 = 'user-2';
 const U3_UNVERIFIED = 'user-3-unverified';
 const CONN_ID = 'conn-abc';
 
-// ── Mock factories ────────────────────────────────────────────────────────────
-
-function makeVerifiedUser(id: string, hasServicePeriods = true) {
+function makeVerifiedUser(
+  id: string,
+  overrides: Partial<{
+    branch: string;
+    regiment: string | null;
+    deployments: string[];
+    dutyStations: string[];
+    servicePeriods: Array<{
+      startDate: Date;
+      endDate: Date | null;
+      unit: string | null;
+      dutyStation: string | null;
+    }>;
+  }> = {},
+) {
   return {
     id,
     role: 'VETERAN_VERIFIED',
     veteranDetails: {
       id: `det-${id}`,
-      branch: 'ARMY',
+      branch: overrides.branch ?? 'BRITISH_ARMY',
       rank: 'Corporal',
-      regiment: '1st Battalion',
-      servicePeriods: hasServicePeriods
-        ? [{ startDate: new Date('2010-01-01'), endDate: new Date('2014-01-01'), unit: 'A Coy' }]
-        : [],
-      deployments: ['Afghanistan'],
+      regiment: overrides.regiment ?? '1 para',
+      servicePeriods: overrides.servicePeriods ?? [
+        {
+          startDate: new Date('2010-01-01'),
+          endDate: new Date('2014-01-01'),
+          unit: 'A Company 1 Para',
+          dutyStation: 'Colchester',
+        },
+      ],
+      deployments: overrides.deployments ?? ['Afghanistan'],
+      dutyStations: overrides.dutyStations ?? ['Colchester'],
     },
     profile: { displayName: `User ${id}` },
   };
@@ -64,6 +74,7 @@ function makePrisma(overrides: Record<string, unknown> = {}) {
         if (where.id === U3_UNVERIFIED) return makeUnverifiedUser(U3_UNVERIFIED);
         return null;
       }),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     block: {
       findFirst: jest.fn().mockResolvedValue(null),
@@ -92,26 +103,36 @@ function makeSvc(prismaOverride: Record<string, unknown> = {}) {
   );
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+type BrothersServiceInternals = {
+  calculateOverlapScore: (
+    user1: ReturnType<typeof makeVerifiedUser>,
+    user2: ReturnType<typeof makeVerifiedUser>,
+  ) => number;
+  getOverlapReasons: (
+    user1: ReturnType<typeof makeVerifiedUser>,
+    user2: ReturnType<typeof makeVerifiedUser>,
+  ) => string[];
+};
 
 describe('BrothersService', () => {
   describe('sendConnectionRequest', () => {
     it('throws BadRequestException when user tries to connect with themselves', async () => {
-      const svc = makeSvc();
-      await expect(svc.sendConnectionRequest(U1, U1)).rejects.toThrow(BadRequestException);
+      const service = makeSvc();
+      await expect(service.sendConnectionRequest(U1, U1)).rejects.toThrow(BadRequestException);
     });
 
-    it('throws NotFoundException when target user does not exist', async () => {
-      const svc = makeSvc({
+    it('throws NotFoundException when the target user does not exist', async () => {
+      const service = makeSvc({
         user: {
           findUnique: jest.fn().mockResolvedValue(null),
         },
       });
-      await expect(svc.sendConnectionRequest(U1, 'ghost')).rejects.toThrow(NotFoundException);
+
+      await expect(service.sendConnectionRequest(U1, 'ghost')).rejects.toThrow(NotFoundException);
     });
 
-    it('throws ForbiddenException when requesting user is not verified', async () => {
-      const svc = makeSvc({
+    it('throws ForbiddenException when the requesting user is not verified', async () => {
+      const service = makeSvc({
         user: {
           findUnique: jest.fn().mockImplementation(async ({ where }: { where: { id: string } }) => {
             if (where.id === U3_UNVERIFIED) return makeUnverifiedUser(U3_UNVERIFIED);
@@ -120,11 +141,12 @@ describe('BrothersService', () => {
           }),
         },
       });
-      await expect(svc.sendConnectionRequest(U3_UNVERIFIED, U2)).rejects.toThrow(ForbiddenException);
+
+      await expect(service.sendConnectionRequest(U3_UNVERIFIED, U2)).rejects.toThrow(ForbiddenException);
     });
 
-    it('throws ForbiddenException when target user is not verified', async () => {
-      const svc = makeSvc({
+    it('throws ForbiddenException when the target user is not verified', async () => {
+      const service = makeSvc({
         user: {
           findUnique: jest.fn().mockImplementation(async ({ where }: { where: { id: string } }) => {
             if (where.id === U1) return makeVerifiedUser(U1);
@@ -133,11 +155,12 @@ describe('BrothersService', () => {
           }),
         },
       });
-      await expect(svc.sendConnectionRequest(U1, U3_UNVERIFIED)).rejects.toThrow(ForbiddenException);
+
+      await expect(service.sendConnectionRequest(U1, U3_UNVERIFIED)).rejects.toThrow(ForbiddenException);
     });
 
-    it('throws BadRequestException when connection already exists', async () => {
-      const svc = makeSvc({
+    it('throws BadRequestException when a connection already exists', async () => {
+      const service = makeSvc({
         connection: {
           findMany: jest.fn().mockResolvedValue([]),
           findFirst: jest.fn().mockResolvedValue({ id: CONN_ID, status: 'PENDING' }),
@@ -145,14 +168,17 @@ describe('BrothersService', () => {
           update: jest.fn(),
         },
       });
-      await expect(svc.sendConnectionRequest(U1, U2)).rejects.toThrow(BadRequestException);
+
+      await expect(service.sendConnectionRequest(U1, U2)).rejects.toThrow(BadRequestException);
     });
 
-    it('creates connection with PENDING status when all guards pass', async () => {
-      const svc = makeSvc();
-      const p = (svc as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
-      await svc.sendConnectionRequest(U1, U2);
-      expect(p.connection.create).toHaveBeenCalledWith(
+    it('creates a pending connection when all guards pass', async () => {
+      const service = makeSvc();
+      const prisma = (service as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
+
+      await service.sendConnectionRequest(U1, U2);
+
+      expect(prisma.connection.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             user1Id: U1,
@@ -163,17 +189,19 @@ describe('BrothersService', () => {
       );
     });
 
-    it('calculates an overlapScore on the connection', async () => {
-      const svc = makeSvc();
-      const p = (svc as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
-      await svc.sendConnectionRequest(U1, U2);
-      const createArg = p.connection.create.mock.calls[0][0].data;
+    it('stores an overlapScore on the connection', async () => {
+      const service = makeSvc();
+      const prisma = (service as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
+
+      await service.sendConnectionRequest(U1, U2);
+
+      const createArg = prisma.connection.create.mock.calls[0][0].data;
       expect(typeof createArg.overlapScore).toBe('number');
     });
   });
 
   describe('getConnectionRequests', () => {
-    it('returns pending requests where user is the recipient', async () => {
+    it('returns pending requests where the user is the recipient', async () => {
       const request = {
         id: CONN_ID,
         overlapScore: 0.7,
@@ -182,10 +210,11 @@ describe('BrothersService', () => {
         user1: {
           id: U1,
           profile: { displayName: 'User 1', profileImageUrl: null },
-          veteranDetails: { branch: 'ARMY', rank: 'Corporal' },
+          veteranDetails: { branch: 'BRITISH_ARMY', rank: 'Corporal', servicePeriods: [] },
         },
       };
-      const svc = makeSvc({
+
+      const service = makeSvc({
         connection: {
           findMany: jest.fn().mockResolvedValue([request]),
           findFirst: jest.fn().mockResolvedValue(null),
@@ -193,21 +222,22 @@ describe('BrothersService', () => {
           update: jest.fn(),
         },
       });
-      const result = await svc.getConnectionRequests(U2);
+
+      const result = await service.getConnectionRequests(U2);
       expect(result.requests).toHaveLength(1);
       expect(result.requests[0].from.id).toBe(U1);
     });
 
-    it('returns empty array when no pending requests', async () => {
-      const svc = makeSvc();
-      const result = await svc.getConnectionRequests(U2);
+    it('returns an empty array when no pending requests exist', async () => {
+      const service = makeSvc();
+      const result = await service.getConnectionRequests(U2);
       expect(result.requests).toHaveLength(0);
     });
   });
 
-  describe('respondToConnection', () => {
+  describe('respondToRequest', () => {
     it('updates status to ACTIVE on accept', async () => {
-      const svc = makeSvc({
+      const service = makeSvc({
         connection: {
           findMany: jest.fn().mockResolvedValue([]),
           findFirst: jest.fn().mockResolvedValue(null),
@@ -216,17 +246,19 @@ describe('BrothersService', () => {
           update: jest.fn().mockResolvedValue({ id: CONN_ID, status: 'ACTIVE' }),
         },
       });
-      const p = (svc as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
-      await svc.respondToRequest(U2, CONN_ID, true);
-      expect(p.connection.update).toHaveBeenCalledWith(
+
+      const prisma = (service as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
+      await service.respondToRequest(U2, CONN_ID, true);
+
+      expect(prisma.connection.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ status: 'ACTIVE' }),
         }),
       );
     });
 
-    it('updates status to DECLINED on decline', async () => {
-      const svc = makeSvc({
+    it('deletes the request on decline', async () => {
+      const service = makeSvc({
         connection: {
           findMany: jest.fn().mockResolvedValue([]),
           findFirst: jest.fn().mockResolvedValue(null),
@@ -236,15 +268,17 @@ describe('BrothersService', () => {
           delete: jest.fn().mockResolvedValue({ id: CONN_ID }),
         },
       });
-      const p = (svc as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
-      await svc.respondToRequest(U2, CONN_ID, false);
-      expect(p.connection.delete).toHaveBeenCalledWith(
+
+      const prisma = (service as unknown as { prisma: ReturnType<typeof makePrisma> }).prisma;
+      await service.respondToRequest(U2, CONN_ID, false);
+
+      expect(prisma.connection.delete).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: CONN_ID } }),
       );
     });
 
-    it('throws NotFoundException when connection does not exist', async () => {
-      const svc = makeSvc({
+    it('throws NotFoundException when the request does not exist', async () => {
+      const service = makeSvc({
         connection: {
           findMany: jest.fn().mockResolvedValue([]),
           findFirst: jest.fn().mockResolvedValue(null),
@@ -253,13 +287,12 @@ describe('BrothersService', () => {
           update: jest.fn(),
         },
       });
-      await expect(
-        svc.respondToRequest(U2, 'no-such', true),
-      ).rejects.toThrow(NotFoundException);
+
+      await expect(service.respondToRequest(U2, 'no-such', true)).rejects.toThrow(NotFoundException);
     });
 
-    it('throws ForbiddenException when non-recipient tries to respond', async () => {
-      const svc = makeSvc({
+    it('throws ForbiddenException when a non-recipient tries to respond', async () => {
+      const service = makeSvc({
         connection: {
           findMany: jest.fn().mockResolvedValue([]),
           findFirst: jest.fn().mockResolvedValue(null),
@@ -269,10 +302,100 @@ describe('BrothersService', () => {
           delete: jest.fn(),
         },
       });
-      // U1 is the sender, not the recipient — should be rejected
-      await expect(
-        svc.respondToRequest(U1, CONN_ID, true),
-      ).rejects.toThrow(ForbiddenException);
+
+      await expect(service.respondToRequest(U1, CONN_ID, true)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('overlap scoring hardening', () => {
+    it('does not inflate overlap scores from duplicate deployment aliases', () => {
+      const service = makeSvc();
+      const internals = service as unknown as BrothersServiceInternals;
+
+      const baseLeft = makeVerifiedUser(U1, {
+        deployments: ['Helmand'],
+        dutyStations: [],
+        servicePeriods: [],
+      });
+      const baseRight = makeVerifiedUser(U2, {
+        deployments: ['Afghanistan'],
+        dutyStations: [],
+        servicePeriods: [],
+      });
+      const duplicatedLeft = makeVerifiedUser(U1, {
+        deployments: ['Helmand', 'Camp Bastion', 'Operation Herrick'],
+        dutyStations: [],
+        servicePeriods: [],
+      });
+      const duplicatedRight = makeVerifiedUser(U2, {
+        deployments: ['Afghanistan', 'Op Herrick'],
+        dutyStations: [],
+        servicePeriods: [],
+      });
+
+      const baseScore = internals.calculateOverlapScore(baseLeft, baseRight);
+      const duplicateScore = internals.calculateOverlapScore(duplicatedLeft, duplicatedRight);
+
+      expect(duplicateScore).toBe(baseScore);
+    });
+
+    it('prefers strong overlapping unit matches over branch-only matches', () => {
+      const service = makeSvc();
+      const internals = service as unknown as BrothersServiceInternals;
+
+      const weakMatchLeft = makeVerifiedUser(U1, {
+        deployments: [],
+        dutyStations: [],
+        servicePeriods: [],
+      });
+      const weakMatchRight = makeVerifiedUser(U2, {
+        deployments: [],
+        dutyStations: [],
+        servicePeriods: [],
+      });
+      const strongMatchLeft = makeVerifiedUser(U1);
+      const strongMatchRight = makeVerifiedUser(U2, {
+        regiment: '1st Battalion Parachute Regiment',
+        deployments: ['Helmand'],
+        dutyStations: ['Colchester'],
+        servicePeriods: [
+          {
+            startDate: new Date('2011-01-01'),
+            endDate: new Date('2013-01-01'),
+            unit: '1 PARA A Coy',
+            dutyStation: 'Colchester Garrison',
+          },
+        ],
+      });
+
+      const weakScore = internals.calculateOverlapScore(weakMatchLeft, weakMatchRight);
+      const strongScore = internals.calculateOverlapScore(strongMatchLeft, strongMatchRight);
+
+      expect(strongScore).toBeGreaterThan(weakScore);
+      expect(strongScore).toBeGreaterThanOrEqual(60);
+    });
+
+    it('dedupes repeated overlap reasons for the same theatre', () => {
+      const service = makeSvc();
+      const internals = service as unknown as BrothersServiceInternals;
+
+      const left = makeVerifiedUser(U1, {
+        regiment: null,
+        deployments: ['Helmand', 'Camp Bastion'],
+        dutyStations: [],
+        servicePeriods: [],
+      });
+      const right = makeVerifiedUser(U2, {
+        regiment: null,
+        deployments: ['Afghanistan', 'Op Herrick'],
+        dutyStations: [],
+        servicePeriods: [],
+      });
+
+      const reasons = internals.getOverlapReasons(left, right);
+      const deploymentReasons = reasons.filter((reason) => reason.includes('Both deployed to Afghanistan'));
+
+      expect(deploymentReasons).toHaveLength(1);
     });
   });
 });

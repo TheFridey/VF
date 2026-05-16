@@ -17,7 +17,7 @@ export function VeteranFinderLogo({
   priority = false,
 }: VeteranFinderLogoProps) {
   return (
-    <span className={cn('flex items-center gap-2.5', className)}>
+    <span className={cn('flex min-w-0 items-center gap-2.5', className)}>
       <Image
         src="/veteranfinder-mark.svg"
         alt="VeteranFinder"
@@ -27,7 +27,7 @@ export function VeteranFinderLogo({
         className={cn('h-8 w-auto shrink-0 object-contain', markClassName)}
       />
       {showText ? (
-        <span className={cn('text-lg font-semibold tracking-tight', textClassName)}>
+        <span className={cn('block min-w-0 text-lg font-semibold tracking-tight', textClassName)}>
           VeteranFinder
         </span>
       ) : null}
